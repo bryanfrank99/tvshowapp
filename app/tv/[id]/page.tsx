@@ -7,6 +7,7 @@ import { getImdbId, imdbTitleUrl } from "@/lib/imdb";
 import { isImdbId, cineMeta, cineSeriesDetail, cineSeasons, cineEpisodes } from "@/lib/free";
 import FavButton from "@/components/FavButton";
 import ContinueSeriesButton from "@/components/ContinueSeriesButton";
+import { IconStar } from "@/components/Icons";
 
 export default async function TvPage({ params, searchParams }: { params: { id: string }; searchParams: { season?: string } }) {
   const useFree = isImdbId(params.id) || !hasKey();
@@ -34,7 +35,7 @@ export default async function TvPage({ params, searchParams }: { params: { id: s
           <Image src={img(s.poster_path)} alt={s.name} width={440} height={660} className="rounded-2xl w-full" />
           <div>
             <h1 className="text-3xl font-black">{s.name}</h1>
-            <p className="text-sm text-zinc-400 mt-1">⭐ {Math.round((s.vote_average || 0) * 10) / 10} · {s.first_air_date} · {s.number_of_seasons}T · {s.number_of_episodes}E
+            <p className="text-sm text-zinc-400 mt-1 inline-flex items-center gap-1.5 flex-wrap"><IconStar size={13} className="text-[#f5c518]" />{Math.round((s.vote_average || 0) * 10) / 10} · {s.first_air_date} · {s.number_of_seasons}T · {s.number_of_episodes}E
               {imdbId && <> · <a className="imdb-badge" target="_blank" rel="noopener" href={imdbTitleUrl(imdbId)}>IMDb {imdbId} ↗</a></>}</p>
             <p className="mt-3 text-zinc-300">{s.overview}</p>
             <div className="flex gap-2 mt-4 flex-wrap items-center">
@@ -53,7 +54,7 @@ export default async function TvPage({ params, searchParams }: { params: { id: s
               <Image src={img(ep.still_path || s.poster_path)} alt={ep.name} width={224} height={126} className="w-28 rounded-xl object-cover" loading="lazy" />
               <div className="min-w-0">
                 <p className="font-bold text-sm">E{ep.episode_number} · {ep.name}</p>
-                <p className="text-xs text-zinc-500">⭐ {Math.round((ep.vote_average || 0) * 10) / 10} · {ep.air_date || ""}</p>
+                <p className="text-xs text-zinc-500 inline-flex items-center gap-1"><IconStar size={11} className="text-[#f5c518]" />{Math.round((ep.vote_average || 0) * 10) / 10} · {ep.air_date || ""}</p>
                 <p className="text-xs text-zinc-400 line-clamp-2">{ep.overview || "Sin descripción."}</p>
               </div>
             </Link>

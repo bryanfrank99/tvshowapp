@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useHistory, timeAgo } from "@/hooks/useHistory";
+import { IconClock, IconX } from "@/components/Icons";
 
 export default function ContinueWatching() {
   const { history, remove, clear } = useHistory();
@@ -14,7 +15,7 @@ export default function ContinueWatching() {
   return (
     <section className="mb-8">
       <div className="flex items-center gap-3 mb-3">
-        <h2 className="text-xl font-extrabold">⏱️ Seguir viendo</h2>
+        <h2 className="text-xl font-extrabold inline-flex items-center gap-2"><IconClock className="text-violet-400" />Seguir viendo</h2>
         <button
           onClick={() => { if (confirm("¿Borrar todo Seguir viendo?")) clear(); }}
           className="text-xs text-zinc-500 hover:text-red-400 border border-white/10 hover:border-red-400/50 rounded-full px-2.5 py-0.5"
@@ -38,9 +39,9 @@ export default function ContinueWatching() {
                 onClick={() => remove(x)}
                 title={`Quitar ${x.title}`}
                 aria-label={`Quitar ${x.title} de Seguir viendo`}
-                className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 border border-white/20 text-sm leading-none hover:bg-red-600 hover:border-red-600"
+                className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 border border-white/20 hover:bg-red-600 hover:border-red-600 flex items-center justify-center"
               >
-                ✕
+                <IconX size={12} />
               </button>
             </div>
           );

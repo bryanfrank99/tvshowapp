@@ -42,5 +42,19 @@
       "movie": "https://vimeus.com/e/movie?{idparam}&view_key={key}",
       "tv": "https://vimeus.com/e/serie?{idparam}&se={s}&ep={e}&view_key={key}"
     }
+  ],
+  "live": [
+    {
+      "id": "streambetter",
+      "name": "Streambetter PT",
+      "format": "streambetter",
+      "list": "https://streambetter.shop/api/channels?limit=60"
+    },
+    {
+      "id": "tvf90",
+      "name": "Deportes ES",
+      "format": "tvf90",
+      "list": "https://tvf90.com/status.json"
+    }
   ]
 }

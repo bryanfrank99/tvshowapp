@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useHistory } from "@/hooks/useHistory";
+import { IconPlay } from "@/components/Icons";
 
 // En el detalle de una serie: si hay último capítulo visto, botón para continuar.
 export default function ContinueSeriesButton({ id }: { id: string }) {
@@ -14,9 +15,9 @@ export default function ContinueSeriesButton({ id }: { id: string }) {
   return (
     <Link
       href={`/watch?type=tv&id=${id}&s=${last.season}&e=${last.episode}`}
-      className="bg-violet-600 hover:bg-violet-500 rounded-xl px-5 py-2.5 font-bold inline-block"
+      className="bg-violet-600 hover:bg-violet-500 rounded-xl px-5 py-2.5 font-bold inline-flex items-center gap-2"
     >
-      ▶ Continuar T{last.season}E{last.episode}
+      <IconPlay size={15} />Continuar T{last.season}E{last.episode}
     </Link>
   );
 }

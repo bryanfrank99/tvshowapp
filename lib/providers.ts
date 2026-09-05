@@ -73,7 +73,7 @@ export const PROVIDERS: Record<string, Provider> = Object.fromEntries(
 export const DEFAULT_PROVIDER = "vidcore";
 
 // ---- Carga remota (cliente) con caché de 1h en localStorage ----
-const LS_CACHE = "tvshow_providers_cache_v1";
+const LS_CACHE = "tvshow_providers_cache_v2";
 const TTL = 3600 * 1000;
 
 export function providersUrl() {
@@ -108,4 +108,38 @@ export async function fetchProviders(): Promise<Provider[]> {
 
 function envKey() {
   return envVimeusKey();
+}
+
+// ---- Fuentes de TV en vivo (también configurables en el mismo JSON) ----
+// Esquema: "live": [{ "id": "tvf90", "name": "Agenda deportiva", "format": "tvf90"|"streambetter", "list": "https://..." }]
+export type LiveSource = { id: string; name: string; format: "streambetter" | "tvf90"; list: string };
+
+const BUILTIN_LIVE: LiveSource[] = [
+  { id: "streambetter", name: "Canales", format: "streambetter", list: "https://streambetter.shop/api/channels?limit=60" },
+  { id: "tvf90", name: "Agenda deportiva", format: "tvf90", list: "https://tvf90.com/status.json" },
+];
+
+const LS_LIVE = "tvshow_live_cache_v2";
+
+export async function fetchLiveSources(): Promise<LiveSource[]> {
+  try {
+    const raw = localStorage.getItem(LS_LIVE);
+    if (raw) {
+      const c = JSON.parse(raw);
+      if (c.t + TTL > Date.now() && Array.isArray(c.list) && c.list.length) return c.list;
+    }
+  } catch {}
+  try {
+    const r = await fetch(providersUrl(), { cache: "no-store" });
+    if (!r.ok) throw new Error();
+    const j = await r.json();
+    const arr = j.live;
+    if (!Array.isArray(arr) || !arr.length) throw new Error("empty");
+    const valid = arr.filter((s) => s && s.id && s.name && s.format && s.list);
+    if (!valid.length) throw new Error("invalid");
+    try { localStorage.setItem(LS_LIVE, JSON.stringify({ t: Date.now(), list: valid })); } catch {}
+    return valid;
+  } catch {
+    return BUILTIN_LIVE;
+  }
 }

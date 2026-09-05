@@ -87,6 +87,20 @@ export async function getUpcoming(n = 12): Promise<Media[]> {
   }, () => free.cineCatalog("movie", "top", n));
 }
 
+export async function getMovies(n = 24): Promise<Media[]> {
+  return tmdbOr(async () => {
+    const d = await tmdb<{ results: Media[] }>("/discover/movie?sort_by=popularity.desc", 3600);
+    return d.results.slice(0, n).map((x) => ({ ...x, media_type: "movie" }));
+  }, () => free.cineCatalog("movie", "top", n));
+}
+
+export async function getSeries(n = 24): Promise<Media[]> {
+  return tmdbOr(async () => {
+    const d = await tmdb<{ results: Media[] }>("/discover/tv?sort_by=popularity.desc", 3600);
+    return d.results.slice(0, n).map((x) => ({ ...x, media_type: "tv" }));
+  }, () => free.cineCatalog("series", "top", n));
+}
+
 export async function getTop10ImdbWeek(): Promise<Media[]> {
   return tmdbOr(async () => {
     const d = await tmdb<{ results: Media[] }>("/trending/all/week", 3600);

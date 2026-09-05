@@ -1,21 +1,32 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { img } from "@/lib/tmdb";
-import { imdbTitleUrl, type Media } from "@/lib/imdb";
+import type { Media } from "@/lib/imdb";
+import { useFavorites } from "@/hooks/useFavorites";
+import { IconPlay, IconStar } from "@/components/Icons";
+
+export function RatingBadge({ value }: { value?: number | null }) {
+  if (!value) return null;
+  return (
+    <span className="absolute top-1.5 right-1.5 text-[11px] font-bold bg-black/70 rounded-md px-1.5 py-0.5">
+      ⭐ {Math.round(value * 10) / 10}
+    </span>
+  );
+}
 
 export default function FeaturedCarousel({ items }: { items: Media[] }) {
   const [i, setI] = useState(0);
   const router = useRouter();
+  const { has, toggle } = useFavorites();
   const timer = useRef<NodeJS.Timeout | null>(null);
   const n = items.length;
   const go = useCallback((d: number) => setI((v) => (v + d + n) % n), [n]);
 
   useEffect(() => {
     if (n < 2) return;
-    timer.current = setInterval(() => setI((v) => (v + 1) % n), 6000);
+    timer.current = setInterval(() => setI((v) => (v + 1) % n), 7000);
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [n]);
 
@@ -23,13 +34,19 @@ export default function FeaturedCarousel({ items }: { items: Media[] }) {
   const it = items[i];
   const type = it.media_type || "movie";
   const title = it.title || it.name || "?";
+  const fav = has(type, it.id);
+  const poster = img(it.poster_path ?? null);
+
+  const playHref = type === "tv"
+    ? `/watch?type=tv&id=${it.id}&s=1&e=1`
+    : `/watch?type=movie&id=${it.id}`;
 
   return (
     <div
-      className="relative rounded-2xl overflow-hidden border border-white/10 h-80 md:h-[30rem] cursor-pointer"
+      className="relative rounded-2xl overflow-hidden border border-white/10 h-80 md:h-[26rem] cursor-pointer"
       onClick={() => router.push(`/${type}/${it.id}`)}
       onMouseEnter={() => timer.current && clearInterval(timer.current)}
-      onMouseLeave={() => { if (n > 1) timer.current = setInterval(() => setI((v) => (v + 1) % n), 6000); }}
+      onMouseLeave={() => { if (n > 1) timer.current = setInterval(() => setI((v) => (v + 1) % n), 7000); }}
     >
       {items.map((f, k) => (
         <Image
@@ -38,30 +55,31 @@ export default function FeaturedCarousel({ items }: { items: Media[] }) {
           alt={f.title || f.name || ""}
           fill
           priority={k === 0}
-          className={`object-cover transition-opacity duration-700 ${k === i ? "opacity-100" : "opacity-0"}`}
+          className={`object-cover object-top transition-opacity duration-700 ${k === i ? "opacity-100" : "opacity-0"}`}
         />
       ))}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-      <div className="absolute bottom-0 p-5 md:p-7 max-w-2xl">
-        <p className="text-[#f5c518] text-xs font-bold uppercase tracking-widest mb-1">Featured today</p>
-        <Link href={`/${type}/${it.id}`} className="hover:text-violet-300">
-          <h3 className="text-2xl md:text-4xl font-black drop-shadow">{title}</h3>
-        </Link>
-        <p className="text-sm text-zinc-300 mt-1">
-          ⭐ {Math.round((it.vote_average ?? 0) * 10) / 10}
-          {it.imdb_id && <a className="imdb-badge" target="_blank" rel="noopener" href={imdbTitleUrl(it.imdb_id)} onClick={(e) => e.stopPropagation()}>IMDb {it.imdb_id} ↗</a>}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/20 to-black/85" />
+      <div className="absolute inset-y-0 right-0 w-full md:w-[38%] bg-gradient-to-l from-[#0b0b10] via-[#0b0b10]/85 to-transparent flex flex-col justify-center p-5 md:p-8">
+        <p className="text-[#f5c518] text-xs font-bold uppercase tracking-widest mb-1">Contenido destacado</p>
+        <h3 className="text-2xl md:text-4xl font-black drop-shadow leading-tight">{title}</h3>
+        <p className="text-sm text-zinc-300 mt-1 inline-flex items-center gap-1.5">
+          <IconStar size={13} className="text-[#f5c518]" />{Math.round((it.vote_average ?? 0) * 10) / 10} · {type === "tv" ? "Serie" : "Película"}
         </p>
+        <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => router.push(playHref)}
+            className="px-5 py-2 rounded-lg border border-white/40 text-sm font-bold hover:bg-white hover:text-black transition inline-flex items-center gap-2"><IconPlay size={15} />VER AHORA</button>
+          <button onClick={() => toggle({ type: type as "movie" | "tv", id: String(it.id), title, poster })}
+            className="px-4 py-2 rounded-lg border border-white/25 text-sm hover:border-red-400 transition">
+            {fav ? "EN MI LISTA" : "+ AÑADIR"}
+          </button>
+        </div>
       </div>
       {n > 1 && (
-        <>
-          <button onClick={(e) => { e.stopPropagation(); go(-1); }} aria-label="Anterior" className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 border border-white/20 hover:bg-violet-600">‹</button>
-          <button onClick={(e) => { e.stopPropagation(); go(1); }} aria-label="Siguiente" className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 border border-white/20 hover:bg-violet-600">›</button>
-          <div className="absolute bottom-3 right-4 flex gap-1.5">
-            {items.map((_, k) => (
-              <button key={k} onClick={(e) => { e.stopPropagation(); setI(k); }} aria-label={`Ir a ${k + 1}`} className={`h-1.5 rounded-full transition-all ${k === i ? "w-6 bg-[#f5c518]" : "w-1.5 bg-white/40 hover:bg-white/70"}`} />
-            ))}
-          </div>
-        </>
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {items.map((_, k) => (
+            <button key={k} onClick={() => setI(k)} aria-label={`Ir a ${k + 1}`} className={`h-1.5 rounded-full transition-all ${k === i ? "w-6 bg-cyan-400" : "w-1.5 bg-white/40 hover:bg-white/70"}`} />
+          ))}
+        </div>
       )}
     </div>
   );

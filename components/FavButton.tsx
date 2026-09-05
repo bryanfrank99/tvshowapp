@@ -1,5 +1,6 @@
 "use client";
 import { useFavorites } from "@/hooks/useFavorites";
+import { IconHeart } from "@/components/Icons";
 
 // Corazón reutilizable. Es <span> (no <a>) para poder vivir dentro de tarjetas-Link.
 export default function FavButton({ type, id, title, poster, big = false, end = false }: {
@@ -18,7 +19,7 @@ export default function FavButton({ type, id, title, poster, big = false, end = 
           ? "ml-auto shrink-0 w-10 h-10 rounded-full bg-white/5 border border-white/20 text-lg cursor-pointer hover:border-red-400 flex items-center justify-center"
           : "absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-black/70 border border-white/20 text-sm cursor-pointer hover:border-red-400 flex items-center justify-center"}
     >
-      <span className={active ? "text-red-500" : "text-white"}>{active ? "♥" : "♡"}</span>
+      <span className={active ? "text-red-500" : "text-white"}><IconHeart size={big ? 15 : 14} filled={active} /></span>
       {big && <span className="ml-1">{active ? "En Mi lista" : "Mi lista"}</span>}
     </span>
   );

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useFavorites } from "@/hooks/useFavorites";
+import { IconHeart, IconX } from "@/components/Icons";
 
 export default function MyList() {
   const { favs, remove } = useFavorites();
@@ -11,7 +12,7 @@ export default function MyList() {
   if (!mounted || !favs.length) return null;
   return (
     <section className="mb-8">
-      <h2 className="text-xl font-extrabold mb-3">❤️ Mi lista</h2>
+      <h2 className="text-xl font-extrabold mb-3 inline-flex items-center gap-2"><IconHeart size={18} className="text-red-500" />Mi lista</h2>
       <div className="rail">
         {favs.map((f) => (
           <div key={`${f.type}-${f.id}`} className="relative bg-white/5 border border-red-500/30 rounded-2xl overflow-hidden">
@@ -26,9 +27,9 @@ export default function MyList() {
               onClick={() => remove(f.type, f.id)}
               title={`Quitar ${f.title}`}
               aria-label={`Quitar ${f.title} de Mi lista`}
-              className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 border border-white/20 text-sm leading-none hover:bg-red-600 hover:border-red-600"
+              className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 border border-white/20 hover:bg-red-600 hover:border-red-600 flex items-center justify-center"
             >
-              ✕
+              <IconX size={12} />
             </button>
           </div>
         ))}

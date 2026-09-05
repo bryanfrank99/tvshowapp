@@ -25,21 +25,42 @@ npm run dev                  # http://localhost:3000
 | `NEXT_PUBLIC_PROVIDERS_URL` | No | URL del JSON de servidores. Por defecto `/providers.json`. |
 | `NEXT_PUBLIC_VIMEUS_VIEW_KEY` | Solo si usas Vimeus | View key de tu panel Vimeus. |
 
-## Servidores (sin recompilar)
+## Servidores: cada uno gestiona los suyos (sin recompilar)
 
-La lista vive en un JSON externo: `NEXT_PUBLIC_PROVIDERS_URL`
-(ej. `https://raw.githubusercontent.com/.../providers.json`).
-Edítalo para agregar/quitar servidores. Esquema por entrada:
+La lista de servidores **no está en el código**: vive en un JSON externo que cada
+despliegue configura con `NEXT_PUBLIC_PROVIDERS_URL`. Así nadie depende de la
+lista de otra persona.
+
+1. Copia `public/providers.json` a tu propio host (un gist de GitHub, cualquier
+   archivo estático con CORS abierto).
+2. En tu `.env.local` pon `NEXT_PUBLIC_PROVIDERS_URL=https://tu-url/providers.json`.
+3. Reinicia (`npm run dev` / redespliega). El detector del header pasa a 🟢 con tu conteo.
+
+Si la variable se deja vacía, la app usa el `/providers.json` local incluido.
+Si tu URL falla, se usa la lista integrada de `lib/providers.ts` como respaldo.
+
+### Esquema del JSON
+
+Bloque `providers` (reproductores de pelis/series) y `live` (fuentes de TV en vivo):
 
 ```json
-{ "id": "vidzy", "name": "Vidzy", "needsTmdb": true,
-  "movie": "https://vidzy.org/movie/{id}?autoplay=1",
-  "tv": "https://vidzy.org/serie/{id}/{s}/{e}?autoplay=1&autonext=1" }
+{
+  "providers": [
+    { "id": "vidzy", "name": "Vidzy", "needsTmdb": true,
+      "movie": "https://vidzy.org/movie/{id}?autoplay=1",
+      "tv": "https://vidzy.org/serie/{id}/{s}/{e}?autoplay=1&autonext=1" }
+  ],
+  "live": [
+    { "id": "tvf90", "name": "Agenda deportiva", "format": "tvf90",
+      "list": "https://tvf90.com/status.json" }
+  ]
+}
 ```
 
-Placeholders: `{id} {s} {e} {key} {idparam}` (`{idparam}` = `imdb=tt…` o `tmdb=…`).
-`needsTmdb: true` convierte IMDb→TMDB solo vía Cinemeta. Si el JSON falla,
-se usa la lista integrada de `lib/providers.ts`.
+- Placeholders reproductores: `{id} {s} {e} {key} {idparam}`
+  (`{idparam}` = `imdb=tt…` o `tmdb=…`; `{key}` sale de `key` o `NEXT_PUBLIC_VIMEUS_VIEW_KEY`).
+- `needsTmdb: true` convierte IMDb→TMDB solo vía Cinemeta.
+- Formatos live soportados: `streambetter` y `tvf90`.
 
 ## Scripts
 
