@@ -32,7 +32,7 @@ export default async function TvPage({ params, searchParams }: { params: { id: s
     return (
       <>
         <div className="grid md:grid-cols-[220px_1fr] gap-6">
-          <Image src={img(s.poster_path)} alt={s.name} width={440} height={660} className="rounded-2xl w-full" />
+          <Image src={img(s.poster_path)} alt={s.name} width={440} height={660} className="rounded-2xl w-full max-w-[220px] sm:max-w-none mx-auto md:mx-0" />
           <div>
             <h1 className="text-3xl font-black">{s.name}</h1>
             <p className="text-sm text-zinc-400 mt-1 inline-flex items-center gap-1.5 flex-wrap"><IconStar size={13} className="text-[#f5c518]" />{Math.round((s.vote_average || 0) * 10) / 10} · {s.first_air_date} · {s.number_of_seasons}T · {s.number_of_episodes}E

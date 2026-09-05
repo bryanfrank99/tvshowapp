@@ -74,3 +74,13 @@ export const IconBall = ({ size = 18, className = "" }: P) => (
     <circle cx="12" cy="12" r="9" /><path d="M12 7l3 2.2-1.2 3.6h-3.6L9 9.2 12 7zM12 3v4M5.5 9.5l3.5.7M18.5 9.5l-3.5.7M7 17.5l2-2.7M17 17.5l-2-2.7" strokeLinejoin="round" />
   </svg>
 );
+export const IconSearch = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className={className}>
+    <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L21 21" strokeLinecap="round" />
+  </svg>
+);
+export const IconHome = ({ size = 20, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
+    <path d="M4 11l8-7 8 7M6 9.5V20h12V9.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);

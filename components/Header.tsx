@@ -3,6 +3,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { providersUrl } from "@/lib/providers";
+import { IconSearch, IconHome, IconFilm, IconTv, IconSignal, IconHeart } from "@/components/Icons";
 
 type Status = { state: "checking" | "online" | "local"; count?: number; version?: string };
 
@@ -12,6 +13,14 @@ const MENU = [
   { href: "/series", label: "SERIES" },
   { href: "/live", label: "TV EN VIVO" },
   { href: "/list", label: "MI LISTA" },
+];
+
+const TABS = [
+  { href: "/", label: "Inicio", Icon: IconHome },
+  { href: "/movies", label: "Pelis", Icon: IconFilm },
+  { href: "/series", label: "Series", Icon: IconTv },
+  { href: "/live", label: "En vivo", Icon: IconSignal },
+  { href: "/list", label: "Mi lista", Icon: IconHeart },
 ];
 
 export default function Header() {
@@ -60,9 +69,10 @@ export default function Header() {
   }, []);
 
   return (
+    <>
     <header className="sticky top-0 z-40 backdrop-blur bg-[#0b0b10]/90 border-b border-white/10">
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-        <Link href="/" className="text-xl font-black shrink-0">TV<span className="text-violet-400">SHOW</span></Link>
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4">
+        <Link href="/" className="text-lg sm:text-xl font-black shrink-0">TV<span className="text-violet-400">SHOW</span></Link>
         <nav className="hidden lg:flex items-center gap-4 text-[13px] font-semibold">
           {MENU.map((m) => (
             <Link key={m.href} href={m.href}
@@ -71,9 +81,12 @@ export default function Header() {
             </Link>
           ))}
         </nav>
-        <form className="flex-1 flex gap-2 max-w-md ml-auto" onSubmit={(e) => { e.preventDefault(); if (q.trim()) r.push(`/search?q=${encodeURIComponent(q.trim())}`); }}>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar películas, series, TV en vivo…"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm outline-none focus:border-violet-400" />
+        <form className="flex-1 flex gap-1.5 sm:gap-2 max-w-md ml-auto" onSubmit={(e) => { e.preventDefault(); if (q.trim()) r.push(`/search?q=${encodeURIComponent(q.trim())}`); }}>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar películas, series…"
+            className="w-full min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 sm:px-4 py-2 text-sm outline-none focus:border-violet-400" />
+          <button aria-label="Buscar" className="bg-violet-600 hover:bg-violet-500 rounded-xl px-3 sm:px-4 py-2 font-semibold shrink-0">
+            <IconSearch size={17} className="sm:hidden" /><span className="hidden sm:inline text-sm">Buscar</span>
+          </button>
         </form>
         <span
           title={st.state === "online" ? `Lista de servidores v${st.version || "?"} en línea (${st.count} entradas)` : st.state === "local" ? "Sin conexión al JSON remoto" : "Verificando servidor de proveedores…"}
@@ -87,11 +100,18 @@ export default function Header() {
           </span>
         </span>
       </div>
-      <nav className="lg:hidden max-w-7xl mx-auto px-4 pb-2 flex gap-4 text-xs font-semibold overflow-x-auto">
-        {MENU.map((m) => (
-          <Link key={m.href} href={m.href} className={path === m.href ? "text-cyan-400" : "text-zinc-300"}>{m.label}</Link>
-        ))}
-      </nav>
     </header>
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0b0b10] border-t border-white/10 shadow-[0_-8px_24px_rgba(0,0,0,0.6)]" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="grid grid-cols-5 max-w-7xl mx-auto">
+          {TABS.map(({ href, label, Icon }) => (
+            <Link key={href} href={href}
+              className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ${path === href ? "text-cyan-400" : "text-zinc-400"}`}>
+              <Icon size={20} />
+              {label}
+            </Link>
+          ))}
+        </div>
+      </nav>
+    </>
   );
 }

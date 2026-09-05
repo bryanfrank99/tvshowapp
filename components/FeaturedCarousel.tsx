@@ -43,7 +43,7 @@ export default function FeaturedCarousel({ items }: { items: Media[] }) {
 
   return (
     <div
-      className="relative rounded-2xl overflow-hidden border border-white/10 h-80 md:h-[26rem] cursor-pointer"
+      className="relative rounded-2xl overflow-hidden border border-white/10 h-72 sm:h-80 md:h-[26rem] cursor-pointer"
       onClick={() => router.push(`/${type}/${it.id}`)}
       onMouseEnter={() => timer.current && clearInterval(timer.current)}
       onMouseLeave={() => { if (n > 1) timer.current = setInterval(() => setI((v) => (v + 1) % n), 7000); }}
@@ -59,17 +59,17 @@ export default function FeaturedCarousel({ items }: { items: Media[] }) {
         />
       ))}
       <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/20 to-black/85" />
-      <div className="absolute inset-y-0 right-0 w-full md:w-[38%] bg-gradient-to-l from-[#0b0b10] via-[#0b0b10]/85 to-transparent flex flex-col justify-center p-5 md:p-8">
-        <p className="text-[#f5c518] text-xs font-bold uppercase tracking-widest mb-1">Contenido destacado</p>
-        <h3 className="text-2xl md:text-4xl font-black drop-shadow leading-tight">{title}</h3>
+      <div className="absolute inset-y-0 right-0 w-full md:w-[38%] bg-gradient-to-l from-[#0b0b10] via-[#0b0b10]/85 to-transparent flex flex-col justify-end md:justify-center p-4 md:p-8 pb-8 md:pb-8">
+        <p className="text-[#f5c518] text-[11px] md:text-xs font-bold uppercase tracking-widest mb-1">Contenido destacado</p>
+        <h3 className="text-xl sm:text-2xl md:text-4xl font-black drop-shadow leading-tight line-clamp-2">{title}</h3>
         <p className="text-sm text-zinc-300 mt-1 inline-flex items-center gap-1.5">
           <IconStar size={13} className="text-[#f5c518]" />{Math.round((it.vote_average ?? 0) * 10) / 10} · {type === "tv" ? "Serie" : "Película"}
         </p>
-        <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex gap-2 mt-3 md:mt-4 flex-wrap" onClick={(e) => e.stopPropagation()}>
           <button onClick={() => router.push(playHref)}
-            className="px-5 py-2 rounded-lg border border-white/40 text-sm font-bold hover:bg-white hover:text-black transition inline-flex items-center gap-2"><IconPlay size={15} />VER AHORA</button>
+            className="px-4 md:px-5 py-2 rounded-lg border border-white/40 text-xs md:text-sm font-bold hover:bg-white hover:text-black transition inline-flex items-center gap-2"><IconPlay size={15} />VER AHORA</button>
           <button onClick={() => toggle({ type: type as "movie" | "tv", id: String(it.id), title, poster })}
-            className="px-4 py-2 rounded-lg border border-white/25 text-sm hover:border-red-400 transition">
+            className="px-3 md:px-4 py-2 rounded-lg border border-white/25 text-xs md:text-sm hover:border-red-400 transition">
             {fav ? "EN MI LISTA" : "+ AÑADIR"}
           </button>
         </div>

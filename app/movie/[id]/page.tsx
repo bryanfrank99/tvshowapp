@@ -16,7 +16,7 @@ export default async function MoviePage({ params }: { params: { id: string } }) 
   const imdbId = useFree ? params.id : await getImdbId("movie", params.id);
   return (
     <div className="grid md:grid-cols-[220px_1fr] gap-6">
-      <Image src={img(m.poster_path)} alt={m.title} width={440} height={660} className="rounded-2xl w-full" />
+      <Image src={img(m.poster_path)} alt={m.title} width={440} height={660} className="rounded-2xl w-full max-w-[220px] sm:max-w-none mx-auto md:mx-0" />
       <div>
         <h1 className="text-3xl font-black">{m.title}</h1>
         <p className="text-sm text-zinc-400 mt-1 inline-flex items-center gap-1.5 flex-wrap"><IconStar size={13} className="text-[#f5c518]" />{Math.round((m.vote_average || 0) * 10) / 10} · {m.release_date} · {m.runtime} min
