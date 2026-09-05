@@ -1,4 +1,5 @@
 {
+  "version": "1",
   "providers": [
     {
       "id": "vidcore",
@@ -39,8 +40,8 @@
       "id": "vimeus",
       "name": "Vimeus",
       "needsTmdb": false,
-      "movie": "https://vimeus.com/e/movie?{idparam}&view_key={key}",
-      "tv": "https://vimeus.com/e/serie?{idparam}&se={s}&ep={e}&view_key={key}"
+      "movie": "https://vimeus.com/e/movie?{idparam}&view_key={key}&title=tvshow&theme=minimal&loader=v3&overlay=v3&splash=v3",
+      "tv": "https://vimeus.com/e/serie?{idparam}&se={s}&ep={e}&view_key={key}&title=tvshow&theme=minimal&loader=v3&overlay=v3&splash=v3"
     }
   ],
   "live": [

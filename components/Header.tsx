@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { providersUrl } from "@/lib/providers";
 
-type Status = { state: "checking" | "online" | "local"; count?: number };
+type Status = { state: "checking" | "online" | "local"; count?: number; version?: string };
 
 const MENU = [
   { href: "/", label: "INICIO" },
@@ -37,7 +37,7 @@ export default function Header() {
               if (cl.t + 3600 * 1000 > Date.now() && Array.isArray(cl.list)) n += cl.list.length;
             }
           } catch {}
-          setSt({ state: "online", count: n });
+          setSt({ state: "online", count: n, version: c.version || "" });
           return;
         }
       }
@@ -52,7 +52,8 @@ export default function Header() {
       })
       .then((j) => {
         const n = (Array.isArray(j) ? j.length : (j.providers?.length || 0) + (j.live?.length || 0));
-        if (alive) setSt(n ? { state: "online", count: n } : { state: "local" });
+        const v = String((!Array.isArray(j) && j.version) || "");
+        if (alive) setSt(n ? { state: "online", count: n, version: v } : { state: "local" });
       })
       .catch(() => { if (alive) setSt({ state: "local" }); });
     return () => { alive = false; clearTimeout(to); };
@@ -75,14 +76,14 @@ export default function Header() {
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm outline-none focus:border-violet-400" />
         </form>
         <span
-          title={st.state === "online" ? `Servidor de proveedores en línea (${st.count} servidores)` : st.state === "local" ? "Sin conexión al JSON remoto: usando lista integrada" : "Verificando servidor de proveedores…"}
+          title={st.state === "online" ? `Lista de servidores v${st.version || "?"} en línea (${st.count} entradas)` : st.state === "local" ? "Sin conexión al JSON remoto" : "Verificando servidor de proveedores…"}
           className="hidden md:flex items-center gap-1.5 text-xs whitespace-nowrap shrink-0"
         >
           <span className={`w-2 h-2 rounded-full ${
             st.state === "online" ? "bg-emerald-400" : st.state === "local" ? "bg-red-400" : "bg-yellow-400 animate-pulse"
           }`} />
           <span className="text-zinc-400">
-            {st.state === "online" ? `(${st.count})` : st.state === "local" ? "local" : "···"}
+            {st.state === "online" ? `(${st.count}) v${st.version || "?"}` : st.state === "local" ? "sin lista" : "···"}
           </span>
         </span>
       </div>

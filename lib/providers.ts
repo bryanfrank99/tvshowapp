@@ -56,20 +56,6 @@ export function buildProvider(def: ProviderDef, envKey = ""): Provider {
   };
 }
 
-// ---- Lista integrada (fallback cuando el JSON remoto falla) ----
-const BUILTIN: ProviderDef[] = [
-  { id: "vidcore", name: "VidCore", needsTmdb: false, movie: "https://vidcore.io/movie/{id}?autoPlay=true&sub=es", tv: "https://vidcore.io/tv/{id}/{s}/{e}?autoPlay=true&autoNext=true&nextButton=true&sub=es" },
-  { id: "embos", name: "Embos", needsTmdb: true, movie: "https://embos.top/movie/?mid={id}", tv: "https://embos.top/tv/?mid={id}&s={s}&e={e}" },
-  { id: "vidapi", name: "VidAPI", needsTmdb: false, movie: "https://vidapi.xyz/embed/movie/{id}", tv: "https://vidapi.xyz/embed/tv/{id}/{s}/{e}" },
-  { id: "streambetter", name: "StreamBetter", needsTmdb: true, movie: "https://streambetter.shop/filme/{id}", tv: "https://streambetter.shop/serie/{id}/{s}/{e}" },
-  { id: "vidzy", name: "Vidzy", needsTmdb: true, movie: "https://vidzy.org/movie/{id}?autoplay=1", tv: "https://vidzy.org/serie/{id}/{s}/{e}?autoplay=1&autonext=1" },
-  { id: "vimeus", name: "Vimeus", needsTmdb: false, movie: "https://vimeus.com/e/movie?{idparam}&view_key={key}", tv: "https://vimeus.com/e/serie?{idparam}&se={s}&ep={e}&view_key={key}" },
-];
-
-export const PROVIDERS: Record<string, Provider> = Object.fromEntries(
-  BUILTIN.map((d) => [d.id, buildProvider(d, envVimeusKey())])
-);
-
 export const DEFAULT_PROVIDER = "vidcore";
 
 // ---- Carga remota (cliente) con caché de 1h en localStorage ----
@@ -80,30 +66,26 @@ export function providersUrl() {
   return (typeof process !== "undefined" && process.env.NEXT_PUBLIC_PROVIDERS_URL) || "/providers.json";
 }
 
-export async function fetchProviders(): Promise<Provider[]> {
-  const fallback = Object.values(PROVIDERS);
+export async function fetchProviders(): Promise<{ list: Provider[]; version: string }> {
   try {
     const raw = localStorage.getItem(LS_CACHE);
     if (raw) {
       const c = JSON.parse(raw);
       if (c.t + TTL > Date.now() && Array.isArray(c.list) && c.list.length) {
-        return c.list.map((d: ProviderDef) => buildProvider(d, envKey()));
+        return { list: c.list.map((d: ProviderDef) => buildProvider(d, envKey())), version: c.version || "" };
       }
     }
   } catch {}
-  try {
-    const r = await fetch(providersUrl(), { cache: "no-store" });
-    if (!r.ok) throw new Error("http " + r.status);
-    const j = await r.json();
-    const arr: ProviderDef[] = Array.isArray(j) ? j : j.providers;
-    if (!Array.isArray(arr) || !arr.length) throw new Error("empty");
-    const valid = arr.filter((d) => d && d.id && d.name && d.movie && d.tv);
-    if (!valid.length) throw new Error("invalid");
-    try { localStorage.setItem(LS_CACHE, JSON.stringify({ t: Date.now(), list: valid })); } catch {}
-    return valid.map((d) => buildProvider(d, envKey()));
-  } catch {
-    return fallback;
-  }
+  const r = await fetch(providersUrl(), { cache: "no-store" });
+  if (!r.ok) throw new Error("http " + r.status);
+  const j = await r.json();
+  const arr: ProviderDef[] = Array.isArray(j) ? j : j.providers;
+  if (!Array.isArray(arr) || !arr.length) throw new Error("empty");
+  const valid = arr.filter((d) => d && d.id && d.name && d.movie && d.tv);
+  if (!valid.length) throw new Error("invalid");
+  const version = String((!Array.isArray(j) && j.version) || "");
+  try { localStorage.setItem(LS_CACHE, JSON.stringify({ t: Date.now(), list: valid, version })); } catch {}
+  return { list: valid.map((d) => buildProvider(d, envKey())), version };
 }
 
 function envKey() {
@@ -114,10 +96,7 @@ function envKey() {
 // Esquema: "live": [{ "id": "tvf90", "name": "Agenda deportiva", "format": "tvf90"|"streambetter", "list": "https://..." }]
 export type LiveSource = { id: string; name: string; format: "streambetter" | "tvf90"; list: string };
 
-const BUILTIN_LIVE: LiveSource[] = [
-  { id: "streambetter", name: "Canales", format: "streambetter", list: "https://streambetter.shop/api/channels?limit=60" },
-  { id: "tvf90", name: "Agenda deportiva", format: "tvf90", list: "https://tvf90.com/status.json" },
-];
+const BUILTIN_LIVE: LiveSource[] = [];
 
 const LS_LIVE = "tvshow_live_cache_v2";
 

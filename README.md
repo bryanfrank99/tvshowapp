@@ -47,6 +47,7 @@ Bloque `providers` (reproductores de pelis/series) y `live` (fuentes de TV en vi
 
 ```json
 {
+  "version": "1",
   "providers": [
     { "id": "vidzy", "name": "Vidzy", "needsTmdb": true,
       "movie": "https://vidzy.org/movie/{id}?autoplay=1",
@@ -63,6 +64,9 @@ Bloque `providers` (reproductores de pelis/series) y `live` (fuentes de TV en vi
   (`{idparam}` = `imdb=tt…` o `tmdb=…`; `{key}` sale de `key` o `NEXT_PUBLIC_VIMEUS_VIEW_KEY`).
 - `needsTmdb: true` convierte IMDb→TMDB solo vía Cinemeta.
 - Formatos live soportados: `streambetter` y `tvf90`.
+- **`version` (recomendado)**: súbelo en cada cambio (1, 2, 3…). La web lo muestra
+  en el header (`(8) v3`) y en el reproductor (`lista v3`): así verificas de un
+  vistazo que cargó la versión correcta y no una caché vieja.
 
 ## Scripts
 
