@@ -5,6 +5,8 @@ Cinemeta + TVMaze con IDs IMDb) y las reproduce vía iframes de proveedores conf
 
 No aloja video: solo indexa IDs/posters/metadata y embebe reproductores de terceros.
 
+![Vista principal de la app](./public/tvshowapp.png)
+
 ## Requisitos
 
 - Node 18+
