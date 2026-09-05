@@ -2,6 +2,7 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { providersUrl } from "@/lib/providers";
 import { IconSearch, IconHome, IconFilm, IconTv, IconSignal, IconHeart } from "@/components/Icons";
 
@@ -72,7 +73,9 @@ export default function Header() {
     <>
     <header className="sticky top-0 z-40 backdrop-blur bg-[#0b0b10]/90 border-b border-white/10">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4">
-        <Link href="/" className="text-lg sm:text-xl font-black shrink-0">TV<span className="text-violet-400">SHOW</span></Link>
+        <Link href="/" className="shrink-0" aria-label="Inicio">
+          <Image src="/TVSHOW.png" alt="TVSHOW" width={120} height={32} className="h-7 sm:h-8 w-auto" priority />
+        </Link>
         <nav className="hidden lg:flex items-center gap-4 text-[13px] font-semibold">
           {MENU.map((m) => (
             <Link key={m.href} href={m.href}

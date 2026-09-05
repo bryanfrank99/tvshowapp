@@ -3,7 +3,11 @@ import "./globals.css";
 import Header from "@/components/Header";
 import TvNav from "@/components/TvNav";
 
-export const metadata: Metadata = { title: "TVShow — Catálogo + Player", description: "TMDB + IMDb + multi-player" };
+export const metadata: Metadata = {
+  title: "TVShow — Catálogo + Player",
+  description: "TMDB + IMDb + multi-player",
+  icons: { icon: "/favicon.png" },
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
