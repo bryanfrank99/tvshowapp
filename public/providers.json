@@ -1,0 +1,46 @@
+{
+  "providers": [
+    {
+      "id": "vidcore",
+      "name": "VidCore",
+      "needsTmdb": false,
+      "movie": "https://vidcore.io/movie/{id}?autoPlay=true&sub=es",
+      "tv": "https://vidcore.io/tv/{id}/{s}/{e}?autoPlay=true&autoNext=true&nextButton=true&sub=es"
+    },
+    {
+      "id": "embos",
+      "name": "Embos",
+      "needsTmdb": true,
+      "movie": "https://embos.top/movie/?mid={id}",
+      "tv": "https://embos.top/tv/?mid={id}&s={s}&e={e}"
+    },
+    {
+      "id": "vidapi",
+      "name": "VidAPI",
+      "needsTmdb": false,
+      "movie": "https://vidapi.xyz/embed/movie/{id}",
+      "tv": "https://vidapi.xyz/embed/tv/{id}/{s}/{e}"
+    },
+    {
+      "id": "streambetter",
+      "name": "StreamBetter",
+      "needsTmdb": true,
+      "movie": "https://streambetter.shop/filme/{id}",
+      "tv": "https://streambetter.shop/serie/{id}/{s}/{e}"
+    },
+    {
+      "id": "vidzy",
+      "name": "Vidzy",
+      "needsTmdb": true,
+      "movie": "https://vidzy.org/movie/{id}?autoplay=1",
+      "tv": "https://vidzy.org/serie/{id}/{s}/{e}?autoplay=1&autonext=1"
+    },
+    {
+      "id": "vimeus",
+      "name": "Vimeus",
+      "needsTmdb": false,
+      "movie": "https://vimeus.com/e/movie?{idparam}&view_key={key}",
+      "tv": "https://vimeus.com/e/serie?{idparam}&se={s}&ep={e}&view_key={key}"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# dependencias
+node_modules/
+
+# next
+.next/
+out/
+
+# env con secretos (ver .env.example)
+.env*.local
+
+# sistema
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
