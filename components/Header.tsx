@@ -83,7 +83,7 @@ export default function Header() {
             st.state === "online" ? "bg-emerald-400" : st.state === "local" ? "bg-red-400" : "bg-yellow-400 animate-pulse"
           }`} />
           <span className="text-zinc-400">
-            {st.state === "online" ? `(${st.count}) v${st.version || "?"}` : st.state === "local" ? "sin lista" : "···"}
+            {st.state === "online" ? `(${st.count})${st.version ? ` v${st.version}` : ""}` : st.state === "local" ? "sin lista" : "···"}
           </span>
         </span>
       </div>
