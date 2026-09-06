@@ -4,17 +4,28 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
+import { tmpdir } from "os";
 
-const DB_PATH = process.env.SQLITE_PATH || join(process.cwd(), "data", "tmdb.db");
+function resolveDbPath() {
+  const preferred = process.env.SQLITE_PATH || join(process.cwd(), "data", "tmdb.db");
+  try {
+    mkdirSync(dirname(preferred), { recursive: true });
+    return preferred;
+  } catch {
+    // Filesystem de solo lectura (Vercel): usar /tmp (efímero por instancia).
+    return join(tmpdir(), "tvshow-tmdb.db");
+  }
+}
 
+let DB_PATH: string | null = null;
 let db: DatabaseSync | null = null;
 
 export function getDb(): DatabaseSync {
   if (!db) {
-    mkdirSync(dirname(DB_PATH), { recursive: true });
+    if (!DB_PATH) DB_PATH = resolveDbPath();
     const fresh = !existsSync(DB_PATH);
     db = new DatabaseSync(DB_PATH);
-    db.exec("PRAGMA journal_mode = WAL;");
+    try { db.exec("PRAGMA journal_mode = WAL;"); } catch {}
     if (fresh) initSchema(db);
     else ensureSchema(db);
   }
