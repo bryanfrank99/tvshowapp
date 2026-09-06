@@ -2,7 +2,7 @@
 // - Cinemeta (Stremio): pelis+series con IDs IMDb nativos, posters, ratings IMDb, episodios.
 // - TVMaze: series al aire, búsqueda, cast/personas, lookup por IMDb.
 // Se normaliza todo a la forma Media/TMDB-like para reutilizar componentes y player.
-import type { Media } from "./imdb";
+import type { Media } from "./ids";
 
 const CINEMETA = "https://v3-cinemeta.strem.io";
 const TVMAZE = "https://api.tvmaze.com";

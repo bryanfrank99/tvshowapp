@@ -72,6 +72,8 @@ Bloque `providers` (reproductores de pelis/series) y `live` (fuentes de TV en vi
 
 - `npm run dev` — desarrollo
 - `npm run build` / `npm start` — producción
+- `npm version patch|minor|major` — sube la versión de la app
+  (se muestra en el footer como `vX.Y.Z`)
 
 ## Notas
 

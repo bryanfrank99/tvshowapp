@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
 
-import { tmdb, hasKey } from "@/lib/tmdb";
+import { tmdb, hasKey, getLang } from "@/lib/tmdb";
 import { searchAll } from "@/lib/catalog";
 import { Section, MediaCard } from "@/components/Cards";
+import { t } from "@/lib/dict";
 
 export default async function SearchPage({ searchParams }: { searchParams: { q?: string } }) {
   const q = searchParams.q || "";
+  const d = t(getLang());
   let res: any[] = [];
   if (q) {
     if (hasKey()) {
@@ -20,8 +22,8 @@ export default async function SearchPage({ searchParams }: { searchParams: { q?:
     }
   }
   return (
-    <Section title={`Resultados: ${q}`}>
-      <div className="rail">{res.map((x: any) => <MediaCard key={String(x.id)} item={x} />)}</div>
+    <Section title={`${d.resultados}: ${q}`}>
+      <div className="rail">{res.length ? res.map((x: any) => <MediaCard key={String(x.id)} item={x} />) : <p className="text-sm text-zinc-500">{d.search_no_results}</p>}</div>
     </Section>
   );
 }

@@ -1,8 +1,10 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { fetchLiveSources, type LiveSource } from "@/lib/providers";
 import { IconSignal, IconBall } from "@/components/Icons";
+import { useLang } from "@/hooks/useLang";
+import { t } from "@/lib/dict";
 
 type Item = { key: string; name: string; sub: string; image: string; url: string; live: boolean };
 
@@ -41,6 +43,8 @@ async function loadSource(src: LiveSource): Promise<Item[]> {
 
 export default function LivePage() {
   const [sources, setSources] = useState<{ src: LiveSource; items: Item[] }[]>([]);
+  const { lang } = useLang();
+  const d = t(lang);
   const [q, setQ] = useState("");
   const [current, setCurrent] = useState<{ name: string; url: string } | null>(null);
   const [nowMap, setNowMap] = useState<Record<string, string>>({});
@@ -104,41 +108,41 @@ export default function LivePage() {
   return (
     <>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <h1 className="text-2xl font-black inline-flex items-center gap-2"><IconSignal className="text-red-400" />TV en vivo</h1>
+        <h1 className="text-2xl font-black inline-flex items-center gap-2"><IconSignal className="text-red-400" />{d.live_title}</h1>
         <form className="flex gap-2 ml-auto" onSubmit={(e) => e.preventDefault()}>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar canal…"
-            className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-violet-400" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={d.buscar_canal}
+            className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-[#008CFF]" />
         </form>
       </div>
       {current && (
         <div className="mb-6">
-          <p className="text-sm mb-2"><span className="text-red-400 font-bold">● EN VIVO</span> · {current.name}</p>
+          <p className="text-sm mb-2"><span className="text-red-400 font-bold">● {d.en_vivo}</span> · {current.name}</p>
           <div className="rounded-2xl overflow-hidden border border-white/10 bg-black">
             <iframe key={current.url} src={current.url} className="w-full aspect-video bg-black"
               allowFullScreen allow="autoplay; encrypted-media; fullscreen; picture-in-picture" referrerPolicy="origin" />
           </div>
         </div>
       )}
-      {err && <p className="text-sm text-red-300 mb-4">No se pudo cargar ninguna guía de canales.</p>}
+      {err && <p className="text-sm text-red-300 mb-4">{d.guia_error}</p>}
       {sources.map(({ src, items }) => {
         const list = filt(items);
         if (!list.length) return null;
         return (
           <section key={src.id} className="mb-8">
-            <h2 className="text-xl font-extrabold mb-3 inline-flex items-center gap-2">{src.id === "tvf90" ? <IconBall className="text-emerald-400" /> : <IconSignal className="text-red-400" />}{src.name}</h2>
+            <h2 className="text-xl font-extrabold mb-3 inline-flex items-center gap-2">{src.id === "tvf90" ? <IconBall className="text-emerald-400" /> : <IconSignal className="text-red-400" />}{src.id === "tvf90" ? d.agenda : src.format === "streambetter" ? d.canales : src.name}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
               {list.map((c) => {
                 const g = guideMap[normGuide(c.name)];
                 return (
                 <button key={c.key} onClick={() => play(c.sub ? `${c.name} · ${c.sub}` : c.name, c.url)}
-                  className={`bg-white/5 border rounded-xl p-4 flex flex-col items-center gap-2 hover:border-violet-500 ${current?.name.startsWith(c.name) ? "border-violet-500" : "border-white/10"}`}>
+                  className={`bg-white/5 border rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#008CFF] ${current?.name.startsWith(c.name) ? "border-[#008CFF]" : "border-white/10"}`}>
                   {c.image
                     ? <Image src={c.image} alt={c.name} width={120} height={60} className="h-12 object-contain" loading="lazy" unoptimized />
                     : <span className="h-12 flex items-center font-black text-base text-center leading-tight">{c.name}</span>}
                   <span className="text-xs font-semibold truncate w-full text-center">{c.name}</span>
                   {c.sub && <span className="text-xs text-zinc-500 truncate w-full text-center">{c.sub}</span>}
                   <span className={`text-[10px] font-bold ${c.live ? "text-red-400" : "text-zinc-500"}`}>
-                    {c.live ? "● EN VIVO" : "○"}
+                    {c.live ? `● ${d.en_vivo}` : "○"}
                   </span>
                   {(() => {
                     const txt = (src.id === "streambetter" && nowMap[c.key])
@@ -156,3 +160,4 @@ export default function LivePage() {
     </>
   );
 }
+

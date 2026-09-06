@@ -1,12 +1,16 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useHistory, timeAgo } from "@/hooks/useHistory";
 import { IconClock, IconX } from "@/components/Icons";
+import { useLang } from "@/hooks/useLang";
+import { t } from "@/lib/dict";
 
 export default function ContinueWatching() {
   const { history, remove, clear } = useHistory();
+  const { lang } = useLang();
+  const d = t(lang);
   // localStorage solo existe en el cliente: esperar al montaje para que el
   // primer render coincida con el servidor y no haya hydration mismatch.
   const [mounted, setMounted] = useState(false);
@@ -15,24 +19,24 @@ export default function ContinueWatching() {
   return (
     <section className="mb-8">
       <div className="flex items-center gap-3 mb-3">
-        <h2 className="text-xl font-extrabold inline-flex items-center gap-2"><IconClock className="text-violet-400" />Seguir viendo</h2>
+        <h2 className="text-xl font-extrabold inline-flex items-center gap-2"><IconClock className="text-[#008CFF]" />{d.seguir}</h2>
         <button
-          onClick={() => { if (confirm("¿Borrar todo Seguir viendo?")) clear(); }}
+          onClick={() => { if (confirm(d.limpiar_confirm)) clear(); }}
           className="text-xs text-zinc-500 hover:text-red-400 border border-white/10 hover:border-red-400/50 rounded-full px-2.5 py-0.5"
         >
-          Limpiar todo
+          {d.limpiar}
         </button>
       </div>
       <div className="rail">
         {history.map((x) => {
           return (
-            <div key={`${x.type}-${x.id}-${x.season}-${x.episode}`} className="relative bg-white/5 border border-violet-500/30 rounded-2xl overflow-hidden">
+            <div key={`${x.type}-${x.id}-${x.season}-${x.episode}`} className="relative bg-white/5 border border-[#008CFF]/30 rounded-2xl overflow-hidden">
               <Link href={`/watch?type=${x.type}&id=${x.id}${x.type === "tv" ? `&s=${x.season}&e=${x.episode}` : ""}`} className="block">
                 <Image src={x.poster || "https://via.placeholder.com/500x750?text=?"} alt={x.title} width={300} height={450} className="w-full aspect-[2/3] object-cover" />
                 <div className="p-2">
                   <p className="text-sm font-semibold truncate">{x.title}</p>
-                  <p className="text-xs text-zinc-400">{x.type === "tv" ? `S${x.season}E${x.episode}` : "Película"}</p>
-                  <p className="text-[11px] text-zinc-500" title={new Date(x.updatedAt).toLocaleString()}>visto {timeAgo(x.updatedAt)}</p>
+                  <p className="text-xs text-zinc-400">{x.type === "tv" ? `${d.tv_t}${x.season}${d.ep_e}${x.episode}` : d.pelicula}</p>
+                  <p className="text-[11px] text-zinc-500" title={new Date(x.updatedAt).toLocaleString()}>{d.visto} {timeAgo(x.updatedAt, lang)}</p>
                 </div>
               </Link>
               <button
@@ -50,3 +54,4 @@ export default function ContinueWatching() {
     </section>
   );
 }
+

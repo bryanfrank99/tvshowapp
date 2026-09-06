@@ -10,7 +10,7 @@
 
 /* Foco grande y visible para control remoto de TV (10-foot UI) */
 a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
-  outline: 3px solid #8b5cf6;
+  outline: 3px solid #008CFF;
   outline-offset: 3px;
   border-radius: 12px;
 }

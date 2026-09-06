@@ -1,7 +1,10 @@
-// Puente IMDb: IMDb no tiene API oficial → links + imdb_id vía TMDB external_ids.
+// Puente IMDb (SOLO servidor): imdb_id vía TMDB external_ids.
+// Tipos y URLs puras en ./ids (seguras para cliente).
 import { tmdb } from "./tmdb";
+import type { Media } from "./ids";
 
-export const imdbTitleUrl = (id: string) => `https://www.imdb.com/title/${id}/`;
+export { imdbTitleUrl } from "./ids";
+export type { Media };
 
 export async function getImdbId(type: "movie" | "tv", tmdbId: string): Promise<string | null> {
   try {
@@ -14,19 +17,6 @@ export async function getImdbId(type: "movie" | "tv", tmdbId: string): Promise<s
     return null;
   }
 }
-
-export type Media = {
-  id: number | string;
-  media_type?: string;
-  title?: string;
-  name?: string;
-  poster_path?: string | null;
-  backdrop_path?: string | null;
-  vote_average?: number;
-  first_air_date?: string;
-  imdb_id?: string | null;
-  rank?: number;
-};
 
 export async function withImdbIds(items: Media[], limit = 10): Promise<Media[]> {
   const slice = items.slice(0, limit);

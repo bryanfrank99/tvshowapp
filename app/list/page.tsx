@@ -1,13 +1,17 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useFavorites } from "@/hooks/useFavorites";
 import ContinueWatching from "@/components/ContinueWatching";
 import { IconFilm, IconTv, IconHeart, IconX } from "@/components/Icons";
+import { useLang } from "@/hooks/useLang";
+import { t } from "@/lib/dict";
 
 export default function ListPage() {
   const { favs, remove } = useFavorites();
+  const { lang } = useLang();
+  const d = t(lang);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
@@ -38,13 +42,14 @@ export default function ListPage() {
       {!favs.length && (
         <div className="text-center py-16">
           <p className="mb-3 flex justify-center text-zinc-600"><IconHeart size={44} filled={false} /></p>
-          <h1 className="text-2xl font-black">Mi lista está vacía</h1>
-          <p className="text-sm text-zinc-400 mt-2">Toca el corazón en cualquier tarjeta para guardarla aquí.</p>
-          <Link href="/" className="inline-block mt-4 px-5 py-2.5 rounded-xl bg-violet-600 font-bold">Explorar</Link>
+          <h1 className="text-2xl font-black">{d.mi_lista_vacia}</h1>
+          <p className="text-sm text-zinc-400 mt-2">{d.mi_lista_hint}</p>
+          <Link href="/" className="inline-block mt-4 px-5 py-2.5 rounded-xl bg-[#008CFF] font-bold">{d.explorar}</Link>
         </div>
       )}
-      {series.length > 0 && block(<IconTv className="text-violet-400" />, "Series", series)}
-      {movies.length > 0 && block(<IconFilm className="text-violet-400" />, "Películas", movies)}
+      {series.length > 0 && block(<IconTv className="text-[#008CFF]" />, d.series, series)}
+      {movies.length > 0 && block(<IconFilm className="text-[#008CFF]" />, d.movies, movies)}
     </>
   );
 }
+

@@ -1,10 +1,12 @@
-"use client";
+﻿"use client";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetchProviders, type Provider } from "@/lib/providers";
 import { useHistory } from "@/hooks/useHistory";
 import { resolveTmdbId } from "@/lib/resolve";
+import { useLang } from "@/hooks/useLang";
+import { t } from "@/lib/dict";
 
 function WatchInner() {
   const sp = useSearchParams();
@@ -13,6 +15,8 @@ function WatchInner() {
   const s = parseInt(sp.get("s") || "1");
   const e = parseInt(sp.get("e") || "1");
   const { provider, setProvider, save } = useHistory();
+  const { lang } = useLang();
+  const d = t(lang);
   const [title, setTitle] = useState(`#${id}`);
   const [embedId, setEmbedId] = useState(id); // ID efectivo para el player (tras resolver IMDb→TMDB si toca)
   const [resolving, setResolving] = useState(false);
@@ -75,38 +79,38 @@ function WatchInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, id, s, e]);
 
-  if (!id) return <p>Falta id</p>;
+  if (!id) return <p>{d.falta_id}</p>;
   return (
     <>
-      <Link href={`/${type}/${id}`} className="text-xs text-zinc-400">← Volver</Link>
+      <Link href={`/${type}/${id}`} className="text-xs text-zinc-400">{d.volver}</Link>
       <h1 className="text-2xl font-black">{title}</h1>
-      <p className="text-xs text-zinc-500 mb-3">Servidor <b className="text-violet-300">{p?.name || "…"}</b> · TMDB #{id} {type === "tv" ? `· S${s}E${e}` : ""}{listVersion ? ` · lista v${listVersion}` : ""}</p>
+      <p className="text-xs text-zinc-500 mb-3">{d.servidor} <b className="text-[#008CFF]">{p?.name || "…"}</b> · TMDB #{id} {type === "tv" ? `· ${d.tv_t}${s}${d.ep_e}${e}` : ""}{listVersion ? ` · lista v${listVersion}` : ""}</p>
       <div className="flex gap-2 mb-3 flex-wrap">
         {list.map((x) => (
-          <button key={x.id} onClick={() => setProvider(x.id)} className={`text-xs px-3 py-1 rounded-full border ${provider === x.id ? "bg-violet-600 border-violet-600 text-white" : "border-white/15 text-zinc-400"}`}>{x.name}</button>
+          <button key={x.id} onClick={() => setProvider(x.id)} className={`text-xs px-3 py-1 rounded-full border ${provider === x.id ? "bg-[#008CFF] border-[#008CFF] text-white" : "border-white/15 text-zinc-400"}`}>{x.name}</button>
         ))}
       </div>
       <div className="rounded-2xl overflow-hidden border border-white/10 bg-black">
         {listError || !list.length ? (
           <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
-            <p className="text-sm text-red-300">No se pudo cargar la lista de servidores.</p>
-            <button onClick={loadList} className="px-4 py-2 rounded-xl bg-violet-600 text-sm font-bold">Reintentar</button>
+            <p className="text-sm text-red-300">{d.list_error}</p>
+            <button onClick={loadList} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.reintentar}</button>
           </div>
         ) : resolving ? (
-          <p className="aspect-video flex items-center justify-center text-sm text-zinc-400">Resolviendo ID TMDB para {p?.name}…</p>
+          <p className="aspect-video flex items-center justify-center text-sm text-zinc-400">{d.resolving} {p?.name}…</p>
         ) : noTmdb ? (
           <p className="aspect-video flex items-center justify-center text-sm text-yellow-300 p-6 text-center">
-            {p?.name} exige ID TMDB y no se pudo resolver para este título. Usa otro servidor.
+            {p?.name} {d.no_tmdb}
           </p>
         ) : (
           <iframe key={src} src={src} referrerPolicy="origin" className="w-full aspect-video bg-black" allowFullScreen allow="autoplay; encrypted-media; fullscreen; picture-in-picture" />
         )}
       </div>
       <div className="flex gap-2 mt-3 flex-wrap items-center">
-        {type === "tv" && <Link href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`} className="px-4 py-2 rounded-xl bg-violet-600 text-sm font-bold">Siguiente E{e + 1} →</Link>}
-        {type === "tv" && <Link href={`/tv/${id}?season=${s}`} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm">Capítulos</Link>}
+        {type === "tv" && <Link href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.siguiente} {d.ep_e}{e + 1} →</Link>}
+        {type === "tv" && <Link href={`/tv/${id}?season=${s}`} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm">{d.todos_capitulos}</Link>}
       </div>
-      <p className="text-xs text-zinc-500 mt-2">Si se queda cargando o da 404, cambia de servidor (algunos títulos no tienen fuente en todos). Los IDs IMDb se convierten a TMDB automáticamente cuando el servidor lo exige.</p>
+      <p className="text-xs text-zinc-500 mt-2">{d.watch_note}</p>
     </>
   );
 }
@@ -114,4 +118,5 @@ function WatchInner() {
 export default function WatchPage() {
   return <Suspense><WatchInner /></Suspense>;
 }
+
 

@@ -79,6 +79,11 @@ export const IconSearch = ({ size = 18, className = "" }: P) => (
     <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L21 21" strokeLinecap="round" />
   </svg>
 );
+export const IconGlobe = ({ size = 18, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
+    <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z" />
+  </svg>
+);
 export const IconHome = ({ size = 20, className = "" }: P) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
     <path d="M4 11l8-7 8 7M6 9.5V20h12V9.5" strokeLinecap="round" strokeLinejoin="round" />

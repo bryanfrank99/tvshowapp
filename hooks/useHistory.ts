@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { ProviderId } from "@/lib/providers";
+import type { Lang } from "@/lib/dict";
+import { t } from "@/lib/dict";
 
 export type Entry = {
   type: "movie" | "tv";
@@ -52,11 +54,12 @@ export function useHistory() {
   return { history, save, remove, clear, provider, setProvider };
 }
 
-export const timeAgo = (t: number) => {
-  const m = Math.floor((Date.now() - t) / 60000);
-  if (m < 1) return "ahora";
-  if (m < 60) return `hace ${m} min`;
+export const timeAgo = (ts: number, lang: Lang = "es") => {
+  const d = t(lang);
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return d.now;
+  if (m < 60) return `${d.ago_m} ${m} ${d.min}`.trim();
   const h = Math.floor(m / 60);
-  if (h < 24) return `hace ${h} h`;
-  return `hace ${Math.floor(h / 24)} d`;
+  if (h < 24) return `${d.ago_h} ${h} ${d.h}`.trim();
+  return `${d.ago_d} ${Math.floor(h / 24)} ${d.d}`.trim();
 };
