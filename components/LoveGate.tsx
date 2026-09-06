@@ -13,12 +13,20 @@ export default function LoveGate({ label }: { label: string }) {
   const [err, setErr] = useState(false);
 
   const close = () => { setOpen(false); setAnswer(""); setOk(false); setErr(false); };
-  const check = (e: React.FormEvent) => {
+  const check = async (e: React.FormEvent) => {
     e.preventDefault();
-    const expected = (process.env.NEXT_PUBLIC_SECRET || "").trim().toLowerCase();
-    const given = answer.trim().toLowerCase();
-    if (expected && given && given === expected) { setOk(true); setErr(false); }
-    else setErr(true);
+    try {
+      const r = await fetch("/api/lovegate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer }),
+      });
+      const j = await r.json();
+      if (j.ok) { setOk(true); setErr(false); }
+      else setErr(true);
+    } catch {
+      setErr(true);
+    }
   };
 
   return (
