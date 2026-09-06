@@ -13,4 +13,5 @@ export type Media = {
   first_air_date?: string;
   imdb_id?: string | null;
   rank?: number;
+  genres?: string[];
 };

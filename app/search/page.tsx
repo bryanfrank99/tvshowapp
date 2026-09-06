@@ -23,7 +23,7 @@ export default async function SearchPage({ searchParams }: { searchParams: { q?:
   }
   return (
     <Section title={`${d.resultados}: ${q}`}>
-      <div className="rail">{res.length ? res.map((x: any) => <MediaCard key={String(x.id)} item={x} />) : <p className="text-sm text-zinc-500">{d.search_no_results}</p>}</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">{res.length ? res.map((x: any) => <MediaCard key={String(x.id)} item={x} />) : <p className="text-sm text-zinc-500">{d.search_no_results}</p>}</div>
     </Section>
   );
 }

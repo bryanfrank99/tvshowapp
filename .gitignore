@@ -14,3 +14,8 @@ Thumbs.db
 
 # logs
 *.log
+
+# sqlite local (se genera con npm run sync)
+*.db
+*.db-wal
+*.db-shm

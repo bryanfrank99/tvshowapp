@@ -27,6 +27,7 @@ function cineMedia(m: any, type: "movie" | "tv"): Media {
     backdrop_path: m.backdrop ?? m.background ?? null,
     vote_average: num(m.imdbRating),
     imdb_id: m.id,
+    genres: m.genres || [],
   };
 }
 
@@ -63,6 +64,7 @@ export function cineMovieDetail(m: any, imdb: string) {
     release_date: m.year ? String(m.year) : "",
     runtime: (m.runtime || "").replace(" min", "") || "?",
     imdb_id: imdb,
+    genres: (m.genres || []).map((g: any) => (typeof g === "string" ? g : g.name)).filter(Boolean),
     credits: { cast: (m.cast || []).slice(0, 8).map((n: string) => ({ id: n, name: n })) },
   };
 }
@@ -105,6 +107,8 @@ export function cineSeriesDetail(m: any, imdb: string) {
     number_of_seasons: cineSeasons(m).length,
     number_of_episodes: (m.videos || []).length,
     imdb_id: imdb,
+    genres: (m.genres || []).map((g: any) => (typeof g === "string" ? g : g.name)).filter(Boolean),
+    credits: { cast: (m.cast || []).slice(0, 8).map((n: any) => ({ id: typeof n === "string" ? n : n.name, name: typeof n === "string" ? n : n.name })) },
     seasons: [{ season_number: 0, episode_count: 0 }, ...cineSeasons(m)],
   };
 }

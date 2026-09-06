@@ -74,6 +74,23 @@ Bloque `providers` (reproductores de pelis/series) y `live` (fuentes de TV en vi
 - `npm run build` / `npm start` — producción
 - `npm version patch|minor|major` — sube la versión de la app
   (se muestra en el footer como `vX.Y.Z`)
+- `npm run sync -- movie:550 tv:1399 --lang es,en,pt` — vuelca TMDB a SQLite
+
+## Caché SQLite (`data/tmdb.db`, sin imágenes)
+
+Con key TMDB, el detalle de pelis/series/personas se guarda en SQLite local
+(detalle, géneros, créditos, temporadas, episodios, IMDb id) con caducidad de
+7 días: las visitas no pegan a la API si hay dato fresco. Precarga con:
+
+```bash
+# en .env.local: TMDB_API_KEY=tu_key
+npm run sync -- movie:550 tv:1399 person:3223 --lang es,en,pt
+npm run sync -- --popular movie 10 --lang es
+npm run sync -- --trending tv --lang es
+```
+
+El `.db` está en `.gitignore`. En Vercel el FS es efímero: funciona como
+caché por instancia (se rellena solo al visitar).
 
 ## Notas
 

@@ -1,7 +1,8 @@
 // Catálogo dual: TMDB si hay KEY, si no (o si falla) → fuentes free sin key.
 // Las páginas no cambian: llaman lo mismo y funciona en ambos modos.
-import { tmdb, hasKey } from "./tmdb";
+import { tmdb, hasKey, getLang } from "./tmdb";
 import { withImdbIds, type Media } from "./imdb";
+import { getPerson, savePerson } from "./db";
 import * as free from "./free";
 
 export type Spot = { show: any; seasonNum: number; ep: any | null };
@@ -139,4 +140,75 @@ export async function searchAll(q: string) {
     seen.add(k);
     return true;
   });
+}
+
+// Títulos por género. TMDB: discover; free: filtra los tops (traen géneros).
+export async function getByGenre(id: string, name: string): Promise<Media[]> {
+  return tmdbOr(async () => {
+    const [m, tv] = await Promise.all([
+      tmdb<{ results: Media[] }>(`/discover/movie?with_genres=${id}&sort_by=popularity.desc`, 3600),
+      tmdb<{ results: Media[] }>(`/discover/tv?with_genres=${id}&sort_by=popularity.desc`, 3600),
+    ]);
+    return [
+      ...m.results.slice(0, 12).map((x) => ({ ...x, media_type: "movie" })),
+      ...tv.results.slice(0, 12).map((x) => ({ ...x, media_type: "tv" })),
+    ];
+  }, async () => {
+    const [mm, ss] = await Promise.all([free.cineCatalog("movie", "top", 60), free.cineCatalog("series", "top", 60)]);
+    const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const want = norm(name);
+    return [...mm, ...ss]
+      .filter((x) => (x.genres || []).some((g) => { const ng = norm(String(g)); return ng === want || ng.includes(want) || want.includes(ng); }))
+      .slice(0, 24);
+  });
+}
+
+// Obras de una persona por nombre. TMDB: search+combined_credits; free: TVMaze.
+export async function getPersonWorks(name: string): Promise<{ person: any; works: Media[] }> {
+  if (hasKey()) {
+    try {
+      const lang = getLang();
+      const s = await tmdb<any>(`/search/person?query=${encodeURIComponent(name)}`, 3600);
+      const p = (s.results || [])[0];
+      if (!p) throw new Error("not found");
+      const hit = getPerson(p.id, lang);
+      if (hit) {
+        return {
+          person: { name: hit.name, photo: hit.photo, known: hit.known_for || "" },
+          works: (hit.works || []).map((x: any) => ({
+            id: x.id, media_type: x.media_type, title: x.title, name: x.name,
+            poster_path: x.poster_path ?? null, vote_average: x.vote_average ?? 0,
+          })),
+        };
+      }
+      const det = await tmdb<any>(`/person/${p.id}?append_to_response=combined_credits`, 3600);
+      const cast = ((det.combined_credits?.cast || []) as any[])
+        .filter((x) => x.media_type === "movie" || x.media_type === "tv")
+        .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))
+        .slice(0, 24)
+        .map((x) => ({ id: x.id, media_type: x.media_type, title: x.title, name: x.name, poster_path: x.poster_path ?? null, vote_average: x.vote_average ?? 0 }));
+      savePerson(p.id, lang, det, cast);
+      return { person: { name: det.name, photo: det.profile_path || null, known: det.known_for_department || "" }, works: cast };
+    } catch { /* fallback free */ }
+  }
+  const r = await fetch(`https://api.tvmaze.com/search/people?q=${encodeURIComponent(name)}`, { next: { revalidate: 3600 } });
+  const arr = await r.json();
+  const person = arr?.[0]?.person;
+  if (!person) return { person: { name }, works: [] };
+  const cr = await fetch(`https://api.tvmaze.com/people/${person.id}/castcredits?embed=show`, { next: { revalidate: 3600 } });
+  const credits = await cr.json();
+  const seen = new Set<number>();
+  const works: Media[] = [];
+  for (const c of credits) {
+    const sh = c._embedded?.show;
+    if (!sh || seen.has(sh.id)) continue;
+    seen.add(sh.id);
+    works.push({
+      id: sh.externals?.imdb || `tvmaze:${sh.id}`, media_type: "tv", name: sh.name,
+      poster_path: sh.image?.medium ?? null, vote_average: sh.rating?.average ?? 0,
+      imdb_id: sh.externals?.imdb || null,
+    });
+    if (works.length >= 24) break;
+  }
+  return { person: { name: person.name, photo: person.image?.medium || null, known: "" }, works };
 }

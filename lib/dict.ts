@@ -45,6 +45,9 @@ const es = {
   search_no_results: "Sin resultados",
   lang_label: "Idioma de la interfaz y sinopsis",
   det_seasons: "T", det_episodes: "E",
+  score: "Puntuación", overview_h: "Vista general", cast_h: "Reparto principal",
+  fact_estado: "Estado", fact_idioma: "Idioma original", fact_presupuesto: "Presupuesto", fact_ingresos: "Ingresos",
+  ver_trailer: "Reproducir tráiler",
 };
 
 export type Dict = typeof es;
@@ -93,6 +96,9 @@ const en: Dict = {
   search_no_results: "No results",
   lang_label: "Interface and synopsis language",
   det_seasons: "S", det_episodes: "E",
+  score: "Score", overview_h: "Overview", cast_h: "Top cast",
+  fact_estado: "Status", fact_idioma: "Original language", fact_presupuesto: "Budget", fact_ingresos: "Revenue",
+  ver_trailer: "Play trailer",
 };
 
 const pt: Dict = {
@@ -139,6 +145,9 @@ const pt: Dict = {
   search_no_results: "Sem resultados",
   lang_label: "Idioma da interface e sinopses",
   det_seasons: "T", det_episodes: "E",
+  score: "Pontuação", overview_h: "Sinopse", cast_h: "Elenco principal",
+  fact_estado: "Estado", fact_idioma: "Idioma original", fact_presupuesto: "Orçamento", fact_ingresos: "Receita",
+  ver_trailer: "Reproduzir trailer",
 };
 
 export const STR: Record<Lang, Dict> = { es, en, pt };
