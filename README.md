@@ -24,25 +24,27 @@ npm run dev                  # http://localhost:3000
 | Var | Obligatoria | Descripción |
 | --- | --- | --- |
 | `TMDB_API_KEY` | No | Key gratuita de themoviedb.org. Sin ella, modo free (Cinemeta + TVMaze). |
-| `NEXT_PUBLIC_PROVIDERS_URL` | No | URL del JSON de servidores. Por defecto `/providers.json`. |
-| `NEXT_PUBLIC_VIMEUS_VIEW_KEY` | Solo si usas Vimeus | View key de tu panel Vimeus. |
+| `PROVIDERS_URL` | No | URL de tu JSON de servidores. Vacío = `/providers.json` local. |
+| `PROVIDERS_SOURCE=local` | No | Test: fuerza el JSON local ignorando el remoto. |
+| `VIMEUS_VIEW_KEY` | Solo si usas Vimeus | View key de tu panel (se inyecta en servidor, nunca sale al cliente). |
+| `EASTER_EGG` | No | Secreto del Easter Egg del footer (validado en servidor). |
 
 ## Servidores: cada uno gestiona los suyos (sin recompilar)
 
 La lista de servidores **no está en el código**: vive en un JSON externo que cada
-despliegue configura con `NEXT_PUBLIC_PROVIDERS_URL`. Así nadie depende de la
-lista de otra persona.
+despliegue configura con `PROVIDERS_URL` (variable **privada**, sin `NEXT_PUBLIC_`).
+Las URLs finales se arman en `/api/embed-url`, así que las keys nunca llegan al navegador.
 
 1. Copia `public/providers.json` a tu propio host (un gist de GitHub, cualquier
    archivo estático con CORS abierto).
-2. En tu `.env.local` pon `NEXT_PUBLIC_PROVIDERS_URL=https://tu-url/providers.json`.
-3. Reinicia (`npm run dev` / redespliega). El detector del header pasa a 🟢 con tu conteo.
+2. En tus env pon `PROVIDERS_URL=https://tu-url/providers.json`.
+3. Reinicia/despliega. El detector del header pasa a 🟢 con tu conteo.
 
 Si la variable se deja vacía, la app usa el `/providers.json` local incluido.
 
 ### Probar sin romper nada
 
-`NEXT_PUBLIC_PROVIDERS_SOURCE=local` fuerza el JSON local del repo
+`PROVIDERS_SOURCE=local` fuerza el JSON local del repo
 (`public/providers.json`) ignorando el remoto. Edita, prueba en dev y cuando
 funcione súbelo a tu URL remota. Requiere reiniciar el dev.
 Si tu URL falla, se usa la lista integrada de `lib/providers.ts` como respaldo.

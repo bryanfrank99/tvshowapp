@@ -3,7 +3,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { providersUrl } from "@/lib/providers";
+import { fetchProviders, fetchLiveSources } from "@/lib/providers";
 import { IconSearch, IconHome, IconFilm, IconTv, IconSignal, IconHeart } from "@/components/Icons";
 import { useLang } from "@/hooks/useLang";
 import LangMenu from "@/components/LangMenu";
@@ -35,40 +35,19 @@ export default function Header() {
   const { lang } = useLang();
   const d = t(lang);
 
-  // Detector: ¿responde el JSON remoto de proveedores?
+  // Detector: ¿responde la lista remota de proveedores? (vía fetchProviders con caché)
   useEffect(() => {
     let alive = true;
-    const url = providersUrl();
-    try {
-      const raw = localStorage.getItem("tvshow_providers_cache_v2");
-      if (raw) {
-        const c = JSON.parse(raw);
-        if (c.t + 3600 * 1000 > Date.now() && Array.isArray(c.list) && c.list.length) {
-          let n = c.list.length;
-          try {
-            const rl = localStorage.getItem("tvshow_live_cache_v2");
-            if (rl) {
-              const cl = JSON.parse(rl);
-              if (cl.t + 3600 * 1000 > Date.now() && Array.isArray(cl.list)) n += cl.list.length;
-            }
-          } catch {}
-          setSt({ state: "online", count: n, version: c.version || "" });
-          return;
-        }
-      }
-    } catch {}
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 8000);
-    fetch(url, { cache: "no-store", signal: ctrl.signal })
-      .then((res) => {
+    const to = setTimeout(() => { if (alive) setSt({ state: "local" }); }, 10000);
+    Promise.all([fetchProviders().catch(() => null), fetchLiveSources().catch(() => [])])
+      .then(([prov, live]) => {
         clearTimeout(to);
-        if (!res.ok) throw new Error();
-        return res.json();
-      })
-      .then((j) => {
-        const n = (Array.isArray(j) ? j.length : (j.providers?.length || 0) + (j.live?.length || 0));
-        const v = String((!Array.isArray(j) && j.version) || "");
-        if (alive) setSt(n ? { state: "online", count: n, version: v } : { state: "local" });
+        if (!alive) return;
+        if (prov && prov.list.length) {
+          setSt({ state: "online", count: prov.list.length + live.length, version: prov.version });
+        } else {
+          setSt({ state: "local" });
+        }
       })
       .catch(() => { if (alive) setSt({ state: "local" }); });
     return () => { alive = false; clearTimeout(to); };

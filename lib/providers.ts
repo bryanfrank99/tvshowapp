@@ -1,10 +1,7 @@
-// Lista de proveedores DINÁMICA:
-// 1. La app intenta cargar JSON de NEXT_PUBLIC_PROVIDERS_URL (o /providers.json por defecto).
-//    Ese JSON puede estar en cualquier URL (gist, tu servidor, CDN): para agregar,
-//    modificar o eliminar un proveedor editas el JSON, sin tocar ni recompilar la app.
-//    En producción (`next start`) el /providers.json de public/ se sirve desde disco,
-//    así que editarlo en el servidor también aplica sin rebuild.
-// 2. Si la URL falla, se usa la lista integrada de abajo (fallback).
+// Lista de proveedores DINÁMICA (sin NEXT_PUBLIC_*):
+// 1. El cliente pide /api/config (servidor) que dice qué JSON cargar.
+//    Editar ese JSON agrega/quita servidores sin tocar ni recompilar la app.
+// 2. Las URLs finales con key se construyen en /api/embed-url (servidor).
 //
 // Esquema del JSON:
 // {
@@ -14,7 +11,8 @@
 //       "tv": "https://vidzy.org/serie/{id}/{s}/{e}?autoplay=1&autonext=1" }
 //   ]
 // }
-// Placeholders: {id} {s} {e} {key}. {key} = entry.key o NEXT_PUBLIC_VIMEUS_VIEW_KEY.
+// Placeholders: {id} {s} {e} {key} {idparam}. {key} sale del JSON (entry.key)
+// o se inyecta en servidor (/api/embed-url con VIMEUS_VIEW_KEY).
 
 export type ProviderId = string;
 
@@ -38,11 +36,6 @@ export type Provider = {
   tv: (id: string, s: number, e: number) => string;
   sandbox: string;
 };
-
-// View key personal de Vimeus (Settings → General). SOLO por variable de entorno
-// NEXT_PUBLIC_VIMEUS_VIEW_KEY (ver .env.example). Nunca commitear keys.
-const envVimeusKey = () =>
-  (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_VIMEUS_VIEW_KEY : "") || "";
 
 function fill(tpl: string, id: string, s: number, e: number, key: string) {
   const idparam = id.startsWith("tt") ? `imdb=${id}` : `tmdb=${id}`;
@@ -68,23 +61,42 @@ const LS_CACHE = "tvshow_providers_cache_v2";
 const TTL = 3600 * 1000;
 
 export function providersUrl() {
-  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_PROVIDERS_SOURCE === "local") {
-    return "/providers.json"; // modo test: JSON local del repo, sin tocar el remoto
-  }
-  return (typeof process !== "undefined" && process.env.NEXT_PUBLIC_PROVIDERS_URL) || "/providers.json";
+  // Solo lectura síncrona legacy; el flujo real usa remoteJsonUrl().
+  return "/providers.json";
+}
+
+let cachedUrl: string | null = null;
+
+// URL del JSON resuelta en SERVIDOR (/api/config): sin NEXT_PUBLIC_*.
+export async function remoteJsonUrl(): Promise<string> {
+  if (cachedUrl) return cachedUrl;
+  try {
+    const r = await fetch("/api/config", { cache: "no-store" });
+    if (r.ok) {
+      const j = await r.json();
+      const u = String(j.providersUrl || "");
+      if (u && !u.includes("(local)")) {
+        cachedUrl = u;
+        return u;
+      }
+    }
+  } catch {}
+  cachedUrl = "/providers.json";
+  return cachedUrl;
 }
 
 export async function fetchProviders(): Promise<{ list: Provider[]; version: string }> {
+  const url = await remoteJsonUrl();
   try {
     const raw = localStorage.getItem(LS_CACHE);
     if (raw) {
       const c = JSON.parse(raw);
-      if (c.t + TTL > Date.now() && Array.isArray(c.list) && c.list.length) {
-        return { list: c.list.map((d: ProviderDef) => buildProvider(d, envKey())), version: c.version || "" };
+      if (c.t + TTL > Date.now() && Array.isArray(c.list) && c.list.length && c.url === url) {
+        return { list: c.list.map((d: ProviderDef) => buildProvider(d, "")), version: c.version || "" };
       }
     }
   } catch {}
-  const r = await fetch(providersUrl(), { cache: "no-store" });
+  const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error("http " + r.status);
   const j = await r.json();
   const arr: ProviderDef[] = Array.isArray(j) ? j : j.providers;
@@ -92,12 +104,12 @@ export async function fetchProviders(): Promise<{ list: Provider[]; version: str
   const valid = arr.filter((d) => d && d.id && d.name && d.movie && d.tv);
   if (!valid.length) throw new Error("invalid");
   const version = String((!Array.isArray(j) && j.version) || "");
-  try { localStorage.setItem(LS_CACHE, JSON.stringify({ t: Date.now(), list: valid, version })); } catch {}
-  return { list: valid.map((d) => buildProvider(d, envKey())), version };
+  try { localStorage.setItem(LS_CACHE, JSON.stringify({ t: Date.now(), list: valid, version, url })); } catch {}
+  return { list: valid.map((d) => buildProvider(d, "")), version };
 }
 
 function envKey() {
-  return envVimeusKey();
+  return "";
 }
 
 // ---- Fuentes de TV en vivo (también configurables en el mismo JSON) ----
@@ -117,7 +129,7 @@ export async function fetchLiveSources(): Promise<LiveSource[]> {
     }
   } catch {}
   try {
-    const r = await fetch(providersUrl(), { cache: "no-store" });
+    const r = await fetch(await remoteJsonUrl(), { cache: "no-store" });
     if (!r.ok) throw new Error();
     const j = await r.json();
     const arr = j.live;

@@ -2,7 +2,7 @@ import { join } from "path";
 
 // Base estática para Capacitor: `npm run build:static` activa export 100% estático
 // (sin API routes ni SSR). En ese modo "@/lib/db" se aliasa a IndexedDB.
-const isStatic = process.env.OUTPUT_EXPORT === "1";
+const isStatic = process.env.STATIC_EXPORT === "1" || process.env.OUTPUT_EXPORT === "1";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

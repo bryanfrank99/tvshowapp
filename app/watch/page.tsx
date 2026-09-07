@@ -1,5 +1,5 @@
 ﻿"use client";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetchProviders, type Provider } from "@/lib/providers";
@@ -37,10 +37,16 @@ function WatchInner() {
   useEffect(loadList, []);
 
   const p = list.find((x) => x.id === provider) || list[0];
-  const src = useMemo(() => {
-    if (!p) return "";
+  const [src, setSrc] = useState("");
+
+  // URL final construida en SERVIDOR (/api/embed-url inyecta la key).
+  useEffect(() => {
+    if (!p) { setSrc(""); return; }
     const eid = embedId || id;
-    return type === "movie" ? p.movie(eid) : p.tv(eid, s, e);
+    fetch(`/api/embed-url?provider=${p.id}&type=${type}&id=${encodeURIComponent(eid)}&s=${s}&e=${e}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setSrc(j.url || ""))
+      .catch(() => setSrc(""));
   }, [p, embedId, type, id, s, e]);
 
   // Si el proveedor exige TMDB y el id es IMDb, resolver vía Cinemeta.
@@ -104,6 +110,8 @@ function WatchInner() {
           <p className="aspect-video flex items-center justify-center text-sm text-yellow-300 p-6 text-center">
             {p?.name} {d.no_tmdb}
           </p>
+        ) : !src ? (
+          <p className="aspect-video flex items-center justify-center text-sm text-zinc-400">…</p>
         ) : (
           <iframe key={src} src={src} referrerPolicy="origin" className="w-full aspect-video bg-black" allowFullScreen allow="autoplay; encrypted-media; fullscreen; picture-in-picture" />
         )}
