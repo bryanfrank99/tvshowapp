@@ -9,6 +9,7 @@ export type Entry = {
   id: string;
   title: string;
   poster: string;
+  rating?: number;
   season?: number;
   episode?: number;
   updatedAt: number;

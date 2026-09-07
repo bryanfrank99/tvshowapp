@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-export type Fav = { type: "movie" | "tv"; id: string; title: string; poster: string; addedAt: number };
+export type Fav = { type: "movie" | "tv"; id: string; title: string; poster: string; rating?: number; addedAt: number };
 const KEY = "tvshow_favs_v1";
 
 export function useFavorites() {

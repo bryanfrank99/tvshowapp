@@ -73,7 +73,7 @@ export default function FeaturedCarousel({ items }: { items: Media[] }) {
         <div className="flex gap-2 mt-3 md:mt-4 flex-wrap" onClick={(e) => e.stopPropagation()}>
           <button onClick={() => router.push(playHref)}
             className="px-4 md:px-5 py-2 rounded-lg border border-white/40 text-xs md:text-sm font-bold hover:bg-white hover:text-black transition inline-flex items-center gap-2"><IconPlay size={15} />{d.ver_ahora}</button>
-          <button onClick={() => toggle({ type: type as "movie" | "tv", id: String(it.id), title, poster })}
+          <button onClick={() => toggle({ type: type as "movie" | "tv", id: String(it.id), title, poster, rating: it.vote_average ?? 0 })}
             className="px-3 md:px-4 py-2 rounded-lg border border-white/25 text-xs md:text-sm hover:border-red-400 transition">
             {fav ? d.en_lista : d.anadir}
           </button>

@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Efecto "zoom 120%": base más grande en pantallas amplias (móvil intacto) */
+@media (min-width: 1024px) { html { font-size: 112.5%; } }
+@media (min-width: 1536px) { html { font-size: 120%; } }
+
 .rail { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; }
 .rail > * { flex: 0 0 140px; }
 @media (min-width: 640px) { .rail { gap: 12px; } .rail > * { flex-basis: 160px; } }
@@ -14,8 +18,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   outline-offset: 3px;
   border-radius: 12px;
 }
-a:focus-visible img, button:focus-visible {
-  filter: brightness(1.15);
+a:focus-visible, button:focus-visible {
+  transform: scale(1.05);
+  filter: brightness(1.2);
+  z-index: 5;
+  position: relative;
 }
 @media (pointer: coarse) {
   .rail { scroll-snap-type: x mandatory; }

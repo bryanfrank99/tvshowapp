@@ -102,8 +102,17 @@ export async function getSeries(n = 24): Promise<Media[]> {
   }, () => free.cineCatalog("series", "top", n));
 }
 
-export async function getTop10ImdbWeek(): Promise<Media[]> {
+export async function getTrending(n = 20): Promise<Media[]> {
   return tmdbOr(async () => {
+    const d = await tmdb<{ results: Media[] }>("/trending/all/week", 600);
+    return d.results.filter((x) => x.media_type === "movie" || x.media_type === "tv").slice(0, n);
+  }, async () => {
+    const [m, s] = await Promise.all([free.cineCatalog("movie", "top", 12), free.cineCatalog("series", "top", 12)]);
+    return [...m, ...s].slice(0, n);
+  });
+}
+
+export async function getTop10ImdbWeek(): Promise<Media[]> {  return tmdbOr(async () => {
     const d = await tmdb<{ results: Media[] }>("/trending/all/week", 3600);
     const ranked = [...d.results]
       .filter((x) => x.title || x.name)

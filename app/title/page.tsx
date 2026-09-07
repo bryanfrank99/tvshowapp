@@ -94,7 +94,7 @@ async function MovieDetail(id: string) {
             </div>
             <div className="flex gap-2 mt-4 flex-wrap items-center">
               <Link href={`/watch?type=movie&id=${m.id || id}`} className="bg-[#008CFF] rounded-xl px-5 py-2.5 font-bold inline-flex items-center gap-2 text-sm"><IconPlay size={15} />{d.ver_ahora_btn}</Link>
-              <FavButton big type="movie" id={id} title={m.title} poster={img(m.poster_path)} />
+              <FavButton big type="movie" id={id} title={m.title} poster={img(m.poster_path)} rating={m.vote_average ?? 0} />
             </div>
             {m.tagline && <p className="mt-4 italic text-zinc-400">{m.tagline}</p>}
             <h2 className="text-lg font-bold mt-3">{d.overview_h}</h2>
@@ -219,7 +219,7 @@ function renderTv(s: any, det: any, id: string, sel: number, seasons: any[], imd
             </div>
             <div className="flex gap-2 mt-4 flex-wrap items-center">
               <ContinueSeriesButton id={id} />
-              <FavButton big type="tv" id={id} title={s.name} poster={img(s.poster_path)} />
+              <FavButton big type="tv" id={id} title={s.name} poster={img(s.poster_path)} rating={s.vote_average ?? 0} />
             </div>
             {s.tagline && <p className="mt-4 italic text-zinc-400">{s.tagline}</p>}
             <h2 className="text-lg font-bold mt-3">{d.overview_h}</h2>

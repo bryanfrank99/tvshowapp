@@ -2,8 +2,8 @@
 export type Lang = "es" | "en" | "pt";
 
 const es = {
-  nav_home: "INICIO", nav_movies: "PELÍCULAS", nav_series: "SERIES", nav_live: "TV EN VIVO", nav_list: "MI LISTA",
-  tabs_home: "Inicio", tabs_movies: "Pelis", tabs_series: "Series", tabs_live: "En vivo", tabs_list: "Mi lista",
+  nav_home: "INICIO", nav_movies: "PELÍCULAS", nav_series: "SERIES", nav_live: "TV EN VIVO", nav_list: "MI LISTA", nav_search: "BUSCAR",
+  tabs_home: "Inicio", tabs_movies: "Pelis", tabs_series: "Series", tabs_live: "En vivo", tabs_list: "Mi lista", tabs_search: "Buscar",
   search_ph: "Buscar películas, series…", search_btn: "Buscar",
   feat: "Featured today", feat_kicker: "Contenido destacado",
   spotlight: "Episode Spotlight", toppicks: "Top picks", upcoming: "Upcoming", top10: "Top 10 on IMDb this week",
@@ -50,13 +50,16 @@ const es = {
   ver_trailer: "Reproducir tráiler",
   gate_play: "Toca para reproducir",
   block_tip: "¿Ventanas emergentes? Bloquéalas con:",
+  popular: "Búsqueda popular", refresh: "Refresh", total: "Total",
+  servidores_label: "Servidores",
+  crumb_detalle: "Detalle", crumb_persona: "Persona", crumb_genero: "Género", crumb_ver: "Ver",
 };
 
 export type Dict = typeof es;
 
 const en: Dict = {
-  nav_home: "HOME", nav_movies: "MOVIES", nav_series: "SERIES", nav_live: "LIVE TV", nav_list: "MY LIST",
-  tabs_home: "Home", tabs_movies: "Movies", tabs_series: "Series", tabs_live: "Live", tabs_list: "My list",
+  nav_home: "HOME", nav_movies: "MOVIES", nav_series: "SERIES", nav_live: "LIVE TV", nav_list: "MY LIST", nav_search: "SEARCH",
+  tabs_home: "Home", tabs_movies: "Movies", tabs_series: "Series", tabs_live: "Live", tabs_list: "My list", tabs_search: "Search",
   search_ph: "Search movies, series…", search_btn: "Search",
   feat: "Featured today", feat_kicker: "Featured",
   spotlight: "Episode Spotlight", toppicks: "Top picks", upcoming: "Upcoming", top10: "Top 10 on IMDb this week",
@@ -103,11 +106,14 @@ const en: Dict = {
   ver_trailer: "Play trailer",
   gate_play: "Tap to play",
   block_tip: "Pop-ups? Block them with:",
+  popular: "Popular search", refresh: "Refresh", total: "Total",
+  servidores_label: "Servers",
+  crumb_detalle: "Details", crumb_persona: "Person", crumb_genero: "Genre", crumb_ver: "Watch",
 };
 
 const pt: Dict = {
-  nav_home: "INÍCIO", nav_movies: "FILMES", nav_series: "SÉRIES", nav_live: "TV AO VIVO", nav_list: "MINHA LISTA",
-  tabs_home: "Início", tabs_movies: "Filmes", tabs_series: "Séries", tabs_live: "Ao vivo", tabs_list: "Minha lista",
+  nav_home: "INÍCIO", nav_movies: "FILMES", nav_series: "SÉRIES", nav_live: "TV AO VIVO", nav_list: "MINHA LISTA", nav_search: "BUSCAR",
+  tabs_home: "Início", tabs_movies: "Filmes", tabs_series: "Séries", tabs_live: "Ao vivo", tabs_list: "Minha lista", tabs_search: "Buscar",
   search_ph: "Buscar filmes, séries…", search_btn: "Buscar",
   feat: "Destaques de hoje", feat_kicker: "Conteúdo em destaque",
   spotlight: "Episódio em destaque", toppicks: "Escolhas top", upcoming: "Em breve", top10: "Top 10 no IMDb esta semana",
@@ -154,6 +160,9 @@ const pt: Dict = {
   ver_trailer: "Reproduzir trailer",
   gate_play: "Toca para reproduzir",
   block_tip: "Pop-ups? Bloqueie com:",
+  popular: "Busca popular", refresh: "Refresh", total: "Total",
+  servidores_label: "Servidores",
+  crumb_detalle: "Detalhes", crumb_persona: "Pessoa", crumb_genero: "Gênero", crumb_ver: "Assistir",
 };
 
 export const STR: Record<Lang, Dict> = { es, en, pt };

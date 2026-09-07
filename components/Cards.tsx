@@ -32,10 +32,10 @@ export function MediaCard({ item }: { item: Media }) {
   const d = t(lang);
   return (
     <Link href={`/title?type=${type}&id=${item.id}`} className="group relative block bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-[#008CFF] hover:-translate-y-1 transition">
-      <FavButton type={type as "movie" | "tv"} id={item.id} title={title} poster={img(item.poster_path ?? null)} />
+      <FavButton type={type as "movie" | "tv"} id={item.id} title={title} poster={img(item.poster_path ?? null)} rating={item.vote_average ?? 0} />
       <Image src={img(item.poster_path ?? null)} alt={title} width={300} height={450} className="w-full aspect-[2/3] object-cover" loading="lazy" />
       <span className="absolute top-1.5 right-1.5 text-[11px] font-bold bg-black/70 rounded-md px-1.5 py-0.5 inline-flex items-center gap-1"><IconStar size={11} className="text-[#f5c518]" />{Math.round((item.vote_average ?? 0) * 10) / 10}</span>
-      <span className="absolute inset-0 m-auto w-14 h-14 rounded-full hidden group-hover:flex items-center justify-center bg-gradient-to-br from-[#008CFF] to-[#008CFF] shadow-[0_0_24px_rgba(0,140,255,0.7)] ring-1 ring-white/40">
+      <span className="absolute inset-0 m-auto w-14 h-14 rounded-full hidden group-hover:flex items-center justify-center bg-gradient-to-br from-[#008CFF] to-[#008CFF]/70 shadow-[0_0_24px_rgba(0,140,255,0.7)] ring-1 ring-white/40">
         <IconPlay size={22} className="ml-0.5 text-white" />
       </span>
       <div className="p-2">
@@ -63,10 +63,11 @@ export function Top10Card({ item }: { item: Media }) {
           {item.imdb_id ? <span role="link" tabIndex={0} title={item.imdb_id} className="imdb-badge cursor-pointer" onClick={(e) => openImdb(e, item.imdb_id!)}>IMDb ↗</span> : d.no_imdb}
         </p>
       </div>
-      <FavButton end type={type as "movie" | "tv"} id={item.id} title={title} poster={img(item.poster_path ?? null)} />
+      <FavButton end type={type as "movie" | "tv"} id={item.id} title={title} poster={img(item.poster_path ?? null)} rating={item.vote_average ?? 0} />
     </Link>
   );
 }
+
 
 
 

@@ -80,7 +80,7 @@ function WatchInner() {
         ? (m.poster_path.startsWith("http") ? m.poster_path : `https://image.tmdb.org/t/p/w500${m.poster_path}`)
         : (m.poster || "");
       if (t) setTitle(t);
-      save({ type, id, title: t || `#${id}`, poster: posterUrl, season: s, episode: e });
+      save({ type, id, title: t || `#${id}`, poster: posterUrl, rating: m.vote_average ?? 0, season: s, episode: e });
     }).catch(() => {
       save({ type, id, title: `#${id}`, poster: "", season: s, episode: e });
     });
