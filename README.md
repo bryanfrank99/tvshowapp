@@ -96,8 +96,12 @@ Bloque `providers` (reproductores de pelis/series) y `live` (fuentes de TV en vi
 
 - `npm run dev` — desarrollo
 - `npm run build` / `npm start` — producción
-- `npm version patch|minor|major` — sube la versión de la app
+- `npm version patch|minor|major` — sube la versión manualmente
   (se muestra en el footer como `vX.Y.Z`)
+
+> **Versionado automático**: cada `git commit` sube el patch solo
+> (hook `pre-commit` → `scripts/bump-version.mjs`). Para saltarlo:
+> `SKIP_VERSION=1 git commit ...`. Para minor/major usa `npm version`.
 - `npm run sync -- movie:550 tv:1399 --lang es,en,pt` — vuelca TMDB a SQLite
 
 ## App Android (Capacitor + antibloqueo, F-Droid)
