@@ -12,6 +12,13 @@ out/
 .DS_Store
 Thumbs.db
 
+# capacitor: artefactos de build (el código nativo SÍ se commitea)
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+ios/
+
 # logs
 *.log
 

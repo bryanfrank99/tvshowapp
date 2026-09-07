@@ -39,6 +39,12 @@ lista de otra persona.
 3. Reinicia (`npm run dev` / redespliega). El detector del header pasa a 🟢 con tu conteo.
 
 Si la variable se deja vacía, la app usa el `/providers.json` local incluido.
+
+### Probar sin romper nada
+
+`NEXT_PUBLIC_PROVIDERS_SOURCE=local` fuerza el JSON local del repo
+(`public/providers.json`) ignorando el remoto. Edita, prueba en dev y cuando
+funcione súbelo a tu URL remota. Requiere reiniciar el dev.
 Si tu URL falla, se usa la lista integrada de `lib/providers.ts` como respaldo.
 
 ### Esquema del JSON
@@ -63,10 +69,26 @@ Bloque `providers` (reproductores de pelis/series) y `live` (fuentes de TV en vi
 - Placeholders reproductores: `{id} {s} {e} {key} {idparam}`
   (`{idparam}` = `imdb=tt…` o `tmdb=…`; `{key}` sale de `key` o `NEXT_PUBLIC_VIMEUS_VIEW_KEY`).
 - `needsTmdb: true` convierte IMDb→TMDB solo vía Cinemeta.
+- `sandbox` (opcional, desaconsejado): la mayoría de players lo bloquean.
+  En su lugar la app usa puerta click-to-play (absorbe el primer clic que suele
+  disparar popups) + confirmación anti-secuestro si un iframe intenta redirigir
+  la página. Para bloqueo total recomienda Brave o uBlock Origin.
 - Formatos live soportados: `streambetter` y `tvf90`.
 - **`version` (recomendado)**: súbelo en cada cambio (1, 2, 3…). La web lo muestra
   en el header (`(8) v3`) y en el reproductor (`lista v3`): así verificas de un
   vistazo que cargó la versión correcta y no una caché vieja.
+
+## Desplegar en Vercel
+
+1. Importa el repo. Node 22+ (ya fijado en `engines`).
+2. En **Settings → Environment Variables** añade (las `NEXT_PUBLIC_` van
+   horneadas en el build: cualquier cambio exige **redeploy**):
+   - `TMDB_API_KEY` (opcional, modo free sin ella)
+   - `NEXT_PUBLIC_PROVIDERS_URL` (tu JSON; vacío = local)
+   - `NEXT_PUBLIC_VIMEUS_VIEW_KEY` (solo si usas Vimeus)
+   - `EASTER_EGG` (privada, sin prefijo)
+3. Deploy y verifica en `https://tu-app.vercel.app/api/config`:
+   debe mostrar `tmdb/vimeusKey/easterEgg: true` (sin revelar valores).
 
 ## Scripts
 
@@ -75,6 +97,19 @@ Bloque `providers` (reproductores de pelis/series) y `live` (fuentes de TV en vi
 - `npm version patch|minor|major` — sube la versión de la app
   (se muestra en el footer como `vX.Y.Z`)
 - `npm run sync -- movie:550 tv:1399 --lang es,en,pt` — vuelca TMDB a SQLite
+
+## App Android (Capacitor + antibloqueo, F-Droid)
+
+Shell nativo sobre producción con bloqueo de popups/trackers a nivel WebView
+(`android/.../AdBlock*.java` + `assets/adhosts.txt`).
+
+```bash
+npx cap sync android
+# abrir android/ en Android Studio → Run (o Build > APK)
+```
+
+Notas: `android/` e `ios/` no se commitean (se generan). `fastlane/metadata`
+para F-Droid. La lista de hosts está en `android/app/src/main/assets/adhosts.txt`.
 
 ## Caché SQLite (`data/tmdb.db`, sin imágenes)
 

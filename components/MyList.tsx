@@ -20,7 +20,7 @@ export default function MyList() {
       <div className="rail">
         {favs.map((f) => (
           <div key={`${f.type}-${f.id}`} className="relative bg-white/5 border border-red-500/30 rounded-2xl overflow-hidden">
-            <Link href={`/${f.type}/${f.id}`} className="block">
+            <Link href={`/title?type=${f.type}&id=${f.id}`} className="block">
               <Image src={f.poster || "https://via.placeholder.com/500x750?text=?"} alt={f.title} width={300} height={450} className="w-full aspect-[2/3] object-cover" loading="lazy" />
               <div className="p-2">
                 <p className="text-sm font-semibold truncate">{f.title}</p>

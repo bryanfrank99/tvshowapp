@@ -26,6 +26,8 @@ function WatchInner() {
   const [listVersion, setListVersion] = useState("");
 
   // Servidores SOLO del JSON remoto.
+
+  // Servidores SOLO del JSON remoto.
   const loadList = () => {
     setListError(false);
     fetchProviders()
@@ -82,7 +84,7 @@ function WatchInner() {
   if (!id) return <p>{d.falta_id}</p>;
   return (
     <>
-      <Link href={`/${type}/${id}`} className="text-xs text-zinc-400">{d.volver}</Link>
+      <Link href={`/title?type=${type}&id=${id}`} className="text-xs text-zinc-400">{d.volver}</Link>
       <h1 className="text-2xl font-black">{title}</h1>
       <p className="text-xs text-zinc-500 mb-3">{d.servidor} <b className="text-[#008CFF]">{p?.name || "…"}</b> · TMDB #{id} {type === "tv" ? `· ${d.tv_t}${s}${d.ep_e}${e}` : ""}{listVersion ? ` · lista v${listVersion}` : ""}</p>
       <div className="flex gap-2 mb-3 flex-wrap">
@@ -108,9 +110,10 @@ function WatchInner() {
       </div>
       <div className="flex gap-2 mt-3 flex-wrap items-center">
         {type === "tv" && <Link href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.siguiente} {d.ep_e}{e + 1} →</Link>}
-        {type === "tv" && <Link href={`/tv/${id}?season=${s}`} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm">{d.todos_capitulos}</Link>}
+        {type === "tv" && <Link href={`/title?type=tv&id=${id}&season=${s}`} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm">{d.todos_capitulos}</Link>}
       </div>
       <p className="text-xs text-zinc-500 mt-2">{d.watch_note}</p>
+      <p className="text-xs text-zinc-600 mt-1">{d.block_tip} <a href="https://brave.com" target="_blank" rel="noopener" className="underline">Brave</a> · <a href="https://ublockorigin.com" target="_blank" rel="noopener" className="underline">uBlock Origin</a></p>
     </>
   );
 }

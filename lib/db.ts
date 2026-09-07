@@ -5,6 +5,11 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { tmpdir } from "os";
+import { certOf } from "./db-cert";
+import type { TitleRow } from "./db-types";
+
+export { certOf };
+export type { TitleRow };
 
 function resolveDbPath() {
   const preferred = process.env.SQLITE_PATH || join(process.cwd(), "data", "tmdb.db");
@@ -83,8 +88,6 @@ function ensureSchema(d: DatabaseSync) {
 }
 
 // ---------- títulos ----------
-export type TitleRow = any;
-
 export function getTitle(type: string, id: number | string, lang: string, maxAgeMs = 7 * 86400 * 1000) {
   try {
     const row = getDb().prepare("SELECT * FROM titles WHERE tmdb_id=? AND type=? AND lang=?").get(Number(id), type, lang) as any;
@@ -137,18 +140,7 @@ export function saveTitle(type: string, id: number | string, lang: string, m: an
   );
 }
 
-// Certificación US (ej. PG-13) desde release_dates (movie) o content_ratings (tv).
-export function certOf(m: any): string {
-  try {
-    const us = (m.release_dates?.results || []).find((r: any) => r.iso_3166_1 === "US");
-    const rel = (us?.release_dates || []).find((x: any) => x.certification) || (us?.release_dates || [])[0];
-    if (rel?.certification) return rel.certification;
-    const rt = (m.content_ratings?.results || []).find((r: any) => r.iso_3166_1 === "US");
-    return rt?.rating || "";
-  } catch {
-    return "";
-  }
-}
+// Certificación US: ver db-cert (se re-exporta arriba).
 
 // ---------- temporadas / episodios ----------
 export function getEpisodes(tvId: number | string, season: number, lang: string, maxAgeMs = 7 * 86400 * 1000) {

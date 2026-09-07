@@ -25,6 +25,9 @@ export type ProviderDef = {
   movie: string;
   tv: string;
   key?: string;
+  // sandbox opcional: sin allow-popups bloquea ventanas emergentes y secuestros
+  // de la página. StreamBetter lo prohíbe (no ponerlo ahí).
+  sandbox?: string;
 };
 
 export type Provider = {
@@ -33,6 +36,7 @@ export type Provider = {
   needsTmdb: boolean;
   movie: (id: string) => string;
   tv: (id: string, s: number, e: number) => string;
+  sandbox: string;
 };
 
 // View key personal de Vimeus (Settings → General). SOLO por variable de entorno
@@ -51,6 +55,7 @@ export function buildProvider(def: ProviderDef, envKey = ""): Provider {
     id: def.id,
     name: def.name,
     needsTmdb: !!def.needsTmdb,
+    sandbox: def.sandbox || "",
     movie: (id) => fill(def.movie, id, 1, 1, key),
     tv: (id, s, e) => fill(def.tv, id, s, e, key),
   };
@@ -63,6 +68,9 @@ const LS_CACHE = "tvshow_providers_cache_v2";
 const TTL = 3600 * 1000;
 
 export function providersUrl() {
+  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_PROVIDERS_SOURCE === "local") {
+    return "/providers.json"; // modo test: JSON local del repo, sin tocar el remoto
+  }
   return (typeof process !== "undefined" && process.env.NEXT_PUBLIC_PROVIDERS_URL) || "/providers.json";
 }
 

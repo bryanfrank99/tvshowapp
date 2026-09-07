@@ -48,6 +48,8 @@ const es = {
   score: "Puntuación", overview_h: "Vista general", cast_h: "Reparto principal",
   fact_estado: "Estado", fact_idioma: "Idioma original", fact_presupuesto: "Presupuesto", fact_ingresos: "Ingresos",
   ver_trailer: "Reproducir tráiler",
+  gate_play: "Toca para reproducir",
+  block_tip: "¿Ventanas emergentes? Bloquéalas con:",
 };
 
 export type Dict = typeof es;
@@ -99,6 +101,8 @@ const en: Dict = {
   score: "Score", overview_h: "Overview", cast_h: "Top cast",
   fact_estado: "Status", fact_idioma: "Original language", fact_presupuesto: "Budget", fact_ingresos: "Revenue",
   ver_trailer: "Play trailer",
+  gate_play: "Tap to play",
+  block_tip: "Pop-ups? Block them with:",
 };
 
 const pt: Dict = {
@@ -148,6 +152,8 @@ const pt: Dict = {
   score: "Pontuação", overview_h: "Sinopse", cast_h: "Elenco principal",
   fact_estado: "Estado", fact_idioma: "Idioma original", fact_presupuesto: "Orçamento", fact_ingresos: "Receita",
   ver_trailer: "Reproduzir trailer",
+  gate_play: "Toca para reproduzir",
+  block_tip: "Pop-ups? Bloqueie com:",
 };
 
 export const STR: Record<Lang, Dict> = { es, en, pt };

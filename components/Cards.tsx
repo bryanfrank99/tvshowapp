@@ -31,7 +31,7 @@ export function MediaCard({ item }: { item: Media }) {
   const { lang } = useLang();
   const d = t(lang);
   return (
-    <Link href={`/${type}/${item.id}`} className="group relative block bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-[#008CFF] hover:-translate-y-1 transition">
+    <Link href={`/title?type=${type}&id=${item.id}`} className="group relative block bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-[#008CFF] hover:-translate-y-1 transition">
       <FavButton type={type as "movie" | "tv"} id={item.id} title={title} poster={img(item.poster_path ?? null)} />
       <Image src={img(item.poster_path ?? null)} alt={title} width={300} height={450} className="w-full aspect-[2/3] object-cover" loading="lazy" />
       <span className="absolute top-1.5 right-1.5 text-[11px] font-bold bg-black/70 rounded-md px-1.5 py-0.5 inline-flex items-center gap-1"><IconStar size={11} className="text-[#f5c518]" />{Math.round((item.vote_average ?? 0) * 10) / 10}</span>
@@ -54,7 +54,7 @@ export function Top10Card({ item }: { item: Media }) {
   const { lang } = useLang();
   const d = t(lang);
   return (
-    <Link href={`/${type}/${item.id}`} className="relative flex gap-3 items-center bg-white/5 border border-white/10 rounded-2xl p-2">
+    <Link href={`/title?type=${type}&id=${item.id}`} className="relative flex gap-3 items-center bg-white/5 border border-white/10 rounded-2xl p-2">
       <span className="text-3xl font-black min-w-10 text-center" style={{ color: "transparent", WebkitTextStroke: "1.5px #f5c518" }}>{item.rank}</span>
       <Image src={img(item.poster_path ?? null)} alt={title} width={56} height={84} className="rounded-lg object-cover" loading="lazy" />
       <div className="min-w-0 flex-1">
@@ -67,6 +67,7 @@ export function Top10Card({ item }: { item: Media }) {
     </Link>
   );
 }
+
 
 
 

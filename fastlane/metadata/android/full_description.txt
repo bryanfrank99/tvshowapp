@@ -1,0 +1,6 @@
+TVShow indexa películas, series y canales de TV en vivo (TMDB/IMDb) y los reproduce
+mediante reproductores configurables, con bloqueo de ventanas emergentes y
+rastreadores integrado a nivel WebView. Incluye Mi lista, Seguir viendo,
+español/inglés/portugués y navegación con mando de TV.
+
+No aloja ningún video: solo enlaza metadatos y reproductores de terceros.
