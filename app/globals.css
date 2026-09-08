@@ -34,3 +34,10 @@ a:focus-visible, button:focus-visible {
   .rail { scroll-snap-type: x mandatory; }
   .rail > * { scroll-snap-align: start; }
 }
+
+/* Densidad TV: todo 12.5% más compacto + hero contenido + rail sin expansión */
+html:has(body.tv) { font-size: 87.5%; }
+body.tv .tv-hero { height: 17rem !important; }
+@media (min-width: 768px) { body.tv .tv-hero { height: 21rem !important; } }
+body.tv nav[aria-label="Principal"] { width: 4rem !important; }
+body.tv nav[aria-label="Principal"] .tv-label { display: none !important; }

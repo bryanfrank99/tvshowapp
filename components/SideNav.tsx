@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -38,7 +38,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
       className="flex fixed left-0 top-0 bottom-0 z-40 w-16 hover:w-52 focus-within:w-52 transition-all bg-[#0b0b10] border-r border-white/10 flex-col items-stretch py-4 gap-1 overflow-hidden group/nav">
       <Link href="/" aria-label="Inicio" className="flex items-center gap-3 px-4 mb-4 h-10">
         <Image src="/favicon.png" alt="TV" width={32} height={32} className="w-8 h-8 shrink-0 group-hover/nav:hidden group-focus-within/nav:hidden" />
-        <Image src="/TVSHOW.png" alt="TVSHOW" width={120} height={32} className="h-7 w-auto shrink-0 hidden group-hover/nav:block group-focus-within/nav:block" />
+        <Image src="/TVSHOW.png" alt="TVSHOW" width={120} height={32} className="tv-label h-7 w-auto shrink-0 hidden group-hover/nav:block group-focus-within/nav:block" />
       </Link>
       {ITEMS.map(({ href, Icon }) => {
         const active = path === href;
@@ -48,7 +48,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
             <span className="w-11 h-12 shrink-0 inline-flex items-center justify-center">
               <Icon size={22} />
             </span>
-            <span className="text-sm font-semibold opacity-0 group-hover/nav:opacity-100 group-focus-within/nav:opacity-100 transition">
+            <span className="tv-label text-sm font-semibold opacity-0 group-hover/nav:opacity-100 group-focus-within/nav:opacity-100 transition">
               {names[href]}
             </span>
           </Link>
@@ -86,3 +86,4 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
     </nav>
   );
 }
+
