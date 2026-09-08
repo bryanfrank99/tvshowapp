@@ -12,6 +12,15 @@
 .imdb-badge { display: inline-block; background: #f5c518; color: #000; font-weight: 800; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 4px; }
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
+/* Skeleton shimmer */
+.shimmer {
+  background: linear-gradient(100deg, rgba(255,255,255,.05) 40%, rgba(255,255,255,.13) 50%, rgba(255,255,255,.05) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .shimmer { animation: none; } }
+
 /* Foco grande y visible para control remoto de TV (10-foot UI) */
 a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   outline: 3px solid #008CFF;

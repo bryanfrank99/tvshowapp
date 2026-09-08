@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useFavorites } from "@/hooks/useFavorites";
 import ContinueWatching from "@/components/ContinueWatching";
 import { IconFilm, IconTv, IconHeart, IconX, IconStar, IconPlay } from "@/components/Icons";
+import { GridSkeleton } from "@/components/Skeleton";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 
@@ -14,7 +15,7 @@ export default function ListPage() {
   const d = t(lang);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
+  if (!mounted) return <GridSkeleton n={6} />;
 
   const movies = favs.filter((f) => f.type === "movie");
   const series = favs.filter((f) => f.type === "tv");

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { IconSearch, IconHome, IconFilm, IconTv, IconSignal, IconHeart } from "@/components/Icons";
 import { useLang } from "@/hooks/useLang";
 import Clock from "@/components/Clock";
+import { useIsTV } from "@/hooks/useIsTV";
 import { t } from "@/lib/dict";
 
 const TABS = [
@@ -19,6 +20,7 @@ export default function Header() {
   const path = usePathname();
   const { lang } = useLang();
   const d = t(lang);
+  const isTV = useIsTV();
   const crumbMap: Record<string, string> = {
     "/movies": d.nav_movies.charAt(0) + d.nav_movies.slice(1).toLowerCase(),
     "/series": d.nav_series.charAt(0) + d.nav_series.slice(1).toLowerCase(),
@@ -51,6 +53,7 @@ export default function Header() {
         </div>
       </div>
     </header>
+      {!isTV && (
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0b0b10] border-t border-white/10 shadow-[0_-8px_24px_rgba(0,0,0,0.6)]" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="grid grid-cols-6 max-w-7xl mx-auto">
           {TABS.map(({ href, label, Icon }) => (
@@ -62,6 +65,7 @@ export default function Header() {
           ))}
         </div>
       </nav>
+      )}
     </>
   );
 }

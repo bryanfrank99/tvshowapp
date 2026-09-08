@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { fetchLiveSources, type LiveSource } from "@/lib/providers";
+import { RailSkeleton } from "@/components/Skeleton";
 import { IconSignal, IconBall } from "@/components/Icons";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
@@ -124,6 +125,7 @@ export default function LivePage() {
         </div>
       )}
       {err && <p className="text-sm text-red-300 mb-4">{d.guia_error}</p>}
+      {!sources.length && !err && <RailSkeleton n={6} />}
       {sources.map(({ src, items }) => {
         const list = filt(items);
         if (!list.length) return null;

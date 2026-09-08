@@ -7,6 +7,7 @@ import { useHistory } from "@/hooks/useHistory";
 import { resolveTmdbId } from "@/lib/resolve";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
+import { PlayerSkeleton } from "@/components/Skeleton";
 
 function WatchInner() {
   const sp = useSearchParams();
@@ -23,16 +24,16 @@ function WatchInner() {
   const [noTmdb, setNoTmdb] = useState(false);
   const [list, setList] = useState<Provider[]>([]);
   const [listError, setListError] = useState(false);
+  const [loadingList, setLoadingList] = useState(true);
   const [listVersion, setListVersion] = useState("");
-
-  // Servidores SOLO del JSON remoto.
 
   // Servidores SOLO del JSON remoto.
   const loadList = () => {
     setListError(false);
+    setLoadingList(true);
     fetchProviders()
-      .then(({ list, version }) => { setList(list); setListVersion(version); })
-      .catch(() => setListError(true));
+      .then(({ list, version }) => { setList(list); setListVersion(version); setLoadingList(false); })
+      .catch(() => { setListError(true); setLoadingList(false); });
   };
   useEffect(loadList, []);
 
@@ -99,19 +100,17 @@ function WatchInner() {
         ))}
       </div>
       <div className="rounded-2xl overflow-hidden border border-white/10 bg-black">
-        {listError || !list.length ? (
+        {listError ? (
           <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
             <p className="text-sm text-red-300">{d.list_error}</p>
             <button onClick={loadList} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.reintentar}</button>
           </div>
-        ) : resolving ? (
-          <p className="aspect-video flex items-center justify-center text-sm text-zinc-400">{d.resolving} {p?.name}…</p>
+        ) : loadingList || resolving || !src ? (
+          <PlayerSkeleton />
         ) : noTmdb ? (
           <p className="aspect-video flex items-center justify-center text-sm text-yellow-300 p-6 text-center">
             {p?.name} {d.no_tmdb}
           </p>
-        ) : !src ? (
-          <p className="aspect-video flex items-center justify-center text-sm text-zinc-400">…</p>
         ) : (
           <iframe key={src} src={src} referrerPolicy="origin" className="w-full aspect-video bg-black" allowFullScreen allow="autoplay; encrypted-media; fullscreen; picture-in-picture" />
         )}

@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 import { MediaCard } from "@/components/Cards";
+import { GridSkeleton } from "@/components/Skeleton";
 
 type Item = {
   id: number | string; media_type?: string; title?: string; name?: string;
@@ -78,7 +79,7 @@ function SearchInner() {
           <span className="ml-auto text-sm">{d.total}: <b className="text-[#f5c518]">{loading ? "…" : items.length}</b></span>
         </div>
         {loading
-          ? <p className="text-sm text-zinc-500">…</p>
+          ? <GridSkeleton n={10} />
           : <div data-rail className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
               {items.map((it) => {
                 const tp = (it.media_type || (it as any).first_air_date) ? "tv" : "movie";
