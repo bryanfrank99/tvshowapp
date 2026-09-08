@@ -63,7 +63,7 @@ export function Top10Card({ item }: { item: Media }) {
           {item.imdb_id ? <span role="presentation" tabIndex={-1} aria-hidden title={item.imdb_id} className="imdb-badge cursor-pointer" onClick={(e) => openImdb(e, item.imdb_id!)}>IMDb ↗</span> : d.no_imdb}
         </p>
       </div>
-      <FavButton end type={type as "movie" | "tv"} id={item.id} title={title} poster={img(item.poster_path ?? null)} rating={item.vote_average ?? 0} />
+      <FavButton end focusable={false} type={type as "movie" | "tv"} id={item.id} title={title} poster={img(item.poster_path ?? null)} rating={item.vote_average ?? 0} />
     </Link>
   );
 }

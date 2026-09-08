@@ -14,10 +14,9 @@ export default function FavButton({ type, id, title, poster, rating, big = false
   const active = has(type, id);
   const fav = { type, id: String(id), title, poster, rating };
   return (
-    <span
-      role="button" tabIndex={focusable ? 0 : -1} aria-hidden={!focusable} title={active ? d.fav_remove : d.fav_add}
+    <button
+      type="button" tabIndex={focusable ? 0 : -1} aria-hidden={!focusable} title={active ? d.fav_remove : d.fav_add}
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(fav); }}
-      onKeyDown={(e) => { if (e.key === "Enter") toggle(fav); }}
       className={big
         ? "inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm font-bold hover:border-red-400 cursor-pointer"
         : end
@@ -26,6 +25,6 @@ export default function FavButton({ type, id, title, poster, rating, big = false
     >
       <span className={active ? "text-red-500" : "text-white"}><IconHeart size={big ? 15 : 14} filled={active} /></span>
       {big && <span className="ml-1">{active ? d.fav_in : d.fav_btn}</span>}
-    </span>
+    </button>
   );
 }
