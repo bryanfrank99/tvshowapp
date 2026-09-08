@@ -1,5 +1,5 @@
 {
-  "version": "3",
+  "version": "4",
   "providers": [
     {
       "id": "vidcore",
@@ -43,6 +43,34 @@
       "needsTmdb": true,
       "movie": "https://vimeus.com/e/movie?{idparam}&view_key={key}&title=tvshow&theme=minimal&loader=v3&overlay=v3&splash=v3",
       "tv": "https://vimeus.com/e/serie?{idparam}&se={s}&ep={e}&view_key={key}&title=tvshow&theme=minimal&loader=v3&overlay=v3&splash=v3"
+    },
+    {
+      "id": "superembed",
+      "name": "SuperEmbed",
+      "needsTmdb": false,
+      "movie": "https://multiembed.mov/?video_id={id}{tmdbflag}",
+      "tv": "https://multiembed.mov/?video_id={id}{tmdbflag}&s={s}&e={e}"
+    },
+    {
+      "id": "moviesapi",
+      "name": "MoviesAPI",
+      "needsTmdb": false,
+      "movie": "https://moviesapi.to/movie/{id}",
+      "tv": "https://moviesapi.to/tv/{id}/{s}/{e}"
+    },
+    {
+      "id": "cinesrc",
+      "name": "CineSrc",
+      "needsTmdb": true,
+      "movie": "https://cinesrc.st/embed/movie/{id}",
+      "tv": "https://cinesrc.st/embed/tv/{id}?s={s}&e={e}"
+    },
+    {
+      "id": "vidzee",
+      "name": "VidZee",
+      "needsTmdb": true,
+      "movie": "https://player.vidzee.wtf/embed/movie/{id}",
+      "tv": "https://player.vidzee.wtf/embed/tv/{id}/{s}/{e}"
     }
   ],
   "live": [

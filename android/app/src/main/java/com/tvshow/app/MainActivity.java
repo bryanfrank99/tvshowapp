@@ -16,6 +16,11 @@ public class MainActivity extends BridgeActivity {
             if (ua != null && !ua.contains("TVShowTV")) {
                 webView.getSettings().setUserAgentString(ua + " TVShowTV");
             }
+            // Normaliza escala: ignora el tamaño de fuente del sistema TV
+            // y ajusta el viewport para pantallas grandes.
+            webView.getSettings().setTextZoom(100);
+            webView.getSettings().setUseWideViewPort(true);
+            webView.getSettings().setLoadWithOverviewMode(true);
             webView.setWebViewClient(new AdBlockWebViewClient(getBridge()));
             webView.setWebChromeClient(new AdBlockWebChromeClient(getBridge()));
         } catch (Exception ignored) {}

@@ -68,8 +68,8 @@ Bloque `providers` (reproductores de pelis/series) y `live` (fuentes de TV en vi
 }
 ```
 
-- Placeholders reproductores: `{id} {s} {e} {key} {idparam}`
-  (`{idparam}` = `imdb=tt…` o `tmdb=…`; `{key}` sale de `key` o `NEXT_PUBLIC_VIMEUS_VIEW_KEY`).
+- Placeholders reproductores: `{id} {s} {e} {key} {idparam} {tmdbflag}`
+  (`{idparam}` = `imdb=tt…` o `tmdb=…`; `{tmdbflag}` = `""` o `"&tmdb=1"`).
 - `needsTmdb: true` convierte IMDb→TMDB solo vía Cinemeta.
 - `sandbox` (opcional, desaconsejado): la mayoría de players lo bloquean.
   En su lugar la app usa puerta click-to-play (absorbe el primer clic que suele

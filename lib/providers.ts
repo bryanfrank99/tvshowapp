@@ -11,8 +11,8 @@
 //       "tv": "https://vidzy.org/serie/{id}/{s}/{e}?autoplay=1&autonext=1" }
 //   ]
 // }
-// Placeholders: {id} {s} {e} {key} {idparam}. {key} sale del JSON (entry.key)
-// o se inyecta en servidor (/api/embed-url con VIMEUS_VIEW_KEY).
+// Placeholders: {id} {s} {e} {key} {idparam} {tmdbflag}.
+// {idparam} = imdb=tt…|tmdb=… (Vimeus); {tmdbflag} = ""|"&tmdb=1" (SuperEmbed).
 
 export type ProviderId = string;
 
@@ -39,7 +39,8 @@ export type Provider = {
 
 function fill(tpl: string, id: string, s: number, e: number, key: string) {
   const idparam = id.startsWith("tt") ? `imdb=${id}` : `tmdb=${id}`;
-  return tpl.split("{id}").join(id).split("{s}").join(String(s)).split("{e}").join(String(e)).split("{key}").join(key).split("{idparam}").join(idparam);
+  const tmdbflag = id.startsWith("tt") ? "" : "&tmdb=1";
+  return tpl.split("{id}").join(id).split("{s}").join(String(s)).split("{e}").join(String(e)).split("{key}").join(key).split("{idparam}").join(idparam).split("{tmdbflag}").join(tmdbflag);
 }
 
 export function buildProvider(def: ProviderDef, envKey = ""): Provider {
