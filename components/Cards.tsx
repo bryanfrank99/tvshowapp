@@ -2,7 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { img } from "@/lib/img";
-import { imdbTitleUrl, type Media } from "@/lib/ids";
+import type { Media } from "@/lib/ids";
 import FavButton from "@/components/FavButton";
 import { IconStar, IconPlay } from "@/components/Icons";
 import { useLang } from "@/hooks/useLang";
@@ -17,12 +17,6 @@ export function Section({ title, children }: { title: React.ReactNode; children:
       {children}
     </section>
   );
-}
-
-export function openImdb(e: React.MouseEvent, imdbId: string) {
-  e.preventDefault();
-  e.stopPropagation();
-  window.open(imdbTitleUrl(imdbId), "_blank", "noopener");
 }
 
 export function MediaCard({ item }: { item: Media }) {
@@ -40,9 +34,7 @@ export function MediaCard({ item }: { item: Media }) {
       </span>
       <div className="p-2">
         <p className="text-sm font-semibold truncate">{title}</p>
-        <p className="text-xs text-zinc-500">{type === "tv" ? d.serie : d.pelicula}
-          {item.imdb_id && <span role="presentation" tabIndex={-1} aria-hidden title={item.imdb_id} className="imdb-badge cursor-pointer" onClick={(e) => openImdb(e, item.imdb_id!)}>IMDb</span>}
-        </p>
+        <p className="text-xs text-zinc-500">{type === "tv" ? d.serie : d.pelicula}</p>
       </div>
     </Link>
   );
@@ -59,9 +51,7 @@ export function Top10Card({ item }: { item: Media }) {
       <Image src={img(item.poster_path ?? null)} alt={title} width={56} height={84} className="rounded-lg object-cover" loading="lazy" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold truncate">{title}</p>
-        <p className="text-xs text-zinc-500 inline-flex items-center gap-1"><IconStar size={11} className="text-[#f5c518]" />{Math.round((item.vote_average ?? 0) * 10) / 10}
-          {item.imdb_id ? <span role="presentation" tabIndex={-1} aria-hidden title={item.imdb_id} className="imdb-badge cursor-pointer" onClick={(e) => openImdb(e, item.imdb_id!)}>IMDb ↗</span> : d.no_imdb}
-        </p>
+        <p className="text-xs text-zinc-500 inline-flex items-center gap-1"><IconStar size={11} className="text-[#f5c518]" />{Math.round((item.vote_average ?? 0) * 10) / 10}</p>
       </div>
       <FavButton end focusable={false} type={type as "movie" | "tv"} id={item.id} title={title} poster={img(item.poster_path ?? null)} rating={item.vote_average ?? 0} />
     </Link>

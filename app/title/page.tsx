@@ -5,6 +5,7 @@ import Link from "next/link";
 import { tmdb, hasKey, getLang } from "@/lib/tmdb";
 import { img } from "@/lib/img";
 import { getImdbId, imdbTitleUrl } from "@/lib/imdb";
+import { tmdbUrl } from "@/lib/ids";
 import { isImdbId, cineMeta, cineMovieDetail, cineSeriesDetail, cineSeasons, cineEpisodes } from "@/lib/free";
 import FavButton from "@/components/FavButton";
 import ContinueSeriesButton from "@/components/ContinueSeriesButton";
@@ -84,6 +85,7 @@ async function MovieDetail(id: string) {
               {genres.length > 0 && <span>· {genres.map((g) => g.name).join(", ")}</span>}
               {fmtRuntime(m.runtime) && <span>· {fmtRuntime(m.runtime)}</span>}
               {imdbId && <a className="imdb-badge" target="_blank" rel="noopener" href={imdbTitleUrl(imdbId)}>IMDb ↗</a>}
+              {/^\d+$/.test(id) && <a className="tmdb-badge" target="_blank" rel="noopener" href={tmdbUrl("movie", id)}>TMDB ↗</a>}
             </p>
             <div className="flex items-center gap-4 mt-4 flex-wrap">
               <span className="inline-flex items-center gap-2">
@@ -209,6 +211,7 @@ function renderTv(s: any, det: any, id: string, sel: number, seasons: any[], imd
               {nS != null && <span>· {nS}{d.det_seasons}</span>}
               {nE != null && <span>· {nE}{d.det_episodes}</span>}
               {imdbId && <a className="imdb-badge" target="_blank" rel="noopener" href={imdbTitleUrl(imdbId)}>IMDb ↗</a>}
+              {/^\d+$/.test(id) && <a className="tmdb-badge" target="_blank" rel="noopener" href={tmdbUrl("tv", id)}>TMDB ↗</a>}
             </p>
             <div className="flex items-center gap-4 mt-4 flex-wrap">
               <span className="inline-flex items-center gap-2">
