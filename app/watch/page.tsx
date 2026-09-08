@@ -125,6 +125,9 @@ function WatchInner() {
       </div>
       <div className="flex gap-2 mt-3 flex-wrap items-center">
         <button onClick={goFullscreen} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-[#008CFF]">⛶ {d.fullscreen}</button>
+        {p && !p.tvOk && src && (
+          <button onClick={() => window.open(src, "_blank", "noopener")} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-[#008CFF]">↗ {d.abrir_externo}</button>
+        )}
         {type === "tv" && <Link href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.siguiente} {d.ep_e}{e + 1} →</Link>}
         {type === "tv" && <Link href={`/title?type=tv&id=${id}&season=${s}`} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm">{d.todos_capitulos}</Link>}
       </div>

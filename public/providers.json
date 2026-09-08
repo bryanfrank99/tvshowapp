@@ -1,10 +1,11 @@
 {
-  "version": "2",
+  "version": "3",
   "providers": [
     {
       "id": "vidcore",
       "name": "VidCore",
       "needsTmdb": false,
+      "tvOk": true,
       "movie": "https://vidcore.io/movie/{id}?autoPlay=true&sub=es",
       "tv": "https://vidcore.io/tv/{id}/{s}/{e}?autoPlay=true&autoNext=true&nextButton=true&sub=es"
     },

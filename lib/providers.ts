@@ -20,11 +20,10 @@ export type ProviderDef = {
   id: string;
   name: string;
   needsTmdb?: boolean;
+  tvOk?: boolean; // true = se maneja bien con mando (oculta "Abrir externo")
   movie: string;
   tv: string;
   key?: string;
-  // sandbox opcional: sin allow-popups bloquea ventanas emergentes y secuestros
-  // de la página. StreamBetter lo prohíbe (no ponerlo ahí).
   sandbox?: string;
 };
 
@@ -32,6 +31,7 @@ export type Provider = {
   id: string;
   name: string;
   needsTmdb: boolean;
+  tvOk: boolean;
   movie: (id: string) => string;
   tv: (id: string, s: number, e: number) => string;
   sandbox: string;
@@ -48,6 +48,7 @@ export function buildProvider(def: ProviderDef, envKey = ""): Provider {
     id: def.id,
     name: def.name,
     needsTmdb: !!def.needsTmdb,
+    tvOk: !!def.tvOk,
     sandbox: def.sandbox || "",
     movie: (id) => fill(def.movie, id, 1, 1, key),
     tv: (id, s, e) => fill(def.tv, id, s, e, key),
