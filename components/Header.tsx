@@ -5,13 +5,13 @@ import { IconSearch, IconHome, IconFilm, IconTv, IconSignal, IconHeart } from "@
 import { useLang } from "@/hooks/useLang";
 import Clock from "@/components/Clock";
 import { useIsTV } from "@/hooks/useIsTV";
+import LangMenu from "@/components/LangMenu";
 import { t } from "@/lib/dict";
 
 const TABS = [
   { href: "/", label: "tabs_home", Icon: IconHome },
   { href: "/movies", label: "tabs_movies", Icon: IconFilm },
   { href: "/series", label: "tabs_series", Icon: IconTv },
-  { href: "/search", label: "tabs_search", Icon: IconSearch },
   { href: "/live", label: "tabs_live", Icon: IconSignal },
   { href: "/list", label: "tabs_list", Icon: IconHeart },
 ];
@@ -48,14 +48,21 @@ export default function Header() {
             </>
           )}
         </nav>
-        <div className="ml-auto shrink-0">
+        <div className="ml-auto shrink-0 flex items-center gap-2">
+          <div className="lg:hidden flex items-center gap-2">
+            <Link href="/search" aria-label={d.search_btn}
+              className="w-9 h-9 inline-flex items-center justify-center rounded-xl bg-[#008CFF] text-white">
+              <IconSearch size={17} />
+            </Link>
+            <LangMenu />
+          </div>
           <Clock />
         </div>
       </div>
     </header>
       {!isTV && (
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0b0b10] border-t border-white/10 shadow-[0_-8px_24px_rgba(0,0,0,0.6)]" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="grid grid-cols-6 max-w-7xl mx-auto">
+        <div className="grid grid-cols-5 max-w-7xl mx-auto">
           {TABS.map(({ href, label, Icon }) => (
             <Link key={href} href={href}
               className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ${path === href ? "text-[#008CFF]" : "text-zinc-400"}`}>
