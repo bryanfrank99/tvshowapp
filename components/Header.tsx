@@ -1,26 +1,14 @@
 ﻿"use client";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { IconSearch, IconHome, IconFilm, IconTv, IconSignal, IconHeart } from "@/components/Icons";
 import { useLang } from "@/hooks/useLang";
 import Clock from "@/components/Clock";
-import { useIsTV } from "@/hooks/useIsTV";
-import LangMenu from "@/components/LangMenu";
 import { t } from "@/lib/dict";
-
-const TABS = [
-  { href: "/", label: "tabs_home", Icon: IconHome },
-  { href: "/movies", label: "tabs_movies", Icon: IconFilm },
-  { href: "/series", label: "tabs_series", Icon: IconTv },
-  { href: "/live", label: "tabs_live", Icon: IconSignal },
-  { href: "/list", label: "tabs_list", Icon: IconHeart },
-];
 
 export default function Header() {
   const path = usePathname();
   const { lang } = useLang();
   const d = t(lang);
-  const isTV = useIsTV();
   const crumbMap: Record<string, string> = {
     "/movies": d.nav_movies.charAt(0) + d.nav_movies.slice(1).toLowerCase(),
     "/series": d.nav_series.charAt(0) + d.nav_series.slice(1).toLowerCase(),
@@ -36,7 +24,6 @@ export default function Header() {
   const crumb = crumbMap[path] || "";
 
   return (
-    <>
     <header className="sticky top-0 z-40 backdrop-blur bg-[#0b0b10]/90 border-b border-white/10">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:pl-20 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4">
         <nav aria-label="Ruta" className="flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm min-w-0 flex-1 overflow-hidden">
@@ -48,31 +35,10 @@ export default function Header() {
             </>
           )}
         </nav>
-        <div className="ml-auto shrink-0 flex items-center gap-2">
-          <div className="lg:hidden flex items-center gap-2">
-            <Link href="/search" aria-label={d.search_btn}
-              className="w-9 h-9 inline-flex items-center justify-center rounded-xl bg-[#008CFF] text-white">
-              <IconSearch size={17} />
-            </Link>
-            <LangMenu />
-          </div>
+        <div className="ml-auto shrink-0">
           <Clock />
         </div>
       </div>
     </header>
-      {!isTV && (
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0b0b10] border-t border-white/10 shadow-[0_-8px_24px_rgba(0,0,0,0.6)]" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="grid grid-cols-5 max-w-7xl mx-auto">
-          {TABS.map(({ href, label, Icon }) => (
-            <Link key={href} href={href}
-              className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ${path === href ? "text-[#008CFF]" : "text-zinc-400"}`}>
-              <Icon size={20} />
-              {d[label as keyof typeof d]}
-            </Link>
-          ))}
-        </div>
-      </nav>
-      )}
-    </>
   );
 }
