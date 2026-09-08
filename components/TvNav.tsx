@@ -47,7 +47,14 @@ export default function TvNav() {
 
   // Marca body.tv en modo TV (para CSS: padding del sidebar en pantallas chicas).
   useEffect(() => {
-    if (isTVUA()) document.body.classList.add("tv");
+    if (!isTVUA()) return;
+    document.body.classList.add("tv");
+    // Viewport ancho fijo: la TV suele reportar ~960px CSS y todo se ve gigante.
+    // Con 1920px se renderiza la UI desktop completa, densa y sin cortes.
+    try {
+      let m = document.querySelector('meta[name="viewport"]');
+      if (m) m.setAttribute("content", "width=1920, initial-scale=1");
+    } catch {}
   }, []);
 
   // Tecla Atrás del mando.
