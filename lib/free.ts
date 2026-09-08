@@ -31,8 +31,8 @@ function cineMedia(m: any, type: "movie" | "tv"): Media {
   };
 }
 
-export async function cineCatalog(type: "movie" | "series", list = "top", n = 12): Promise<Media[]> {
-  const d = await j<{ metas: any[] }>(`${CINEMETA}/catalog/${type}/${list}.json`, 3600);
+export async function cineCatalog(type: "movie" | "series", list = "top", n = 12, skip = 0): Promise<Media[]> {
+  const d = await j<{ metas: any[] }>(`${CINEMETA}/catalog/${type}/${list}${skip ? `/skip=${skip}` : ""}.json`, 3600);
   const t = type === "movie" ? "movie" : "tv";
   return (d.metas || []).slice(0, n).map((m) => cineMedia(m, t as "movie" | "tv"));
 }

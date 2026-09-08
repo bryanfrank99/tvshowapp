@@ -5,6 +5,7 @@ import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 import { MediaCard } from "@/components/Cards";
 import { GridSkeleton } from "@/components/Skeleton";
+import { MoreButton } from "@/components/More";
 
 type Item = {
   id: number | string; media_type?: string; title?: string; name?: string;
@@ -28,19 +29,38 @@ function SearchInner() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const run = useCallback(async (query: string) => {
     setLoading(true);
     try {
       const r = await fetch(`/api/search${query ? `?q=${encodeURIComponent(query)}` : ""}`, { cache: "no-store" });
       const j = await r.json();
-      setItems(j.results || []);
+      setItems(j.results || j.items || []);
+      setHasMore(!!j.hasMore);
+      setPage(2);
       setSearched(query);
     } catch {
       setItems([]);
     }
     setLoading(false);
   }, []);
+
+  const more = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(searched)}&page=${page}`, { cache: "no-store" });
+      const j = await r.json();
+      const fresh = (j.items || []).filter((x: any) => !items.some((y) => String(y.id) === String(x.id)));
+      setItems((prev) => [...prev, ...fresh]);
+      setHasMore(!!j.hasMore && fresh.length > 0);
+      setPage((p) => p + 1);
+    } catch {}
+    setLoadingMore(false);
+  };
 
   useEffect(() => { run(sp.get("q") || ""); }, [run, sp]);
 
@@ -87,6 +107,9 @@ function SearchInner() {
               })}
             </div>}
         {!loading && !items.length && <p className="text-sm text-zinc-500">{d.search_no_results}</p>}
+        {!loading && searched && hasMore && (
+          <MoreButton onClick={more} loading={loadingMore} label={d.cargar_mas} loadingLabel={d.cargando} />
+        )}
       </div>
     </div>
   );

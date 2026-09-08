@@ -1,11 +1,12 @@
-// Catálogo dual: TMDB si hay KEY, si no (o si falla) → fuentes free sin key.
-// Las páginas no cambian: llaman lo mismo y funciona en ambos modos.
+// Catálogo dual paginado: TMDB si hay KEY, si no (o si falla) → free sin key.
+// `page` empieza en 1. Todas devuelven { items, hasMore }.
 import { tmdb, hasKey, getLang } from "./tmdb";
 import { withImdbIds, type Media } from "./imdb";
 import { getPerson, savePerson } from "./db";
 import * as free from "./free";
 
 export type Spot = { show: any; seasonNum: number; ep: any | null };
+export type Page<T> = { items: T[]; hasMore: boolean };
 
 async function tmdbOr<T>(fn: () => Promise<T>, fallback: () => Promise<T>): Promise<T> {
   if (hasKey()) {
@@ -18,21 +19,29 @@ async function tmdbOr<T>(fn: () => Promise<T>, fallback: () => Promise<T>): Prom
   return fallback();
 }
 
-export async function getFeaturedToday(n = 5): Promise<Media[]> {
+type Paged<T = any> = T & { total_pages?: number };
+
+export async function getFeaturedToday(page = 1, per = 5): Promise<Page<Media>> {
   return tmdbOr(async () => {
-    const d = await tmdb<{ results: Media[] }>("/trending/all/day", 1800);
-    return d.results.filter((x) => x.backdrop_path).slice(0, n);
+    const d = await tmdb<Paged<{ results: Media[] }>>(`/trending/all/day?page=${page}`, 1800);
+    const items = d.results.filter((x) => x.backdrop_path).slice(0, per);
+    return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
-    const [m, s] = await Promise.all([free.cineCatalog("movie", "top", 3), free.cineCatalog("series", "top", 3)]);
-    return [...m, ...s].slice(0, n);
+    const skip = (page - 1) * per;
+    const [m, s] = await Promise.all([
+      free.cineCatalog("movie", "top", Math.ceil(per / 2) + 2, page > 1 ? skip : 0),
+      free.cineCatalog("series", "top", Math.ceil(per / 2) + 2, page > 1 ? skip : 0),
+    ]);
+    const items = [...m, ...s].slice(0, per);
+    return { items, hasMore: items.length >= per };
   });
 }
 
-export async function getEpisodeSpotlight(n = 6): Promise<Spot[]> {
+export async function getEpisodeSpotlight(page = 1, per = 6): Promise<Page<Spot>> {
   return tmdbOr(async () => {
-    const d = await tmdb<{ results: any[] }>("/tv/on_the_air", 3600);
-    return Promise.all(
-      d.results.slice(0, n).map(async (s) => {
+    const d = await tmdb<Paged<{ results: any[] }>>(`/tv/on_the_air?page=${page}`, 3600);
+    const items = await Promise.all(
+      d.results.slice(0, per).map(async (s) => {
         try {
           const det = await tmdb<any>(`/tv/${s.id}`, 3600);
           const seasonNum = det.seasons?.find((x: any) => x.season_number > 0)?.season_number ?? 1;
@@ -43,10 +52,12 @@ export async function getEpisodeSpotlight(n = 6): Promise<Spot[]> {
         }
       })
     );
+    return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
-    const series = await free.cineCatalog("series", "top", n);
-    return Promise.all(
-      series.map(async (s) => {
+    const skip = (page - 1) * per;
+    const series = await free.cineCatalog("series", "top", per + 2, skip);
+    const items = await Promise.all(
+      series.slice(0, per).map(async (s) => {
         try {
           const meta = await free.cineMeta("series", String(s.id));
           const v = (meta.videos || []).find((v: any) => v.season && v.episode);
@@ -60,59 +71,83 @@ export async function getEpisodeSpotlight(n = 6): Promise<Spot[]> {
         }
       })
     );
+    return { items, hasMore: series.length >= per };
   });
 }
 
-export async function getTopPicks(n = 12): Promise<Media[]> {
+export async function getTopPicks(page = 1, per = 12): Promise<Page<Media>> {
+  const half = Math.ceil(per / 2);
   return tmdbOr(async () => {
     const [m, t] = await Promise.all([
-      tmdb<{ results: Media[] }>("/movie/top_rated", 3600),
-      tmdb<{ results: Media[] }>("/tv/top_rated", 3600),
+      tmdb<Paged<{ results: Media[] }>>(`/movie/top_rated?page=${page}`, 3600),
+      tmdb<Paged<{ results: Media[] }>>(`/tv/top_rated?page=${page}`, 3600),
     ]);
-    return [
-      ...m.results.slice(0, n).map((x) => ({ ...x, media_type: "movie" })),
-      ...t.results.slice(0, n).map((x) => ({ ...x, media_type: "tv" })),
+    const items = [
+      ...m.results.slice(0, half).map((x) => ({ ...x, media_type: "movie" })),
+      ...t.results.slice(0, half).map((x) => ({ ...x, media_type: "tv" })),
     ]
       .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
-      .slice(0, n);
+      .slice(0, per);
+    return { items, hasMore: page < Math.min(m.total_pages || 1, t.total_pages || 1) };
   }, async () => {
-    const [m, s] = await Promise.all([free.cineCatalog("movie", "top", n), free.cineCatalog("series", "top", n)]);
-    return [...m, ...s].sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0)).slice(0, n);
+    const skip = (page - 1) * half;
+    const [m, s] = await Promise.all([
+      free.cineCatalog("movie", "top", half + 1, skip),
+      free.cineCatalog("series", "top", half + 1, skip),
+    ]);
+    const items = [...m, ...s].sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0)).slice(0, per);
+    return { items, hasMore: m.length + s.length >= per };
   });
 }
 
-export async function getUpcoming(n = 12): Promise<Media[]> {
+export async function getUpcoming(page = 1, per = 12): Promise<Page<Media>> {
   return tmdbOr(async () => {
-    const upcoming = await tmdb<{ results: Media[] }>("/movie/upcoming", 3600);
-    return upcoming.results.slice(0, n).map((x) => ({ ...x, media_type: "movie" }));
-  }, () => free.cineCatalog("movie", "top", n));
-}
-
-export async function getMovies(n = 24): Promise<Media[]> {
-  return tmdbOr(async () => {
-    const d = await tmdb<{ results: Media[] }>("/discover/movie?sort_by=popularity.desc", 3600);
-    return d.results.slice(0, n).map((x) => ({ ...x, media_type: "movie" }));
-  }, () => free.cineCatalog("movie", "top", n));
-}
-
-export async function getSeries(n = 24): Promise<Media[]> {
-  return tmdbOr(async () => {
-    const d = await tmdb<{ results: Media[] }>("/discover/tv?sort_by=popularity.desc", 3600);
-    return d.results.slice(0, n).map((x) => ({ ...x, media_type: "tv" }));
-  }, () => free.cineCatalog("series", "top", n));
-}
-
-export async function getTrending(n = 20): Promise<Media[]> {
-  return tmdbOr(async () => {
-    const d = await tmdb<{ results: Media[] }>("/trending/all/week", 600);
-    return d.results.filter((x) => x.media_type === "movie" || x.media_type === "tv").slice(0, n);
+    const d = await tmdb<Paged<{ results: Media[] }>>(`/movie/upcoming?page=${page}`, 3600);
+    return { items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie" })), hasMore: page < (d.total_pages || 1) };
   }, async () => {
-    const [m, s] = await Promise.all([free.cineCatalog("movie", "top", 12), free.cineCatalog("series", "top", 12)]);
-    return [...m, ...s].slice(0, n);
+    const items = await free.cineCatalog("movie", "top", per + 1, (page - 1) * per);
+    return { items: items.slice(0, per), hasMore: items.length > per };
   });
 }
 
-export async function getTop10ImdbWeek(): Promise<Media[]> {  return tmdbOr(async () => {
+export async function getMovies(page = 1, per = 24): Promise<Page<Media>> {
+  return tmdbOr(async () => {
+    const d = await tmdb<Paged<{ results: Media[] }>>(`/discover/movie?sort_by=popularity.desc&page=${page}`, 3600);
+    return { items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie" })), hasMore: page < (d.total_pages || 1) };
+  }, async () => {
+    const items = await free.cineCatalog("movie", "top", per + 1, (page - 1) * per);
+    return { items: items.slice(0, per), hasMore: items.length > per };
+  });
+}
+
+export async function getSeries(page = 1, per = 24): Promise<Page<Media>> {
+  return tmdbOr(async () => {
+    const d = await tmdb<Paged<{ results: Media[] }>>(`/discover/tv?sort_by=popularity.desc&page=${page}`, 3600);
+    return { items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "tv" })), hasMore: page < (d.total_pages || 1) };
+  }, async () => {
+    const items = await free.cineCatalog("series", "top", per + 1, (page - 1) * per);
+    return { items: items.slice(0, per), hasMore: items.length > per };
+  });
+}
+
+export async function getTrending(page = 1, per = 20): Promise<Page<Media>> {
+  return tmdbOr(async () => {
+    const d = await tmdb<Paged<{ results: Media[] }>>(`/trending/all/week?page=${page}`, 600);
+    const items = d.results.filter((x) => x.media_type === "movie" || x.media_type === "tv").slice(0, per);
+    return { items, hasMore: page < (d.total_pages || 1) };
+  }, async () => {
+    const skip = (page - 1) * Math.ceil(per / 2);
+    const [m, s] = await Promise.all([
+      free.cineCatalog("movie", "top", Math.ceil(per / 2) + 1, skip),
+      free.cineCatalog("series", "top", Math.ceil(per / 2) + 1, skip),
+    ]);
+    const items = [...m, ...s].slice(0, per);
+    return { items, hasMore: m.length + s.length > per };
+  });
+}
+
+export async function getTop10ImdbWeek(): Promise<Media[]> {
+  return tmdbOr(async () => {
     const d = await tmdb<{ results: Media[] }>("/trending/all/week", 3600);
     const ranked = [...d.results]
       .filter((x) => x.title || x.name)
@@ -134,41 +169,47 @@ export async function getTop10ImdbWeek(): Promise<Media[]> {  return tmdbOr(asyn
   });
 }
 
-export async function searchAll(q: string) {
+export async function searchAll(q: string, page = 1, per = 20): Promise<Page<Media>> {
   if (hasKey()) {
     try {
-      const r = await tmdb<any>(`/search/multi?query=${encodeURIComponent(q)}`, 300);
-      return (r.results || []).filter((x: any) => x.media_type === "movie" || x.media_type === "tv");
+      const r = await tmdb<Paged<any>>(`/search/multi?query=${encodeURIComponent(q)}&page=${page}`, 300);
+      const items = (r.results || []).filter((x: any) => x.media_type === "movie" || x.media_type === "tv").slice(0, per);
+      return { items, hasMore: page < (r.total_pages || 1) };
     } catch { /* fallback free */ }
   }
+  // Free sin paginado real: página 1 con todo lo encontrado.
   const [cine, tv] = await Promise.all([free.cineSearch(q).catch(() => []), free.tvSearch(q).catch(() => [])]);
   const seen = new Set<string>();
-  return [...cine, ...tv].filter((x) => {
+  const all = [...cine, ...tv].filter((x) => {
     const k = String(x.id);
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
   });
+  return { items: page === 1 ? all : [], hasMore: false };
 }
 
 // Títulos por género. TMDB: discover; free: filtra los tops (traen géneros).
-export async function getByGenre(id: string, name: string): Promise<Media[]> {
-  return tmdbOr(async () => {
+export async function getByGenre(id: string, name: string, page = 1, per = 24): Promise<Page<Media>> {
+  return tmdbOr<Page<Media>>(async () => {
     const [m, tv] = await Promise.all([
-      tmdb<{ results: Media[] }>(`/discover/movie?with_genres=${id}&sort_by=popularity.desc`, 3600),
-      tmdb<{ results: Media[] }>(`/discover/tv?with_genres=${id}&sort_by=popularity.desc`, 3600),
+      tmdb<Paged<{ results: Media[] }>>(`/discover/movie?with_genres=${id}&sort_by=popularity.desc&page=${page}`, 3600),
+      tmdb<Paged<{ results: Media[] }>>(`/discover/tv?with_genres=${id}&sort_by=popularity.desc&page=${page}`, 3600),
     ]);
-    return [
-      ...m.results.slice(0, 12).map((x) => ({ ...x, media_type: "movie" })),
-      ...tv.results.slice(0, 12).map((x) => ({ ...x, media_type: "tv" })),
+    const items = [
+      ...m.results.slice(0, Math.ceil(per / 2)).map((x) => ({ ...x, media_type: "movie" })),
+      ...tv.results.slice(0, Math.ceil(per / 2)).map((x) => ({ ...x, media_type: "tv" })),
     ];
+    return { items, hasMore: page < Math.min(m.total_pages || 1, tv.total_pages || 1) };
   }, async () => {
+    if (page > 1) return { items: [], hasMore: false };
     const [mm, ss] = await Promise.all([free.cineCatalog("movie", "top", 60), free.cineCatalog("series", "top", 60)]);
     const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const want = norm(name);
-    return [...mm, ...ss]
+    const items = [...mm, ...ss]
       .filter((x) => (x.genres || []).some((g) => { const ng = norm(String(g)); return ng === want || ng.includes(want) || want.includes(ng); }))
-      .slice(0, 24);
+      .slice(0, per);
+    return { items, hasMore: false };
   });
 }
 
@@ -180,7 +221,7 @@ export async function getPersonWorks(name: string): Promise<{ person: any; works
       const s = await tmdb<any>(`/search/person?query=${encodeURIComponent(name)}`, 3600);
       const p = (s.results || [])[0];
       if (!p) throw new Error("not found");
-      const hit = getPerson(p.id, lang);
+      const hit = await getPerson(p.id, lang);
       if (hit) {
         return {
           person: { name: hit.name, photo: hit.photo, known: hit.known_for || "" },
@@ -196,7 +237,7 @@ export async function getPersonWorks(name: string): Promise<{ person: any; works
         .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))
         .slice(0, 24)
         .map((x) => ({ id: x.id, media_type: x.media_type, title: x.title, name: x.name, poster_path: x.poster_path ?? null, vote_average: x.vote_average ?? 0 }));
-      savePerson(p.id, lang, det, cast);
+      await savePerson(p.id, lang, det, cast);
       return { person: { name: det.name, photo: det.profile_path || null, known: det.known_for_department || "" }, works: cast };
     } catch { /* fallback free */ }
   }

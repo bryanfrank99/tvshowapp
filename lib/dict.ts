@@ -54,6 +54,7 @@ const es = {
   fullscreen: "Pantalla completa",
   popular: "Búsqueda popular", refresh: "Refresh", total: "Total",
   servidores_label: "Servidores",
+  cargar_mas: "Cargar más", cargando: "Cargando…",
   crumb_detalle: "Detalle", crumb_persona: "Persona", crumb_genero: "Género", crumb_ver: "Ver",
 };
 
@@ -112,6 +113,7 @@ const en: Dict = {
   fullscreen: "Fullscreen",
   popular: "Popular search", refresh: "Refresh", total: "Total",
   servidores_label: "Servers",
+  cargar_mas: "Load more", cargando: "Loading…",
   crumb_detalle: "Details", crumb_persona: "Person", crumb_genero: "Genre", crumb_ver: "Watch",
 };
 
@@ -168,6 +170,7 @@ const pt: Dict = {
   fullscreen: "Tela cheia",
   popular: "Busca popular", refresh: "Refresh", total: "Total",
   servidores_label: "Servidores",
+  cargar_mas: "Carregar mais", cargando: "Carregando…",
   crumb_detalle: "Detalhes", crumb_persona: "Pessoa", crumb_genero: "Gênero", crumb_ver: "Assistir",
 };
 
