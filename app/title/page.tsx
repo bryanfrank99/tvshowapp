@@ -23,6 +23,42 @@ const fmtRuntime = (min: any) => {
   return h ? `${h}h ${m}m` : `${m} min`;
 };
 
+export async function generateMetadata({ searchParams }: { searchParams: { type?: string; id?: string } }) {
+  const fallback = { title: "TVShow — Catálogo + Player" };
+  try {
+    const type = searchParams.type === "tv" ? "tv" : "movie";
+    const id = searchParams.id || "";
+    if (!id) return fallback;
+    const lang = getLang();
+    let title = "", overview = "", poster = "";
+    const cached = !isImdbId(id) && hasKey() ? await getTitle(type, id, lang) : null;
+    if (cached) {
+      title = cached.title;
+      overview = cached.overview;
+      poster = img(cached.poster_path, "original");
+    } else if (isImdbId(id) || !hasKey()) {
+      const meta = await cineMeta(type === "movie" ? "movie" : "series", id);
+      title = meta.name;
+      overview = meta.description || "";
+      poster = meta.poster || "";
+    } else {
+      const m = await tmdb<any>(`/${type}/${id}`);
+      title = m.title || m.name || "";
+      overview = m.overview || "";
+      poster = m.poster_path ? img(m.poster_path, "original") : "";
+    }
+    if (!title) return fallback;
+    return {
+      title: `${title} — TVShow`,
+      description: overview.slice(0, 160),
+      openGraph: { title: `${title} — TVShow`, description: overview.slice(0, 200), images: poster ? [{ url: poster }] : [] },
+      twitter: { card: "summary_large_image", title: `${title} — TVShow`, description: overview.slice(0, 200), images: poster ? [poster] : [] },
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export default async function TitlePage({ searchParams }: { searchParams: { type?: string; id?: string; season?: string } }) {
   const type = searchParams.type === "tv" ? "tv" : "movie";
   const id = searchParams.id || "";
