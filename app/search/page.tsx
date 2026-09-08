@@ -53,13 +53,13 @@ function SearchInner() {
           placeholder={d.search_ph}
           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 h-11 text-sm outline-none focus:border-[#008CFF] mb-3" />
         <div data-rail className="flex flex-col gap-1.5">
-          <div className="flex gap-1.5">
+          <div data-rail className="flex gap-1.5">
             <button onClick={() => setQ("")} className="flex-1 h-10 rounded-lg bg-white/5 border border-white/10 text-sm hover:border-red-400" title={d.limpiar}>✕</button>
             <button onClick={() => setQ((v) => v.slice(0, -1))} className="flex-1 h-10 rounded-lg bg-white/5 border border-white/10 text-sm hover:border-[#008CFF]" title="Borrar">⌫</button>
             <button onClick={() => run(q.trim())} className="flex-[2] h-10 rounded-lg bg-[#008CFF] font-bold text-sm">{d.search_btn}</button>
           </div>
           {ROWS.map((row, k) => (
-            <div key={k} className="flex gap-1.5">
+            <div key={k} data-rail className="flex gap-1.5">
               {row.map((ch) => (
                 <button key={ch} onClick={() => setQ((v) => v + ch.toLowerCase())}
                   className="flex-1 h-10 rounded-lg bg-white/5 border border-white/10 hover:border-[#008CFF] hover:bg-white/10 text-sm font-semibold min-w-0">

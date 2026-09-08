@@ -5,8 +5,8 @@ import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 
 // Corazón reutilizable. Es <span> (no <a>) para poder vivir dentro de tarjetas-Link.
-export default function FavButton({ type, id, title, poster, rating, big = false, end = false }: {
-  type: "movie" | "tv"; id: string | number; title: string; poster: string; rating?: number; big?: boolean; end?: boolean;
+export default function FavButton({ type, id, title, poster, rating, big = false, end = false, focusable = true }: {
+  type: "movie" | "tv"; id: string | number; title: string; poster: string; rating?: number; big?: boolean; end?: boolean; focusable?: boolean;
 }) {
   const { has, toggle } = useFavorites();
   const { lang } = useLang();
@@ -15,7 +15,7 @@ export default function FavButton({ type, id, title, poster, rating, big = false
   const fav = { type, id: String(id), title, poster, rating };
   return (
     <span
-      role="button" tabIndex={0} title={active ? d.fav_remove : d.fav_add}
+      role="button" tabIndex={focusable ? 0 : -1} aria-hidden={!focusable} title={active ? d.fav_remove : d.fav_add}
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(fav); }}
       onKeyDown={(e) => { if (e.key === "Enter") toggle(fav); }}
       className={big

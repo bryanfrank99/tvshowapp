@@ -82,7 +82,7 @@ export default function FeaturedCarousel({ items }: { items: Media[] }) {
       {n > 1 && (
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
           {items.map((_, k) => (
-            <button key={k} onClick={() => setI(k)} aria-label={`Ir a ${k + 1}`} className={`h-1.5 rounded-full transition-all ${k === i ? "w-6 bg-[#008CFF]" : "w-1.5 bg-white/40 hover:bg-white/70"}`} />
+            <button key={k} tabIndex={-1} onClick={() => setI(k)} aria-label={`Ir a ${k + 1}`} className={`h-1.5 rounded-full transition-all ${k === i ? "w-6 bg-[#008CFF]" : "w-1.5 bg-white/40 hover:bg-white/70"}`} />
           ))}
         </div>
       )}
