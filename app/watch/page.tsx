@@ -1,5 +1,5 @@
 ﻿"use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetchProviders, type Provider } from "@/lib/providers";
@@ -26,6 +26,14 @@ function WatchInner() {
   const [listError, setListError] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
   const [listVersion, setListVersion] = useState("");
+  const frameBox = useRef<HTMLDivElement>(null);
+
+  const goFullscreen = () => {
+    const el = frameBox.current as any;
+    if (!el) return;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  };
 
   // Servidores SOLO del JSON remoto.
   const loadList = () => {
@@ -99,7 +107,7 @@ function WatchInner() {
           <button key={x.id} onClick={() => setProvider(x.id)} className={`text-xs px-3 py-1 rounded-full border ${provider === x.id ? "bg-[#008CFF] border-[#008CFF] text-white" : "border-white/15 text-zinc-400"}`}>{x.name}</button>
         ))}
       </div>
-      <div className="rounded-2xl overflow-hidden border border-white/10 bg-black">
+      <div ref={frameBox} className="rounded-2xl overflow-hidden border border-white/10 bg-black">
         {listError ? (
           <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
             <p className="text-sm text-red-300">{d.list_error}</p>
@@ -112,13 +120,15 @@ function WatchInner() {
             {p?.name} {d.no_tmdb}
           </p>
         ) : (
-          <iframe key={src} src={src} referrerPolicy="origin" className="w-full aspect-video bg-black" allowFullScreen allow="autoplay; encrypted-media; fullscreen; picture-in-picture" />
+          <iframe key={src} src={src} autoFocus referrerPolicy="origin" title={title} className="w-full aspect-video bg-black" allowFullScreen allow="autoplay; encrypted-media; fullscreen; picture-in-picture" />
         )}
       </div>
       <div className="flex gap-2 mt-3 flex-wrap items-center">
+        <button onClick={goFullscreen} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-[#008CFF]">⛶ {d.fullscreen}</button>
         {type === "tv" && <Link href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.siguiente} {d.ep_e}{e + 1} →</Link>}
         {type === "tv" && <Link href={`/title?type=tv&id=${id}&season=${s}`} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm">{d.todos_capitulos}</Link>}
       </div>
+      <p className="text-xs text-zinc-500 mt-2">{d.tv_hint}</p>
       <p className="text-xs text-zinc-500 mt-2">{d.watch_note}</p>
       <p className="text-xs text-zinc-600 mt-1">{d.block_tip} <a href="https://brave.com" target="_blank" rel="noopener" className="underline">Brave</a> · <a href="https://ublockorigin.com" target="_blank" rel="noopener" className="underline">uBlock Origin</a></p>
     </>
