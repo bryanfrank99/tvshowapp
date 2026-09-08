@@ -102,7 +102,7 @@ function SearchInner() {
           ? <GridSkeleton n={10} />
           : <div data-rail className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
               {items.map((it) => {
-                const tp = (it.media_type || (it as any).first_air_date) ? "tv" : "movie";
+                const tp = it.media_type === "tv" || (!it.media_type && (it as any).first_air_date) ? "tv" : "movie";
                 return <MediaCard key={`${tp}-${it.id}`} item={{ ...it, media_type: tp }} />;
               })}
             </div>}

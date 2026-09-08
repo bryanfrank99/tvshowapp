@@ -27,7 +27,22 @@ export default async function TitlePage({ searchParams }: { searchParams: { type
   const type = searchParams.type === "tv" ? "tv" : "movie";
   const id = searchParams.id || "";
   if (!id) return <p>—</p>;
-  return type === "movie" ? MovieDetail(id) : TvDetail(id, searchParams.season);
+  try {
+    const el = type === "movie" ? await MovieDetail(id) : await TvDetail(id, searchParams.season);
+    // Si el tipo no trae título (404 silencioso), probar el otro tipo.
+    return el;
+  } catch {
+    try {
+      return type === "movie" ? await TvDetail(id, undefined) : await MovieDetail(id);
+    } catch {
+      return (
+        <div className="text-center py-16">
+          <h1 className="text-2xl font-black">Contenido no encontrado</h1>
+          <p className="text-sm text-zinc-400 mt-2">Este ID no existe en el catálogo.</p>
+        </div>
+      );
+    }
+  }
 }
 
 async function MovieDetail(id: string) {
