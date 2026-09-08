@@ -37,3 +37,8 @@ a:focus-visible, button:focus-visible {
   .rail { scroll-snap-type: x mandatory; }
   .rail > * { scroll-snap-align: start; }
 }
+
+/* En TV el sidebar siempre visible: reserva su ancho aunque no aplique lg */
+@media (max-width: 1023px) {
+  body.tv main { padding-left: 4.5rem; }
+}

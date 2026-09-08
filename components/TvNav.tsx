@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { isTVUA } from "@/hooks/useIsTV";
 
 // Navegación TV: espacial con flechas + memoria de foco + tecla Atrás.
 const FOCUSABLE = "a[href], button:not([disabled]), input, [tabindex]:not([tabindex='-1'])";
@@ -43,6 +44,11 @@ function rails(): HTMLElement[] {
 export default function TvNav() {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Marca body.tv en modo TV (para CSS: padding del sidebar en pantallas chicas).
+  useEffect(() => {
+    if (isTVUA()) document.body.classList.add("tv");
+  }, []);
 
   // Tecla Atrás del mando.
   useEffect(() => {
