@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { IconHome, IconFilm, IconTv, IconSignal, IconHeart, IconSearch, IconGlobe } from "@/components/Icons";
 import { useState } from "react";
 import { useLang, LANGS, setClientLang } from "@/hooks/useLang";
-import ProvidersDot from "@/components/ProvidersDot";
 import { t } from "@/lib/dict";
 
 // Navbar izquierda: iconos + etiquetas al expandir; abajo idioma + estado.
@@ -76,12 +75,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
             ))}
           </div>
         )}
-        <span className="hidden group-hover/nav:block group-focus-within/nav:block px-2">
-          <ProvidersDot label={d.servidores_label} />
-        </span>
-        <span className="group-hover/nav:hidden group-focus-within/nav:hidden flex justify-center">
-          <ProvidersDot dotOnly />
-        </span>
+
       </div>
     </nav>
   );
