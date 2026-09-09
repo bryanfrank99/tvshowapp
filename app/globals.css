@@ -36,8 +36,14 @@ a:focus-visible, button:focus-visible {
 }
 
 /* Densidad TV: más compacto + hero contenido + rail sin expansión */
-html:has(body.tv) { font-size: 75%; }
-body.tv .tv-hero { height: 14rem !important; }
-@media (min-width: 768px) { body.tv .tv-hero { height: 18rem !important; } }
+html:has(body.tv) { font-size: 68%; }
+body.tv .tv-hero { height: 12rem !important; }
+@media (min-width: 768px) { body.tv .tv-hero { height: 16rem !important; } }
 body.tv nav[aria-label="Principal"] { width: 4rem !important; }
+body.tv nav[aria-label="Principal"]:hover { width: 4rem !important; }
 body.tv nav[aria-label="Principal"] .tv-label { display: none !important; }
+body.tv nav[aria-label="Principal"] img[alt="TV"] { display: block !important; opacity: 1 !important; }
+body.tv .rail { gap: 8px; }
+body.tv .rail > * { flex: 0 0 108px !important; }
+@media (min-width: 640px) { body.tv .rail > * { flex-basis: 118px !important; } }
+@media (min-width: 1024px) { body.tv .rail > * { flex-basis: 128px !important; } }

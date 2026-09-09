@@ -1,6 +1,6 @@
 {
   "name": "tvshow",
-  "version": "5.22",
+  "version": "5.23",
   "private": true,
   "engines": {
     "node": ">=22"
@@ -25,6 +25,7 @@
     "react-dom": "18.3.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@types/node": "^22.20.1",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
