@@ -50,5 +50,11 @@ body.tv .rail > * { flex: 0 0 96px !important; }
 /* Top 10 y grids (películas/series/mi lista) más densos en TV */
 body.tv div.grid { gap: 0.4rem !important; }
 body.tv div.grid > a, body.tv div.grid > div { border-radius: 0.6rem !important; }
-@media (min-width: 640px) { body.tv .sm\:grid-cols-4 { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; } }
-@media (min-width: 1024px) { body.tv .lg\:grid-cols-6 { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; } }
+body.tv div.grid > a { padding: 0.4rem !important; }
+body.tv div.grid > a img[width="56"] { width: 44px !important; height: 66px !important; }
+body.tv div.grid > a img[width="300"] { /* poster cards keep aspect but container is narrower */ }
+@media (min-width: 640px) { body.tv .sm\:grid-cols-4 { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; } }
+@media (min-width: 768px) { body.tv .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 0.4rem !important; } }
+@media (min-width: 1024px) { body.tv .lg\:grid-cols-6 { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; } }
+body.tv .text-3xl { font-size: 1.4rem !important; }
+body.tv .text-xl { font-size: 1rem !important; }
