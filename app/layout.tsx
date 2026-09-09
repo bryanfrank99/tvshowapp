@@ -4,8 +4,7 @@ import Header from "@/components/Header";
 import TvNav from "@/components/TvNav";
 import SideNav from "@/components/SideNav";
 import LoveGate from "@/components/LoveGate";
-import pkg from "@/package.json";
-const appVersion = pkg.version;
+import { displayVersion } from "@/lib/version";
 import { getLang } from "@/lib/tmdb";
 import { t } from "@/lib/dict";
 
@@ -26,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-6 pl-20">{children}</main>
         <footer className="max-w-7xl mx-auto px-4 pl-20 pb-10 text-xs text-zinc-500 space-y-2 text-center">
           <p className="text-sm text-zinc-400"><LoveGate label={d.footer_love} /></p>
-          <p><a href="/dmca" className="text-[#008CFF] underline">{d.footer_dmca}</a> · <span title="Versión de la aplicación">v{appVersion}</span></p>
+          <p><a href="/dmca" className="text-[#008CFF] underline">{d.footer_dmca}</a> · <span title="Versión de la aplicación">{displayVersion()}</span></p>
           <p>{d.footer_rights}</p>
         </footer>
       </body>
