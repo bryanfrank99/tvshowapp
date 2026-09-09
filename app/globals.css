@@ -36,7 +36,7 @@ a:focus-visible, button:focus-visible {
 }
 
 /* Densidad TV: más compacto + hero contenido + rail sin expansión */
-html:has(body.tv) { font-size: 68%; }
+html:has(body.tv) { font-size: 62%; }
 body.tv .tv-hero { height: 12rem !important; }
 @media (min-width: 768px) { body.tv .tv-hero { height: 16rem !important; } }
 body.tv nav[aria-label="Principal"] { width: 4rem !important; }
@@ -47,3 +47,6 @@ body.tv .rail { gap: 8px; }
 body.tv .rail > * { flex: 0 0 108px !important; }
 @media (min-width: 640px) { body.tv .rail > * { flex-basis: 118px !important; } }
 @media (min-width: 1024px) { body.tv .rail > * { flex-basis: 128px !important; } }
+/* Top 10 y grids (películas/series/mi lista) más densos en TV */
+body.tv div.grid { gap: 0.5rem !important; }
+body.tv a[class*="rounded-2xl"] { border-radius: 0.75rem !important; }
