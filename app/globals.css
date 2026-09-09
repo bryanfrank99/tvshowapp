@@ -36,17 +36,19 @@ a:focus-visible, button:focus-visible {
 }
 
 /* Densidad TV: más compacto + hero contenido + rail sin expansión */
-html:has(body.tv) { font-size: 62%; }
-body.tv .tv-hero { height: 12rem !important; }
-@media (min-width: 768px) { body.tv .tv-hero { height: 16rem !important; } }
+html:has(body.tv) { font-size: 58%; }
+body.tv .tv-hero { height: 10rem !important; }
+@media (min-width: 768px) { body.tv .tv-hero { height: 14rem !important; } }
 body.tv nav[aria-label="Principal"] { width: 4rem !important; }
 body.tv nav[aria-label="Principal"]:hover { width: 4rem !important; }
 body.tv nav[aria-label="Principal"] .tv-label { display: none !important; }
 body.tv nav[aria-label="Principal"] img[alt="TV"] { display: block !important; opacity: 1 !important; }
-body.tv .rail { gap: 8px; }
-body.tv .rail > * { flex: 0 0 108px !important; }
-@media (min-width: 640px) { body.tv .rail > * { flex-basis: 118px !important; } }
-@media (min-width: 1024px) { body.tv .rail > * { flex-basis: 128px !important; } }
+body.tv .rail { gap: 6px; }
+body.tv .rail > * { flex: 0 0 96px !important; }
+@media (min-width: 640px) { body.tv .rail > * { flex-basis: 104px !important; } }
+@media (min-width: 1024px) { body.tv .rail > * { flex-basis: 112px !important; } }
 /* Top 10 y grids (películas/series/mi lista) más densos en TV */
-body.tv div.grid { gap: 0.5rem !important; }
-body.tv a[class*="rounded-2xl"] { border-radius: 0.75rem !important; }
+body.tv div.grid { gap: 0.4rem !important; }
+body.tv div.grid > a, body.tv div.grid > div { border-radius: 0.6rem !important; }
+@media (min-width: 640px) { body.tv .sm\:grid-cols-4 { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; } }
+@media (min-width: 1024px) { body.tv .lg\:grid-cols-6 { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; } }

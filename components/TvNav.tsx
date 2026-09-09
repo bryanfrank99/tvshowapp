@@ -47,7 +47,9 @@ export default function TvNav() {
 
   // Marca body.tv en modo TV (para CSS: densidad compacta).
   useEffect(() => {
-    if (isTVUA()) document.body.classList.add("tv");
+    const tv = isTVUA();
+    document.body.classList.toggle("tv", tv);
+    try { localStorage.removeItem("tvshow_tv"); } catch {}
   }, []);
 
   // Tecla Atrás del mando.
