@@ -4,6 +4,7 @@
 create table if not exists access_codes (
   id uuid primary key default gen_random_uuid(),
   code_hash text unique not null,
+  ref_code text unique not null,
   label text not null default '',
   expires_at timestamptz not null,
   revoked boolean not null default false,
@@ -58,6 +59,15 @@ create table if not exists admin_sessions (
 
 insert into config (key, value) values ('providers_version', '1')
 on conflict (key) do nothing;
+
+-- Migración para códigos existentes (si re-ejecutas el schema)
+do $$ begin
+  if not exists (select 1 from information_schema.columns where table_name='access_codes' and column_name='ref_code') then
+    alter table access_codes add column ref_code text unique;
+    update access_codes set ref_code = 'TV-' || upper(substring(md5(random()::text) from 1 for 8)) where ref_code is null;
+    alter table access_codes alter column ref_code set not null;
+  end if;
+end $$;
 
 -- Desactivar RLS para que service_role pueda operar sin políticas (anon sigue bloqueado)
 alter table access_codes disable row level security;

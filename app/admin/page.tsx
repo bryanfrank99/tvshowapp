@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 // Panel admin simple: códigos de acceso + servidores + live. (Español, uso interno.)
-type Code = { id: string; label: string; expires_at: string; revoked: boolean; created_at: string };
+type Code = { id: string; label: string; ref_code: string; expires_at: string; revoked: boolean; created_at: string };
 type Prov = { id: string; name: string; movie_tpl: string; tv_tpl: string; needs_tmdb: boolean; tv_ok: boolean; entry_key: string; active: boolean; ord: number };
 type Live = { id: string; name: string; format: string; list: string; active: boolean; ord: number };
 
@@ -18,7 +18,7 @@ export default function AdminPage() {
   const [version, setVersion] = useState("");
   const [label, setLabel] = useState("");
   const [days, setDays] = useState("30");
-  const [newCode, setNewCode] = useState("");
+  const [newCode, setNewCode] = useState<any>(null);
   const [msg, setMsg] = useState("");
   const [edit, setEdit] = useState<Partial<Prov> & { _new?: boolean } | null>(null);
   const [editLive, setEditLive] = useState<Partial<Live> & { _new?: boolean } | null>(null);
@@ -72,7 +72,7 @@ export default function AdminPage() {
     e.preventDefault();
     const r = await api("codes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label, days: Number(days) || 30 }) });
     const j = await r.json();
-    if (r.ok) { setNewCode(j.code); setLabel(""); load(); }
+    if (r.ok) { setNewCode(j as any); setLabel(""); load(); }
   };
 
   const saveProv = async () => {
@@ -114,7 +114,8 @@ export default function AdminPage() {
           </form>
           {newCode && (
             <p className="text-sm mb-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-              Código (se muestra una sola vez, cópialo): <b className="tracking-widest">{newCode}</b>
+              Código (se muestra una sola vez, cópialo): <b className="tracking-widest">{newCode.code || newCode}</b>
+              {newCode.ref_code && <> · Ref: <b className="tracking-widest">{newCode.ref_code}</b></>}
             </p>
           )}
           <div className="space-y-2">
@@ -125,10 +126,11 @@ export default function AdminPage() {
                 <div key={c.id} className={`flex items-center gap-2 p-3 rounded-xl border ${c.revoked ? "border-amber-500/40 bg-amber-500/5" : exp ? "border-red-500/40 bg-red-500/5" : "border-white/10 bg-white/5"} flex-wrap`}>
                   <div className="flex flex-col">
                     <span className="font-bold text-sm flex items-center gap-2">{c.label || "(sin etiqueta)"} {c.revoked && <span className="text-xs bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">revocado</span>} {exp && !c.revoked && <span className="text-xs bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded">caducado</span>}</span>
+                    <span className="text-xs font-mono bg-white/5 border border-white/10 rounded px-1.5 py-0.5 w-fit">{c.ref_code}</span>
                     <span className="text-xs text-zinc-400">expira {new Date(c.expires_at).toLocaleDateString()} { !exp && !c.revoked && <span className="text-zinc-500">· {daysLeft}d restantes</span>}</span>
                   </div>
                   <span className="ml-auto flex gap-1.5 flex-wrap">
-                    <button onClick={async () => { const r = await api("codes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, renew: true, days: 30 }) }); const j = await r.json(); if (r.ok) { setNewCode(j.code); setMsg(`Renovado: nuevo código ${j.code} (30d)`); load(); } else setMsg("Error renovando"); }} className={`${btn} bg-[#008CFF]/20 border-[#008CFF]/30 hover:bg-[#008CFF]/30`}>Renovar 30d</button>
+                    <button onClick={async () => { const r = await api("codes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, renew: true, days: 30 }) }); const j = await r.json(); if (r.ok) { setNewCode({ code: j.code, ref_code: j.ref_code }); setMsg(`Renovado: nuevo código ${j.code} · Ref ${j.ref_code} (30d)`); load(); } else setMsg("Error renovando"); }} className={`${btn} bg-[#008CFF]/20 border-[#008CFF]/30 hover:bg-[#008CFF]/30`}>Renovar 30d</button>
                     <button onClick={async () => { const r = await api("codes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, extendDays: 30 }) }); if (r.ok) { setMsg("Extendido 30 días"); load(); } else setMsg("Error extendiendo"); }} className={btn}>+30d</button>
                     <button onClick={() => api("codes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, revoked: !c.revoked }) }).then(load)} className={btn}>
                       {c.revoked ? "Reactivar" : "Revocar"}

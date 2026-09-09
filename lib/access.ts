@@ -9,6 +9,7 @@ const ADMIN_COOKIE = "tvadmin";
 
 export const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 export const newToken = () => randomBytes(32).toString("hex");
+export const newRef = () => `TV-${randomBytes(3).toString("hex").toUpperCase()}-${randomBytes(2).toString("hex").toUpperCase()}`;
 
 // Rate-limit en memoria por IP (por instancia).
 const hits = new Map<string, number[]>();
@@ -24,12 +25,18 @@ export async function validateCode(code: string) {
   const sb = supa();
   const { data, error } = await sb
     .from("access_codes")
-    .select("id,label,expires_at,revoked")
+    .select("id,label,ref_code,expires_at,revoked")
     .eq("code_hash", sha(code.trim()))
     .maybeSingle();
   if (error || !data || data.revoked) return null;
   if (new Date(data.expires_at).getTime() <= Date.now()) return null;
-  return data as { id: string; label: string; expires_at: string; revoked: boolean };
+  return data as { id: string; label: string; ref_code: string; expires_at: string; revoked: boolean };
+}
+
+export async function findCodeByHash(code: string) {
+  const sb = supa();
+  const { data } = await sb.from("access_codes").select("id,label,ref_code,expires_at,revoked").eq("code_hash", sha(code.trim())).maybeSingle();
+  return data as { id: string; label: string; ref_code: string; expires_at: string; revoked: boolean } | null;
 }
 
 export async function createSession(codeId: string) {

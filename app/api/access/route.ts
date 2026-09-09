@@ -1,6 +1,6 @@
 ﻿// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { validateCode, createSession, destroySession, rateOk, SESSION_COOKIE } from "@/lib/access";
+import { validateCode, findCodeByHash, createSession, destroySession, rateOk, SESSION_COOKIE } from "@/lib/access";
 
 function ip(req: NextRequest) {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
@@ -16,10 +16,17 @@ export async function POST(req: NextRequest) {
   if (!code.trim()) return NextResponse.json({ error: "empty" }, { status: 400 });
   try {
     const row = await validateCode(code);
-    if (!row) return NextResponse.json({ error: "invalid" }, { status: 401 });
+    if (!row) {
+      const hit = await findCodeByHash(code);
+      if (hit) {
+        const exp = new Date(hit.expires_at).getTime() <= Date.now();
+        return NextResponse.json({ error: hit.revoked ? "revoked" : exp ? "expired" : "invalid", ref_code: hit.ref_code }, { status: 401 });
+      }
+      return NextResponse.json({ error: "invalid" }, { status: 401 });
+    }
     const token = await createSession(row.id);
     if (!token) return NextResponse.json({ error: "db" }, { status: 500 });
-    const res = NextResponse.json({ ok: true, label: row.label, expires_at: row.expires_at });
+    const res = NextResponse.json({ ok: true, label: row.label, ref_code: (row as any).ref_code, expires_at: row.expires_at });
     res.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 90 });
     return res;
   } catch {

@@ -51,7 +51,7 @@ const es = {
   gate_play: "Toca para reproducir",
   block_tip: "¿Ventanas emergentes? Bloquéalas con:",
   gate_title: "Acceso restringido", gate_hint: "Introduce tu código para ver los servidores.",
-  gate_ph: "Tu código", gate_ok: "Entrar", gate_invalid: "Código inválido o caducado.", gate_rate: "Demasiados intentos, espera un minuto.",
+  gate_ph: "Tu código", gate_ok: "Entrar", gate_invalid: "Código inválido o caducado.", gate_revoked: "Código revocado.", gate_expired: "Código expirado.", gate_ref: "Ref", gate_contact: "Contacta al administrador para renovación.", gate_rate: "Demasiados intentos, espera un minuto.",
   abrir_externo: "Abrir externo",
   tv_hint: "Dentro del video mandan las flechas del reproductor · Atrás para salir",
   fullscreen: "Pantalla completa",
@@ -113,7 +113,7 @@ const en: Dict = {
   gate_play: "Tap to play",
   block_tip: "Pop-ups? Block them with:",
   gate_title: "Restricted access", gate_hint: "Enter your code to see the servers.",
-  gate_ph: "Your code", gate_ok: "Enter", gate_invalid: "Invalid or expired code.", gate_rate: "Too many attempts, wait a minute.",
+  gate_ph: "Your code", gate_ok: "Enter", gate_invalid: "Invalid or expired code.", gate_revoked: "Code revoked.", gate_expired: "Code expired.", gate_ref: "Ref", gate_contact: "Contact the administrator to renew.", gate_rate: "Too many attempts, wait a minute.",
   abrir_externo: "Open externally",
   tv_hint: "Inside the video, the player's arrows rule · Back to exit",
   fullscreen: "Fullscreen",
@@ -173,7 +173,7 @@ const pt: Dict = {
   gate_play: "Toca para reproduzir",
   block_tip: "Pop-ups? Bloqueie com:",
   gate_title: "Acesso restrito", gate_hint: "Digite seu código para ver os servidores.",
-  gate_ph: "Seu código", gate_ok: "Entrar", gate_invalid: "Código inválido ou expirado.", gate_rate: "Muitas tentativas, aguarde um minuto.",
+  gate_ph: "Seu código", gate_ok: "Entrar", gate_invalid: "Código inválido ou expirado.", gate_revoked: "Código revogado.", gate_expired: "Código expirado.", gate_ref: "Ref", gate_contact: "Entre em contato com o administrador para renovar.", gate_rate: "Muitas tentativas, aguarde um minuto.",
   abrir_externo: "Abrir externo",
   tv_hint: "Dentro do vídeo mandam as setas do player · Voltar para sair",
   fullscreen: "Tela cheia",
@@ -185,4 +185,5 @@ const pt: Dict = {
 
 export const STR: Record<Lang, Dict> = { es, en, pt };
 export const t = (lang: Lang): Dict => STR[lang] || es;
+
 
