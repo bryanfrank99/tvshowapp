@@ -83,12 +83,13 @@ Bloque `providers` (reproductores de pelis/series) y `live` (fuentes de TV en vi
 ## Desplegar en Vercel
 
 1. Importa el repo. Node 22+ (ya fijado en `engines`).
-2. En **Settings → Environment Variables** añade (las `NEXT_PUBLIC_` van
-   horneadas en el build: cualquier cambio exige **redeploy**):
+2. En **Settings → Environment Variables** añade:
    - `TMDB_API_KEY` (opcional, modo free sin ella)
-   - `NEXT_PUBLIC_PROVIDERS_URL` (tu JSON; vacío = local)
-   - `NEXT_PUBLIC_VIMEUS_VIEW_KEY` (solo si usas Vimeus)
-   - `EASTER_EGG` (privada, sin prefijo)
+   - `PROVIDERS_URL` (legacy; sin uso si hay Supabase)
+   - `VIMEUS_VIEW_KEY` (solo si usas Vimeus)
+   - `EASTER_EGG` (privada)
+   - `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` (acceso por código; service_role solo servidor)
+   - `ADMIN_PASSWORD` (panel /admin)
 3. Deploy y verifica en `https://tu-app.vercel.app/api/config`:
    debe mostrar `tmdb/vimeusKey/easterEgg: true` (sin revelar valores).
 

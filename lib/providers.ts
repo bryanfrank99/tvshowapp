@@ -58,89 +58,71 @@ export function buildProvider(def: ProviderDef, envKey = ""): Provider {
 
 export const DEFAULT_PROVIDER = "vidcore";
 
-// ---- Carga remota (cliente) con caché de 1h en localStorage ----
-const LS_CACHE = "tvshow_providers_cache_v2";
+// ---- Carga desde Supabase vía /api/providers (requiere sesión) ----
+const LS_CACHE = "tvshow_providers_cache_v3";
 const TTL = 3600 * 1000;
 
 export function providersUrl() {
-  // Solo lectura síncrona legacy; el flujo real usa remoteJsonUrl().
-  return "/providers.json";
+  return "/providers.json"; // legacy, ya no se usa como fuente
 }
 
-let cachedUrl: string | null = null;
+type Catalog = { providers: any[]; live: any[]; version: string };
+let inflight: Promise<Catalog> | null = null;
 
-// URL del JSON resuelta en SERVIDOR (/api/config): sin NEXT_PUBLIC_*.
-export async function remoteJsonUrl(): Promise<string> {
-  if (cachedUrl) return cachedUrl;
-  try {
-    const r = await fetch("/api/config", { cache: "no-store" });
-    if (r.ok) {
-      const j = await r.json();
-      const u = String(j.providersUrl || "");
-      if (u && !u.includes("(local)")) {
-        cachedUrl = u;
-        return u;
+function loadCatalog(): Promise<Catalog> {
+  if (!inflight) {
+    inflight = (async () => {
+      try {
+        const r = await fetch("/api/providers", { cache: "no-store" });
+        if (r.status === 401) {
+          try { localStorage.removeItem(LS_CACHE); } catch {}
+          throw new Error("locked");
+        }
+        if (!r.ok) throw new Error("http " + r.status);
+        const j = await r.json();
+        const out = { providers: j.providers || [], live: j.live || [], version: String(j.version || "") };
+        try { localStorage.setItem(LS_CACHE, JSON.stringify({ t: Date.now(), ...out })); } catch {}
+        return out;
+      } catch (e: any) {
+        if (String(e?.message) === "locked") throw e;
+        // Fallback a caché solo por error de red, no por locked
+        try {
+          const raw = localStorage.getItem(LS_CACHE);
+          if (raw) {
+            const c = JSON.parse(raw);
+            if (c.t + TTL > Date.now() && Array.isArray(c.providers)) {
+              return { providers: c.providers, live: c.live || [], version: c.version || "" };
+            }
+          }
+        } catch {}
+        throw e;
       }
-    }
-  } catch {}
-  cachedUrl = "/providers.json";
-  return cachedUrl;
+    })().finally(() => { inflight = null; });
+  }
+  return inflight;
+}
+
+export function clearProvidersCache() {
+  try { localStorage.removeItem(LS_CACHE); } catch {}
 }
 
 export async function fetchProviders(): Promise<{ list: Provider[]; version: string }> {
-  const url = await remoteJsonUrl();
-  try {
-    const raw = localStorage.getItem(LS_CACHE);
-    if (raw) {
-      const c = JSON.parse(raw);
-      if (c.t + TTL > Date.now() && Array.isArray(c.list) && c.list.length && c.url === url) {
-        return { list: c.list.map((d: ProviderDef) => buildProvider(d, "")), version: c.version || "" };
-      }
-    }
-  } catch {}
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error("http " + r.status);
-  const j = await r.json();
-  const arr: ProviderDef[] = Array.isArray(j) ? j : j.providers;
-  if (!Array.isArray(arr) || !arr.length) throw new Error("empty");
-  const valid = arr.filter((d) => d && d.id && d.name && d.movie && d.tv);
-  if (!valid.length) throw new Error("invalid");
-  const version = String((!Array.isArray(j) && j.version) || "");
-  try { localStorage.setItem(LS_CACHE, JSON.stringify({ t: Date.now(), list: valid, version, url })); } catch {}
-  return { list: valid.map((d) => buildProvider(d, "")), version };
-}
-
-function envKey() {
-  return "";
+  const c = await loadCatalog();
+  if (!c.providers.length) throw new Error("empty");
+  return {
+    list: c.providers.map((d: any) => buildProvider({ id: d.id, name: d.name, needsTmdb: d.needsTmdb, tvOk: d.tvOk, movie: "", tv: "" }, "")),
+    version: c.version,
+  };
 }
 
 // ---- Fuentes de TV en vivo (también configurables en el mismo JSON) ----
 // Esquema: "live": [{ "id": "tvf90", "name": "Agenda deportiva", "format": "tvf90"|"streambetter", "list": "https://..." }]
 export type LiveSource = { id: string; name: string; format: "streambetter" | "tvf90"; list: string };
 
-const BUILTIN_LIVE: LiveSource[] = [];
-
-const LS_LIVE = "tvshow_live_cache_v2";
+const LS_LIVE = "tvshow_live_cache_v2"; // legacy, sin uso
 
 export async function fetchLiveSources(): Promise<LiveSource[]> {
-  try {
-    const raw = localStorage.getItem(LS_LIVE);
-    if (raw) {
-      const c = JSON.parse(raw);
-      if (c.t + TTL > Date.now() && Array.isArray(c.list) && c.list.length) return c.list;
-    }
-  } catch {}
-  try {
-    const r = await fetch(await remoteJsonUrl(), { cache: "no-store" });
-    if (!r.ok) throw new Error();
-    const j = await r.json();
-    const arr = j.live;
-    if (!Array.isArray(arr) || !arr.length) throw new Error("empty");
-    const valid = arr.filter((s) => s && s.id && s.name && s.format && s.list);
-    if (!valid.length) throw new Error("invalid");
-    try { localStorage.setItem(LS_LIVE, JSON.stringify({ t: Date.now(), list: valid })); } catch {}
-    return valid;
-  } catch {
-    return BUILTIN_LIVE;
-  }
+  const c = await loadCatalog().catch(() => null);
+  const valid = (c?.live || []).filter((s) => s && s.id && s.name && s.format && s.list);
+  return valid;
 }

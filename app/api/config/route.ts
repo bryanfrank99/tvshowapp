@@ -6,12 +6,12 @@ import pkg from "@/package.json";
 export async function GET() {
   const has = (v: string | undefined, placeholder = "") =>
     !!v && v !== placeholder;
-  const src = process.env.PROVIDERS_SOURCE === "local" ? "/providers.json" : process.env.PROVIDERS_URL;
   return NextResponse.json({
     app: pkg.version,
     node: process.version,
     tmdb: has(process.env.TMDB_API_KEY, "TU_API_KEY_AQUI"),
-    providersUrl: src || "/providers.json (local)",
+    supabase: has(process.env.SUPABASE_URL) && has(process.env.SUPABASE_SERVICE_KEY),
+    admin: has(process.env.ADMIN_PASSWORD),
     vimeusKey: has(process.env.VIMEUS_VIEW_KEY),
     easterEgg: has(process.env.EASTER_EGG),
   });

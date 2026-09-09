@@ -8,6 +8,7 @@ import { resolveTmdbId } from "@/lib/resolve";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 import { PlayerSkeleton } from "@/components/Skeleton";
+import AccessGate from "@/components/AccessGate";
 
 function WatchInner() {
   const sp = useSearchParams();
@@ -24,6 +25,7 @@ function WatchInner() {
   const [noTmdb, setNoTmdb] = useState(false);
   const [list, setList] = useState<Provider[]>([]);
   const [listError, setListError] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
   const [listVersion, setListVersion] = useState("");
   const frameBox = useRef<HTMLDivElement>(null);
@@ -35,13 +37,18 @@ function WatchInner() {
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
   };
 
-  // Servidores SOLO del JSON remoto.
+  // Servidores desde Supabase (requiere sesión con código válido).
   const loadList = () => {
     setListError(false);
+    setLocked(false);
     setLoadingList(true);
     fetchProviders()
       .then(({ list, version }) => { setList(list); setListVersion(version); setLoadingList(false); })
-      .catch(() => { setListError(true); setLoadingList(false); });
+      .catch((e) => {
+        if (String((e as Error)?.message) === "locked") setLocked(true);
+        else setListError(true);
+        setLoadingList(false);
+      });
   };
   useEffect(loadList, []);
 
@@ -53,9 +60,21 @@ function WatchInner() {
     if (!p) { setSrc(""); return; }
     const eid = embedId || id;
     fetch(`/api/embed-url?provider=${p.id}&type=${type}&id=${encodeURIComponent(eid)}&s=${s}&e=${e}`, { cache: "no-store" })
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (r.status === 401) {
+          const { clearProvidersCache } = await import("@/lib/providers");
+          clearProvidersCache();
+          setLocked(true);
+          throw new Error("locked");
+        }
+        const j = await r.json();
+        if (!j.url) throw new Error("no url");
+        return j;
+      })
       .then((j) => setSrc(j.url || ""))
-      .catch(() => setSrc(""));
+      .catch(() => {
+        if (!locked) setSrc("");
+      });
   }, [p, embedId, type, id, s, e]);
 
   // Si el proveedor exige TMDB y el id es IMDb, resolver vía Cinemeta.
@@ -108,7 +127,11 @@ function WatchInner() {
         ))}
       </div>
       <div ref={frameBox} className="rounded-2xl overflow-hidden border border-white/10 bg-black">
-        {listError ? (
+        {locked ? (
+          <div className="aspect-video flex items-center justify-center p-4 overflow-y-auto">
+            <AccessGate onOk={loadList} />
+          </div>
+        ) : listError ? (
           <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
             <p className="text-sm text-red-300">{d.list_error}</p>
             <button onClick={loadList} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.reintentar}</button>
@@ -125,9 +148,6 @@ function WatchInner() {
       </div>
       <div className="flex gap-2 mt-3 flex-wrap items-center">
         <button onClick={goFullscreen} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-[#008CFF]">⛶ {d.fullscreen}</button>
-        {p && !p.tvOk && src && (
-          <button onClick={() => window.open(src, "_blank", "noopener")} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-[#008CFF]">↗ {d.abrir_externo}</button>
-        )}
         {type === "tv" && <Link href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.siguiente} {d.ep_e}{e + 1} →</Link>}
         {type === "tv" && <Link href={`/title?type=tv&id=${id}&season=${s}`} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm">{d.todos_capitulos}</Link>}
       </div>
