@@ -165,9 +165,7 @@ function WatchInner() {
         {type === "tv" && <Link href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.siguiente} {d.ep_e}{e + 1} →</Link>}
         {type === "tv" && <Link href={`/title?type=tv&id=${id}&season=${s}`} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm">{d.todos_capitulos}</Link>}
       </div>
-      <p className="text-xs text-zinc-500 mt-2">{d.tv_hint}</p>
-      <p className="text-xs text-zinc-500 mt-2">{d.watch_note}</p>
-      <p className="text-xs text-zinc-600 mt-1">{d.block_tip} <a href="https://brave.com" target="_blank" rel="noopener" className="underline">Brave</a> · <a href="https://ublockorigin.com" target="_blank" rel="noopener" className="underline">uBlock Origin</a></p>
+      <p className="text-sm font-medium text-zinc-200 mt-3 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10">{d.watch_note}</p>
     </>
   );
 }
