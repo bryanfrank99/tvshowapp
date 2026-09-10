@@ -9,6 +9,7 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://tvshowapp-one.vercel.app',
     cleartext: false,
+    allowNavigation: ['myembed.biz', 'redeflixapi.store', 'pipocacine.lat', 'vidcore.io', 'vidzy.org', 'vimeus.com', 'multiembed.mov', 'moviesapi.to', 'cinesrc.st', 'player.vidzee.wtf', 'embos.top', 'vidapi.xyz', 'streambetter.shop'],
   },
   android: {
     allowMixedContent: false,
