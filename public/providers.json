@@ -1,5 +1,5 @@
 {
-  "version": "4",
+  "version": "5",
   "providers": [
     {
       "id": "vidcore",
@@ -71,6 +71,27 @@
       "needsTmdb": true,
       "movie": "https://player.vidzee.wtf/embed/movie/{id}",
       "tv": "https://player.vidzee.wtf/embed/tv/{id}/{s}/{e}"
+    },
+    {
+      "id": "embedmovies",
+      "name": "EmbedMovies",
+      "needsTmdb": false,
+      "movie": "https://myembed.biz/filme/{id}",
+      "tv": "https://myembed.biz/serie/{id}/{s}/{e}"
+    },
+    {
+      "id": "redeflix",
+      "name": "RedeFlix",
+      "needsTmdb": true,
+      "movie": "https://redeflixapi.store/filme/{id}",
+      "tv": "https://redeflixapi.store/serie/{id}/{s}/{e}"
+    },
+    {
+      "id": "pipocacine",
+      "name": "PipocaCine",
+      "needsTmdb": true,
+      "movie": "https://pipocacine.lat/embed/{id}",
+      "tv": "https://pipocacine.lat/embed/{id}/{s}/{e}"
     }
   ],
   "live": [
