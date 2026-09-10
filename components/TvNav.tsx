@@ -45,10 +45,9 @@ export default function TvNav() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Marca html.tv y body.tv en modo TV (para CSS: densidad compacta).
+  // Marca body.tv en modo TV (para CSS: densidad compacta).
   useEffect(() => {
     const tv = isTVUA();
-    document.documentElement.classList.toggle("tv", tv);
     document.body.classList.toggle("tv", tv);
     try { localStorage.removeItem("tvshow_tv"); } catch {}
   }, []);

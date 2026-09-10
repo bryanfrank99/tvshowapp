@@ -36,7 +36,7 @@ a:focus-visible, button:focus-visible {
 }
 
 /* Densidad TV: más compacto + hero contenido + rail sin expansión */
-html.tv { font-size: 58%; }
+html:has(body.tv) { font-size: 54%; }
 body.tv .tv-hero { height: 10rem !important; }
 @media (min-width: 768px) { body.tv .tv-hero { height: 14rem !important; } }
 body.tv nav[aria-label="Principal"] { width: 4rem !important; }
@@ -44,11 +44,16 @@ body.tv nav[aria-label="Principal"]:hover { width: 4rem !important; }
 body.tv nav[aria-label="Principal"] .tv-label { display: none !important; }
 body.tv nav[aria-label="Principal"] img[alt="TV"] { display: block !important; opacity: 1 !important; }
 body.tv .rail { gap: 6px; }
-body.tv .rail > * { flex: 0 0 96px !important; }
-@media (min-width: 640px) { body.tv .rail > * { flex-basis: 104px !important; } }
-@media (min-width: 1024px) { body.tv .rail > * { flex-basis: 112px !important; } }
-/* Top 10 y grids (películas/series/mi lista) más densos en TV */
-body.tv div.grid { gap: 0.4rem !important; }
-body.tv div.grid > a, body.tv div.grid > div { border-radius: 0.6rem !important; }
-@media (min-width: 640px) { body.tv .sm\:grid-cols-4 { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; } }
-@media (min-width: 1024px) { body.tv .lg\:grid-cols-6 { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; } }
+body.tv .rail > * { flex: 0 0 88px !important; }
+@media (min-width: 640px) { body.tv .rail > * { flex-basis: 96px !important; } }
+@media (min-width: 1024px) { body.tv .rail > * { flex-basis: 104px !important; } }
+/* Grids (películas/series/mi lista) y Top 10 más densos en TV */
+body.tv div.grid { gap: 0.35rem !important; }
+body.tv div.grid > a, body.tv div.grid > div { border-radius: 0.5rem !important; }
+body.tv div.grid > a img, body.tv div.grid > div img { border-radius: 0.5rem !important; }
+@media (min-width: 640px) { body.tv .sm\:grid-cols-4 { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; } }
+@media (min-width: 1024px) { body.tv .lg\:grid-cols-6 { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; } }
+@media (min-width: 768px) { body.tv .md\:grid-cols-2 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+body.tv div.grid > a p, body.tv div.grid > div p { font-size: 0.85em; }
+body.tv .md\:grid-cols-2 > a { padding: 0.4rem !important; gap: 0.5rem !important; }
+body.tv .md\:grid-cols-2 > a span { font-size: 0.85em; }
