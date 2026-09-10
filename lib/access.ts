@@ -7,6 +7,17 @@ import { NextRequest, NextResponse } from "next/server";
 export const SESSION_COOKIE = "tvsess";
 const ADMIN_COOKIE = "tvadmin";
 
+// Cookie 90 días, Secure solo en prod (Vercel HTTPS). SameSite lax persiste en HTTPS solo con Secure.
+export function sessionCookieOpts() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 90,
+  };
+}
+
 export const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 export const newToken = () => randomBytes(32).toString("hex");
 export const newRef = () => `TV-${randomBytes(3).toString("hex").toUpperCase()}-${randomBytes(2).toString("hex").toUpperCase()}`;

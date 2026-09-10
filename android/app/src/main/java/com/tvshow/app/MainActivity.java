@@ -1,6 +1,8 @@
 package com.tvshow.app;
 
+import android.os.Build;
 import android.os.Bundle;
+import android.webkit.CookieManager;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 
@@ -23,6 +25,31 @@ public class MainActivity extends BridgeActivity {
             webView.getSettings().setLoadWithOverviewMode(true);
             webView.setWebViewClient(new AdBlockWebViewClient(getBridge()));
             webView.setWebChromeClient(new AdBlockWebChromeClient(getBridge()));
+            // Persistencia de cookies (tvsess). Sin esto la cookie queda solo en RAM y se pierde al matar la app (018).
+            try {
+                CookieManager cm = CookieManager.getInstance();
+                cm.setAcceptCookie(true);
+                if (Build.VERSION.SDK_INT >= 21) cm.setAcceptThirdPartyCookies(webView, true);
+                cm.flush();
+            } catch (Exception ignored2) {}
+        } catch (Exception ignored) {}
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        try { CookieManager.getInstance().flush(); } catch (Exception ignored) {}
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        try {
+            CookieManager cm = CookieManager.getInstance();
+            cm.setAcceptCookie(true);
+            if (Build.VERSION.SDK_INT >= 21) {
+                try { cm.setAcceptThirdPartyCookies(getBridge().getWebView(), true); } catch (Exception ignored2) {}
+            }
         } catch (Exception ignored) {}
     }
 }

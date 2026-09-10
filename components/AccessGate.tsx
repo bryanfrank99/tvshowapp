@@ -35,7 +35,10 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
           setErr(r.status === 429 ? d.gate_rate : d.gate_invalid);
         }
       } else {
-        try { localStorage.setItem("tvshow_ref_code", j.ref_code || ""); } catch {}
+        try {
+          localStorage.setItem("tvshow_ref_code", j.ref_code || "");
+          localStorage.setItem("tvshow_code", code.trim());
+        } catch {}
         if (j.ref_code) setStoredRef(j.ref_code);
         clearProvidersCache();
         onOk();

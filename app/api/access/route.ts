@@ -1,9 +1,16 @@
 ﻿// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { validateCode, findCodeByHash, createSession, destroySession, rateOk, SESSION_COOKIE } from "@/lib/access";
+import { validateCode, findCodeByHash, createSession, destroySession, rateOk, SESSION_COOKIE, sessionCookieOpts, checkSession } from "@/lib/access";
 
 function ip(req: NextRequest) {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+}
+
+// GET verifica sesión existente (para re-auth silencioso).
+export async function GET(req: NextRequest) {
+  const sess = await checkSession(req.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
+  if (!sess) return NextResponse.json({ ok: false, error: "locked" }, { status: 401 });
+  return NextResponse.json({ ok: true });
 }
 
 // POST {code} → crea sesión. DELETE → cierra sesión.
@@ -27,7 +34,7 @@ export async function POST(req: NextRequest) {
     const token = await createSession(row.id);
     if (!token) return NextResponse.json({ error: "db" }, { status: 500 });
     const res = NextResponse.json({ ok: true, label: row.label, ref_code: (row as any).ref_code, expires_at: row.expires_at });
-    res.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 90 });
+    res.cookies.set(SESSION_COOKIE, token, sessionCookieOpts());
     return res;
   } catch {
     return NextResponse.json({ error: "db" }, { status: 500 });

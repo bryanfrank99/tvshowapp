@@ -9,6 +9,7 @@ import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 import { PlayerSkeleton } from "@/components/Skeleton";
 import AccessGate from "@/components/AccessGate";
+import { ensureSession } from "@/hooks/useSession";
 
 function WatchInner() {
   const sp = useSearchParams();
@@ -37,12 +38,16 @@ function WatchInner() {
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
   };
 
-  // Servidores desde Supabase (requiere sesión con código válido).
+  // Servidores desde Supabase (requiere sesión con código válido). Si cookie expiró pero hay code en LS, re-auth silencioso.
   const loadList = () => {
     setListError(false);
     setLocked(false);
     setLoadingList(true);
-    fetchProviders()
+    ensureSession()
+      .then((ok) => {
+        if (!ok) throw new Error("locked");
+        return fetchProviders();
+      })
       .then(({ list, version }) => { setList(list); setListVersion(version); setLoadingList(false); })
       .catch((e) => {
         if (String((e as Error)?.message) === "locked") setLocked(true);
@@ -55,13 +60,21 @@ function WatchInner() {
   const p = list.find((x) => x.id === provider) || list[0];
   const [src, setSrc] = useState("");
 
-  // URL final construida en SERVIDOR (/api/embed-url inyecta la key).
+  // URL final construida en SERVIDOR (/api/embed-url inyecta la key). 401 → intenta re-auth silencioso una vez.
   useEffect(() => {
     if (!p) { setSrc(""); return; }
     const eid = embedId || id;
     fetch(`/api/embed-url?provider=${p.id}&type=${type}&id=${encodeURIComponent(eid)}&s=${s}&e=${e}`, { cache: "no-store" })
       .then(async (r) => {
         if (r.status === 401) {
+          const ok = await ensureSession();
+          if (ok) {
+            const r2 = await fetch(`/api/embed-url?provider=${p.id}&type=${type}&id=${encodeURIComponent(eid)}&s=${s}&e=${e}`, { cache: "no-store" });
+            if (r2.ok) {
+              const j2 = await r2.json();
+              if (j2.url) { setSrc(j2.url); return null; }
+            }
+          }
           const { clearProvidersCache } = await import("@/lib/providers");
           clearProvidersCache();
           setLocked(true);
@@ -71,7 +84,7 @@ function WatchInner() {
         if (!j.url) throw new Error("no url");
         return j;
       })
-      .then((j) => setSrc(j.url || ""))
+      .then((j) => { if (j) setSrc(j.url || ""); })
       .catch(() => {
         if (!locked) setSrc("");
       });
