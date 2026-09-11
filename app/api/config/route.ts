@@ -13,6 +13,5 @@ export async function GET() {
     supabase: has(process.env.SUPABASE_URL) && has(process.env.SUPABASE_SERVICE_KEY),
     admin: has(process.env.ADMIN_PASSWORD),
     vimeusKey: has(process.env.VIMEUS_VIEW_KEY),
-    easterEgg: has(process.env.EASTER_EGG),
   });
 }

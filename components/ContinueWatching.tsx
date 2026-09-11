@@ -1,9 +1,8 @@
-﻿"use client";
+"use client";
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
 import { useHistory, timeAgo } from "@/hooks/useHistory";
-import { IconClock, IconX, IconStar, IconPlay } from "@/components/Icons";
+import { IconClock, IconX } from "@/components/Icons";
+import { MediaCard } from "@/components/Cards";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 
@@ -28,34 +27,36 @@ export default function ContinueWatching() {
         </button>
       </div>
       <div className="rail">
-        {history.map((x) => {
-          return (
-            <div key={`${x.type}-${x.id}-${x.season}-${x.episode}`} className="group relative bg-white/5 border border-[#008CFF]/30 rounded-xl overflow-hidden hover:border-[#008CFF] hover:-translate-y-1 transition">
-              <Link href={`/watch?type=${x.type}&id=${x.id}${x.type === "tv" ? `&s=${x.season}&e=${x.episode}` : ""}`} className="block">
-                <Image src={x.poster || "https://via.placeholder.com/500x750?text=?"} alt={x.title} width={300} height={450} className="w-full aspect-[2/3] object-cover" />
-                <span className="absolute inset-0 m-auto w-14 h-14 rounded-full hidden group-hover:flex items-center justify-center bg-gradient-to-br from-[#008CFF] to-[#008CFF]/70 shadow-[0_0_24px_rgba(0,140,255,0.7)] ring-1 ring-white/40 pointer-events-none">
-                  <IconPlay size={22} className="ml-0.5 text-white" />
-                </span>
-                {(x.rating || 0) > 0 && (
-                  <span className="absolute top-1.5 left-1.5 text-[11px] font-bold bg-black/70 rounded-md px-1.5 py-0.5 inline-flex items-center gap-1"><IconStar size={11} className="text-[#f5c518]" />{Math.round((x.rating || 0) * 10) / 10}</span>
-                )}
-                <div className="p-2">
-                  <p className="text-sm font-semibold truncate">{x.title}</p>
-                  <p className="text-xs text-zinc-400">{x.type === "tv" ? `${d.tv_t}${x.season}${d.ep_e}${x.episode}` : d.pelicula}</p>
-                  <p className="text-[11px] text-zinc-500" title={new Date(x.updatedAt).toLocaleString()}>{d.visto} {timeAgo(x.updatedAt, lang)}</p>
-                </div>
-              </Link>
+        {history.map((x) => (
+          <MediaCard
+            key={`${x.type}-${x.id}-${x.season}-${x.episode}`}
+            item={{
+              id: x.id,
+              title: x.title,
+              poster_path: x.poster,
+              vote_average: x.rating,
+              media_type: x.type,
+            }}
+            href={`/watch?type=${x.type}&id=${x.id}${x.type === "tv" ? `&s=${x.season}&e=${x.episode}` : ""}`}
+            subtitle={x.type === "tv" ? `${d.tv_t}${x.season}${d.ep_e}${x.episode}` : d.pelicula}
+            extraMeta={`${d.visto} ${timeAgo(x.updatedAt, lang)}`}
+            actionButton={
               <button
-                onClick={() => remove(x)}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  remove(x);
+                }}
                 title={`Quitar ${x.title}`}
                 aria-label={`Quitar ${x.title} de Seguir viendo`}
-                className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 border border-white/20 hover:bg-red-600 hover:border-red-600 flex items-center justify-center"
+                className="w-8 h-8 rounded-full bg-black/65 backdrop-blur-md border border-white/20 hover:bg-red-600 hover:border-red-600 active:scale-90 transition-all flex items-center justify-center text-white shadow-md cursor-pointer"
               >
                 <IconX size={12} />
               </button>
-            </div>
-          );
-        })}
+            }
+          />
+        ))}
       </div>
     </section>
   );

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -134,9 +134,19 @@ function WatchInner() {
       <Link href={`/title?type=${type}&id=${id}`} className="text-xs text-zinc-400">{d.volver}</Link>
       <h1 className="text-2xl font-black">{title}</h1>
       <p className="text-xs text-zinc-500 mb-3">{d.servidor} <b className="text-[#008CFF]">{p?.name || "…"}</b> · TMDB #{id} {type === "tv" ? `· ${d.tv_t}${s}${d.ep_e}${e}` : ""}{listVersion ? ` · lista v${listVersion}` : ""}</p>
-      <div className="flex gap-2 mb-3 flex-wrap">
+      <div className="flex gap-2 mb-3 flex-wrap items-center">
         {list.map((x) => (
-          <button key={x.id} onClick={() => setProvider(x.id)} className={`text-xs px-3 py-1 rounded-full border ${provider === x.id ? "bg-[#008CFF] border-[#008CFF] text-white" : "border-white/15 text-zinc-400"}`}>{x.name}</button>
+          <button
+            key={x.id}
+            onClick={() => setProvider(x.id)}
+            className={`text-xs px-3 py-1.5 rounded-full border transition-all active:scale-95 touch-manipulation ${
+              provider === x.id
+                ? "bg-[#008CFF] border-[#008CFF] text-white font-bold shadow-[0_0_12px_rgba(0,140,255,0.4)]"
+                : "border-white/15 text-zinc-400 hover:border-white/30 hover:text-zinc-200"
+            }`}
+          >
+            {x.name}
+          </button>
         ))}
       </div>
       <div ref={frameBox} className="rounded-2xl overflow-hidden border border-white/10 bg-black">
@@ -148,22 +158,47 @@ function WatchInner() {
         ) : listError ? (
           <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
             <p className="text-sm text-red-300">{d.list_error}</p>
-            <button onClick={loadList} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.reintentar}</button>
+            <button onClick={loadList} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold active:scale-95 transition">{d.reintentar}</button>
           </div>
         ) : loadingList || resolving || !src ? (
           <PlayerSkeleton />
         ) : noTmdb ? (
-          <p className="aspect-video flex items-center justify-center text-sm text-yellow-300 p-6 text-center">
-            {p?.name} {d.no_tmdb}
-          </p>
+          <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <p className="text-sm text-yellow-300">{p?.name} {d.no_tmdb}</p>
+            {list.length > 1 && (
+              <button
+                onClick={() => {
+                  const idx = list.findIndex((x) => x.id === (p?.id || provider));
+                  const nextP = list[(idx + 1) % list.length];
+                  if (nextP) setProvider(nextP.id);
+                }}
+                className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold active:scale-95 transition"
+              >
+                🔄 Probar otro servidor
+              </button>
+            )}
+          </div>
         ) : (
           <iframe key={src} src={src} autoFocus referrerPolicy="origin" title={title} className="w-full aspect-video bg-black" allowFullScreen allow="autoplay; encrypted-media; fullscreen; picture-in-picture" />
         )}
       </div>
       <div className="flex gap-2 mt-3 flex-wrap items-center">
-        <button onClick={goFullscreen} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-[#008CFF]">⛶ {d.fullscreen}</button>
-        {type === "tv" && <Link href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold">{d.siguiente} {d.ep_e}{e + 1} →</Link>}
-        {type === "tv" && <Link href={`/title?type=tv&id=${id}&season=${s}`} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm">{d.todos_capitulos}</Link>}
+        <button onClick={goFullscreen} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-[#008CFF] active:scale-95 transition">⛶ {d.fullscreen}</button>
+        {list.length > 1 && (
+          <button
+            onClick={() => {
+              const idx = list.findIndex((x) => x.id === (p?.id || provider));
+              const nextP = list[(idx + 1) % list.length];
+              if (nextP) setProvider(nextP.id);
+            }}
+            className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-[#008CFF] active:scale-95 transition inline-flex items-center gap-1.5 text-zinc-300 hover:text-white"
+            title="Probar siguiente servidor si este no carga o tiene errores"
+          >
+            🔄 ¿Falla el video? Cambiar servidor
+          </button>
+        )}
+        {type === "tv" && <Link href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold active:scale-95 transition">{d.siguiente} {d.ep_e}{e + 1} →</Link>}
+        {type === "tv" && <Link href={`/title?type=tv&id=${id}&season=${s}`} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm active:scale-95 transition">{d.todos_capitulos}</Link>}
       </div>
       <p className="text-sm font-medium text-zinc-200 mt-3 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10">{d.watch_note}</p>
     </>

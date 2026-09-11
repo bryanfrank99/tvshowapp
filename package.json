@@ -1,6 +1,6 @@
 {
   "name": "tvshow",
-  "version": "5.42",
+  "version": "5.43",
   "private": true,
   "engines": {
     "node": ">=22"
@@ -20,7 +20,7 @@
     "@capacitor/core": "^8.5.1",
     "@supabase/supabase-js": "^2.116.0",
     "fast-xml-parser": "^5.11.1",
-    "next": "14.2.5",
+    "next": "14.2.35",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },

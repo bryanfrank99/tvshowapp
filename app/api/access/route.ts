@@ -1,6 +1,6 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { validateCode, findCodeByHash, createSession, destroySession, rateOk, SESSION_COOKIE, sessionCookieOpts, checkSession } from "@/lib/access";
+import { validateCode, findCodeByHash, createSession, destroySession, rateOk, SESSION_COOKIE, sessionCookieOpts, checkSession, parseDeviceHint } from "@/lib/access";
 
 function ip(req: NextRequest) {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
@@ -31,7 +31,20 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ error: "invalid" }, { status: 401 });
     }
-    const token = await createSession(row.id);
+    const userAgent = req.headers.get("user-agent") || "";
+    const deviceHint = parseDeviceHint(userAgent);
+    const sessResult = await createSession(row.id, deviceHint, ip(req));
+
+    if (!sessResult) return NextResponse.json({ error: "db" }, { status: 500 });
+    if ((sessResult as any).error === "max_devices") {
+      return NextResponse.json({
+        ok: false,
+        error: "max_devices",
+        max: (sessResult as any).max,
+        ref_code: (row as any).ref_code,
+      }, { status: 403 });
+    }
+    const token = (sessResult as any).token;
     if (!token) return NextResponse.json({ error: "db" }, { status: 500 });
     const res = NextResponse.json({ ok: true, label: row.label, ref_code: (row as any).ref_code, expires_at: row.expires_at });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOpts());

@@ -1,4 +1,4 @@
-﻿// Diccionario UI: español, inglés, portugués.
+// Diccionario UI: español, inglés, portugués.
 export type Lang = "es" | "en" | "pt";
 
 const es = {
@@ -25,9 +25,6 @@ const es = {
   fav_add: "Añadir a Mi lista", fav_remove: "Quitar de Mi lista", fav_in: "En Mi lista", fav_btn: "Mi lista",
   footer_dmca: "Política DMCA", footer_rights: "© 2026 TVShow. Todos los derechos reservados.",
   footer_love: "Por y para el amor de mi vida ❤️ NENA ❤️",
-  love_q: "Una pregunta antes…", love_ask: "¿Cuál es el nombre de nuestra canción?",
-  love_ph: "Escribe aquí…", love_wrong: "Esa no es… inténtalo de nuevo 💭",
-  love_ok: "Correcto… esto es para ti ❤️", love_answer: "Responder", love_close: "Cerrar",
   dmca_title: "Política DMCA", dmca_updated: "Última actualización: septiembre 2026",
   dmca_h1: "1. No alojamos contenido",
   dmca_p1: "TVShow no aloja, almacena, transmite ni distribuye ningún archivo de video, audio o subtítulos en sus servidores. Somos un índice que enlaza pósters, sinopsis y metadatos (TMDB, Cinemeta, TVMaze) y reproduce contenido mediante reproductores de terceros incrustados (iframes). No tenemos control técnico ni editorial sobre esos reproductores externos.",
@@ -87,9 +84,6 @@ const en: Dict = {
   fav_add: "Add to My list", fav_remove: "Remove from My list", fav_in: "In My list", fav_btn: "My list",
   footer_dmca: "DMCA Policy", footer_rights: "© 2026 TVShow. All rights reserved.",
   footer_love: "For and because of the love of my life ❤️ NENA ❤️",
-  love_q: "One question first…", love_ask: "What is the name of our song?",
-  love_ph: "Type here…", love_wrong: "That's not it… try again 💭",
-  love_ok: "Correct… this is for you ❤️", love_answer: "Answer", love_close: "Close",
   dmca_title: "DMCA Policy", dmca_updated: "Last updated: September 2026",
   dmca_h1: "1. We host no content",
   dmca_p1: "TVShow does not host, store, transmit or distribute any video, audio or subtitle files on its servers. We are an index linking posters, synopses and metadata (TMDB, Cinemeta, TVMaze) and playing content through embedded third-party players (iframes). We have no technical or editorial control over those external players.",
@@ -147,9 +141,6 @@ const pt: Dict = {
   fav_add: "Adicionar à Minha lista", fav_remove: "Remover da Minha lista", fav_in: "Na Minha lista", fav_btn: "Minha lista",
   footer_dmca: "Política DMCA", footer_rights: "© 2026 TVShow. Todos os direitos reservados.",
   footer_love: "Por e para o amor da minha vida ❤️ NENA ❤️",
-  love_q: "Uma pergunta antes…", love_ask: "Qual é o nome da nossa música?",
-  love_ph: "Escreve aqui…", love_wrong: "Essa não é… tenta de novo 💭",
-  love_ok: "Correto… isto é para ti ❤️", love_answer: "Responder", love_close: "Fechar",
   dmca_title: "Política DMCA", dmca_updated: "Última atualização: setembro de 2026",
   dmca_h1: "1. Não hospedamos conteúdo",
   dmca_p1: "O TVShow não hospeda, armazena, transmite nem distribui nenhum arquivo de vídeo, áudio ou legenda em seus servidores. Somos um índice que vincula pôsteres, sinopses e metadados (TMDB, Cinemeta, TVMaze) e reproduz conteúdo por meio de players de terceiros incorporados (iframes). Não temos controle técnico nem editorial sobre esses players externos.",

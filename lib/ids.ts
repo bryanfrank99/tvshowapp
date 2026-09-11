@@ -16,4 +16,5 @@ export type Media = {
   imdb_id?: string | null;
   rank?: number;
   genres?: string[];
+  overview?: string;
 };

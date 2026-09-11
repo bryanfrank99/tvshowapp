@@ -27,7 +27,6 @@ npm run dev                  # http://localhost:3000
 | `PROVIDERS_URL` | No | URL de tu JSON de servidores. Vacío = `/providers.json` local. |
 | `PROVIDERS_SOURCE=local` | No | Test: fuerza el JSON local ignorando el remoto. |
 | `VIMEUS_VIEW_KEY` | Solo si usas Vimeus | View key de tu panel (se inyecta en servidor, nunca sale al cliente). |
-| `EASTER_EGG` | No | Secreto del Easter Egg del footer (validado en servidor). |
 
 ## Servidores: cada uno gestiona los suyos (sin recompilar)
 

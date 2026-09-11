@@ -26,3 +26,6 @@ ios/
 *.db
 *.db-wal
 *.db-shm
+
+# typescript build cache
+*.tsbuildinfo

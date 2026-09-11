@@ -27,7 +27,13 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
       });
       const j = await r.json();
       if (!r.ok || !j.ok) {
-        if (j.ref_code) {
+        if (j.error === "max_devices") {
+          if (j.ref_code) {
+            try { localStorage.setItem("tvshow_ref_code", j.ref_code); } catch {}
+            setStoredRef(j.ref_code);
+          }
+          setErr(`Límite de ${j.max || 3} dispositivos alcanzado para este código. Cierra sesión en otro equipo o contacta al administrador.`);
+        } else if (j.ref_code) {
           try { localStorage.setItem("tvshow_ref_code", j.ref_code); } catch {}
           setStoredRef(j.ref_code);
           setErr(`${j.error === "revoked" ? d.gate_revoked : d.gate_expired} ${d.gate_contact}`);

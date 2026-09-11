@@ -52,4 +52,16 @@ public class MainActivity extends BridgeActivity {
             }
         } catch (Exception ignored) {}
     }
+
+    @Override
+    public void onBackPressed() {
+        try {
+            WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+            if (webView != null && webView.canGoBack()) {
+                webView.goBack();
+                return;
+            }
+        } catch (Exception ignored) {}
+        super.onBackPressed();
+    }
 }

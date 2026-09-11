@@ -28,6 +28,7 @@ function cineMedia(m: any, type: "movie" | "tv"): Media {
     vote_average: num(m.imdbRating),
     imdb_id: m.id,
     genres: m.genres || [],
+    overview: m.description || m.overview || "",
   };
 }
 
