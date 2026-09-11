@@ -12,16 +12,21 @@ export async function GET(req: NextRequest) {
     const sb = supa();
     let provData: any[] = [];
     try {
-      const pRes = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang,subtitles").eq("active", true).order("ord");
+      const pRes = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang,subtitles,is_beta").eq("active", true).order("ord");
       if (!pRes.error && pRes.data) {
         provData = pRes.data;
       } else {
-        const pRes2 = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang").eq("active", true).order("ord");
+        const pRes2 = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang,subtitles").eq("active", true).order("ord");
         if (!pRes2.error && pRes2.data) {
           provData = pRes2.data;
         } else {
-          const base = await sb.from("providers").select("id,name,needs_tmdb,tv_ok").eq("active", true).order("ord");
-          if (base.data) provData = base.data;
+          const pRes3 = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang").eq("active", true).order("ord");
+          if (!pRes3.error && pRes3.data) {
+            provData = pRes3.data;
+          } else {
+            const base = await sb.from("providers").select("id,name,needs_tmdb,tv_ok").eq("active", true).order("ord");
+            if (base.data) provData = base.data;
+          }
         }
       }
     } catch {
@@ -46,6 +51,7 @@ export async function GET(req: NextRequest) {
           lang: languages[0] || "multi",
           languages,
           subtitles,
+          is_beta: !!x.is_beta,
           needsTmdb: !!x.needs_tmdb,
           tvOk: !!x.tv_ok,
         };

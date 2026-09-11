@@ -148,6 +148,11 @@ function WatchInner() {
         <span>{d.servidor} <b className="text-[#008CFF]">{p?.name || "…"}</b></span>
         {p && (
           <>
+            {p.is_beta && (
+              <span className="text-[10px] bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-full text-amber-300 font-bold inline-flex items-center gap-1" title="Servidor Beta: no se selecciona por defecto">
+                <span>🧪 Servidor Beta</span>
+              </span>
+            )}
             <span className="text-[10px] bg-white/10 border border-white/15 px-2 py-0.5 rounded-full text-zinc-200 font-medium inline-flex items-center gap-1">
               <span>🔊 Audio:</span>
               <b className="text-white">{(p.languages || [p.lang]).map((a) => `${getProviderLangMeta(a).flag} ${getProviderLangMeta(a).name}`).join(", ")}</b>
@@ -175,10 +180,25 @@ function WatchInner() {
               className={`text-xs px-3 py-1.5 rounded-full border transition-all active:scale-95 touch-manipulation inline-flex items-center gap-2 ${
                 isSelected
                   ? "bg-[#008CFF] border-[#008CFF] text-white font-bold shadow-[0_0_12px_rgba(0,140,255,0.4)]"
+                  : x.is_beta
+                  ? "border-amber-500/30 text-amber-200/90 hover:border-amber-500/60 hover:text-amber-100 bg-amber-500/5"
                   : "border-white/15 text-zinc-300 hover:border-white/30 hover:text-white bg-white/5"
               }`}
             >
               <span>{x.name}</span>
+              {x.is_beta && (
+                <span
+                  className={`px-1.5 py-0.2 rounded font-bold text-[9px] uppercase tracking-wider inline-flex items-center gap-0.5 ${
+                    isSelected
+                      ? "bg-amber-400 text-black shadow-sm"
+                      : "bg-amber-500/20 border border-amber-500/40 text-amber-300"
+                  }`}
+                  title="Servidor en fase Beta (Experimental). No se reproduce por defecto."
+                >
+                  <span>🧪</span>
+                  <span>BETA</span>
+                </span>
+              )}
               <span className="inline-flex items-center gap-1 text-[10px]">
                 <span
                   className={`px-1.5 py-0.2 rounded font-semibold inline-flex items-center gap-0.5 ${
@@ -224,8 +244,10 @@ function WatchInner() {
             {list.length > 1 && (
               <button
                 onClick={() => {
-                  const idx = list.findIndex((x) => x.id === (p?.id || provider));
-                  const nextP = list[(idx + 1) % list.length];
+                  const nonBeta = list.filter((x) => !x.is_beta);
+                  const pool = nonBeta.length > 0 ? nonBeta : list;
+                  const idx = pool.findIndex((x) => x.id === (p?.id || provider));
+                  const nextP = pool[(idx + 1) % pool.length];
                   if (nextP) setProvider(nextP.id);
                 }}
                 className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold active:scale-95 transition"
@@ -243,8 +265,10 @@ function WatchInner() {
         {list.length > 1 && (
           <button
             onClick={() => {
-              const idx = list.findIndex((x) => x.id === (p?.id || provider));
-              const nextP = list[(idx + 1) % list.length];
+              const nonBeta = list.filter((x) => !x.is_beta);
+              const pool = nonBeta.length > 0 ? nonBeta : list;
+              const idx = pool.findIndex((x) => x.id === (p?.id || provider));
+              const nextP = pool[(idx + 1) % pool.length];
               if (nextP) setProvider(nextP.id);
             }}
             className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-[#008CFF] active:scale-95 transition inline-flex items-center gap-1.5 text-zinc-300 hover:text-white"

@@ -39,6 +39,7 @@ type Prov = {
   lang?: string;
   languages?: string[];
   subtitles?: string[];
+  is_beta?: boolean;
   movie_tpl: string;
   tv_tpl: string;
   needs_tmdb: boolean;
@@ -503,7 +504,7 @@ export default function AdminPage() {
 
       {tab === "prov" && (
         <>
-          <button onClick={() => setEdit({ _new: true, active: true, lang: "multi", languages: ["multi"], subtitles: ["es", "en"], needs_tmdb: false, tv_ok: false, ord: provs.length } as any)}
+          <button onClick={() => setEdit({ _new: true, active: true, is_beta: false, lang: "multi", languages: ["multi"], subtitles: ["es", "en"], needs_tmdb: false, tv_ok: false, ord: provs.length } as any)}
             className="mb-4 px-4 py-2 rounded-xl bg-[#008CFF] font-bold text-sm text-white">+ Nuevo servidor</button>
           <div className="space-y-2">
             {provs.map((p) => {
@@ -512,6 +513,12 @@ export default function AdminPage() {
               return (
                 <div key={p.id} className="p-3 rounded-xl border border-white/10 bg-white/5 flex items-center gap-2.5 flex-wrap">
                   <b className="text-sm text-white">{p.name}</b>
+                  {p.is_beta && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1" title="Servidor Beta: nunca sale por defecto al reproducir">
+                      <span>🧪</span>
+                      <span>BETA</span>
+                    </span>
+                  )}
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[10px] bg-white/10 border border-white/15 px-2 py-0.5 rounded-full text-zinc-200 font-medium inline-flex items-center gap-1">
                       <span>🔊</span>
@@ -528,10 +535,17 @@ export default function AdminPage() {
                   {!p.active && <span className="text-xs bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded">inactivo</span>}
                   {p.tv_ok && <span className="text-xs bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">tv ok</span>}
                   <span className="ml-auto flex gap-2">
+                    <button
+                      onClick={() => api("providers", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, is_beta: !p.is_beta }) }).then(load)}
+                      className={`${btn} ${p.is_beta ? "text-amber-300 border-amber-500/40 bg-amber-500/10" : ""}`}
+                      title={p.is_beta ? "Quitar marca de Beta" : "Marcar como Beta (nunca saldrá por defecto)"}
+                    >
+                      {p.is_beta ? "🧪 Quitar Beta" : "🧪 Marcar Beta"}
+                    </button>
                     <button onClick={() => api("providers", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, active: !p.active }) }).then(load)} className={btn}>
                       {p.active ? "Desactivar" : "Activar"}
                     </button>
-                    <button onClick={() => setEdit({ ...p, languages: audios, subtitles: subs, lang: audios.join(",") })} className={btn}>Editar</button>
+                    <button onClick={() => setEdit({ ...p, is_beta: !!p.is_beta, languages: audios, subtitles: subs, lang: audios.join(",") })} className={btn}>Editar</button>
                     <button onClick={() => { if (confirm(`¿Borrar ${p.name}?`)) api(`providers?id=${p.id}`, { method: "DELETE" }).then(load); }} className={`${btn} hover:!border-red-500 hover:text-red-400`}>Borrar</button>
                   </span>
                 </div>
@@ -612,6 +626,29 @@ export default function AdminPage() {
               <input value={edit.movie_tpl || ""} onChange={(e) => setEdit({ ...edit, movie_tpl: e.target.value })} placeholder="Plantilla movie (…{id}…)" className={`${inp} font-mono`} />
               <input value={edit.tv_tpl || ""} onChange={(e) => setEdit({ ...edit, tv_tpl: e.target.value })} placeholder="Plantilla tv (…{id}…{s}…{e}…)" className={`${inp} font-mono`} />
               <input value={edit.entry_key || ""} onChange={(e) => setEdit({ ...edit, entry_key: e.target.value })} placeholder="key propia (opcional, ej. view_key)" className={`${inp} font-mono`} />
+              {/* Opción Beta */}
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3">
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-xs text-amber-300">
+                    <input
+                      type="checkbox"
+                      checked={!!edit.is_beta}
+                      onChange={(e) => setEdit({ ...edit, is_beta: e.target.checked })}
+                      className="rounded accent-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                    <span>🧪 Servidor en fase Beta (Experimental)</span>
+                  </label>
+                  <p className="text-[11px] text-zinc-400 mt-1 ml-6">
+                    Los servidores Beta <b>nunca saldrán por defecto</b> al reproducir ningún título. Solo se cargarán si el usuario hace clic en ellos en el reproductor.
+                  </p>
+                </div>
+                {edit.is_beta && (
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide shrink-0">
+                    🧪 BETA ACTIVO
+                  </span>
+                )}
+              </div>
+
               <div className="flex gap-4 text-xs flex-wrap items-center">
                 <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!edit.needs_tmdb} onChange={(e) => setEdit({ ...edit, needs_tmdb: e.target.checked })} /> needsTmdb</label>
                 <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!edit.tv_ok} onChange={(e) => setEdit({ ...edit, tv_ok: e.target.checked })} /> tvOk (mando)</label>

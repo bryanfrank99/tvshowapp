@@ -105,6 +105,7 @@ export type ProviderDef = {
   lang?: string | string[];
   languages?: ProviderLang[];
   subtitles?: string | string[];
+  is_beta?: boolean;
   needsTmdb?: boolean;
   tvOk?: boolean;
   movie: string;
@@ -119,6 +120,7 @@ export type Provider = {
   lang: ProviderLang;
   languages: ProviderLang[];
   subtitles: string[];
+  is_beta: boolean;
   needsTmdb: boolean;
   tvOk: boolean;
   movie: (id: string) => string;
@@ -144,6 +146,7 @@ export function buildProvider(def: ProviderDef, envKey = ""): Provider {
     lang: primaryLang,
     languages,
     subtitles,
+    is_beta: !!def.is_beta,
     needsTmdb: !!def.needsTmdb,
     tvOk: !!def.tvOk,
     sandbox: def.sandbox || "",
@@ -181,22 +184,26 @@ export function findBestProvider(
   userLang: string,
   preferredId?: string | null
 ): Provider {
-  if (!list.length) {
+  // Los proveedores BETA nunca se eligen por defecto al reproducir contenido
+  const eligible = list.filter((p) => !p.is_beta);
+  const pool = eligible.length > 0 ? eligible : list;
+
+  if (!pool.length) {
     return buildProvider({ id: "vidcore", name: "VidCore", movie: "", tv: "" });
   }
 
-  // Si el preferredId existe y tiene audio o subtítulo compatible (score >= 5), respetarlo
+  // Si el preferredId existe, NO es beta, y tiene audio o subtítulo compatible (score >= 5), respetarlo
   if (preferredId) {
-    const found = list.find((p) => p.id === preferredId);
+    const found = pool.find((p) => p.id === preferredId && !p.is_beta);
     if (found && scoreProviderForUser(found, userLang) >= 5) {
       return found;
     }
   }
 
-  let best = list[0];
+  let best = pool[0];
   let bestScore = -1;
 
-  for (const p of list) {
+  for (const p of pool) {
     const s = scoreProviderForUser(p, userLang);
     if (s > bestScore) {
       bestScore = s;
@@ -209,6 +216,10 @@ export function findBestProvider(
 
 export function sortProvidersByLang(list: Provider[], userLang: string): Provider[] {
   return [...list].sort((a, b) => {
+    // Los proveedores regulares tienen prioridad sobre los Beta
+    if (!!a.is_beta !== !!b.is_beta) {
+      return a.is_beta ? 1 : -1;
+    }
     const sa = scoreProviderForUser(a, userLang);
     const sb = scoreProviderForUser(b, userLang);
     return sb - sa;
@@ -277,6 +288,7 @@ export async function fetchProviders(): Promise<{ list: Provider[]; version: str
           lang: d.lang,
           languages: d.languages,
           subtitles: d.subtitles,
+          is_beta: d.is_beta,
           needsTmdb: d.needsTmdb,
           tvOk: d.tvOk,
           movie: "",

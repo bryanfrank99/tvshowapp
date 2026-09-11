@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       lang: languages.join(","),
       languages,
       subtitles,
+      is_beta: !!x.is_beta,
     };
   });
   return NextResponse.json({ providers: enriched, version: c.data?.value || "" });
@@ -57,6 +58,7 @@ export async function PUT(req: NextRequest) {
     entry_key: String(b.entry_key || ""),
     lang: langStr,
     subtitles: subStr,
+    is_beta: !!b.is_beta,
     active: b.active !== false, ord: Number(b.ord) || 0,
     updated_at: new Date().toISOString(),
   };
@@ -65,15 +67,22 @@ export async function PUT(req: NextRequest) {
     const { error } = await supa().from("providers").upsert(row, { onConflict: "id" });
     if (error) throw error;
   } catch {
-    // Fallback sin columna subtitles si no se ha corrido la migración SQL aún
+    // Fallback sin columna is_beta si no se ha corrido la migración SQL aún
     try {
-      const { subtitles: _, ...rowNoSub } = row;
-      const { error: err2 } = await supa().from("providers").upsert(rowNoSub, { onConflict: "id" });
-      if (err2) throw err2;
+      const { is_beta: _b, ...rowNoBeta } = row;
+      const { error: err1 } = await supa().from("providers").upsert(rowNoBeta, { onConflict: "id" });
+      if (err1) throw err1;
     } catch {
-      const { lang: _l, subtitles: _s, ...baseRow } = row;
-      const { error: baseErr } = await supa().from("providers").upsert(baseRow, { onConflict: "id" });
-      if (baseErr) return NextResponse.json({ error: "db" }, { status: 500 });
+      // Fallback sin is_beta ni subtitles
+      try {
+        const { is_beta: _b, subtitles: _s, ...rowNoSub } = row;
+        const { error: err2 } = await supa().from("providers").upsert(rowNoSub, { onConflict: "id" });
+        if (err2) throw err2;
+      } catch {
+        const { is_beta: _b, lang: _l, subtitles: _s, ...baseRow } = row;
+        const { error: baseErr } = await supa().from("providers").upsert(baseRow, { onConflict: "id" });
+        if (baseErr) return NextResponse.json({ error: "db" }, { status: 500 });
+      }
     }
   }
   await bump();
@@ -88,6 +97,7 @@ export async function PATCH(req: NextRequest) {
   if (!b.id) return NextResponse.json({ error: "params" }, { status: 400 });
   const patch: any = { updated_at: new Date().toISOString() };
   if (typeof b.active === "boolean") patch.active = b.active;
+  if (typeof b.is_beta === "boolean") patch.is_beta = b.is_beta;
   const { error } = await supa().from("providers").update(patch).eq("id", b.id);
   if (error) return NextResponse.json({ error: "db" }, { status: 500 });
   await bump();
