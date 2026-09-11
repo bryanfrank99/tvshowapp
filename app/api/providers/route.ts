@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supa } from "@/lib/supa";
 import { checkSession, SESSION_COOKIE } from "@/lib/access";
-import { DEFAULT_PROVIDER_LANGS } from "@/lib/providers";
+import { parseLangs, parseSubs } from "@/lib/providers";
 
 // Catálogo para el cliente (sin templates ni keys). Requiere sesión.
 export async function GET(req: NextRequest) {
@@ -12,16 +12,23 @@ export async function GET(req: NextRequest) {
     const sb = supa();
     let provData: any[] = [];
     try {
-      const pRes = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang").eq("active", true).order("ord");
+      const pRes = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang,subtitles").eq("active", true).order("ord");
       if (!pRes.error && pRes.data) {
         provData = pRes.data;
       } else {
-        const base = await sb.from("providers").select("id,name,needs_tmdb,tv_ok").eq("active", true).order("ord");
-        if (base.data) provData = base.data;
+        const pRes2 = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang").eq("active", true).order("ord");
+        if (!pRes2.error && pRes2.data) {
+          provData = pRes2.data;
+        } else {
+          const base = await sb.from("providers").select("id,name,needs_tmdb,tv_ok").eq("active", true).order("ord");
+          if (base.data) provData = base.data;
+        }
       }
     } catch {
-      const base = await sb.from("providers").select("id,name,needs_tmdb,tv_ok").eq("active", true).order("ord");
-      if (base.data) provData = base.data;
+      try {
+        const base = await sb.from("providers").select("id,name,needs_tmdb,tv_ok").eq("active", true).order("ord");
+        if (base.data) provData = base.data;
+      } catch {}
     }
 
     const [l, c] = await Promise.all([
@@ -30,13 +37,19 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json({
-      providers: provData.map((x: any) => ({
-        id: x.id,
-        name: x.name,
-        lang: x.lang || DEFAULT_PROVIDER_LANGS[x.id] || "multi",
-        needsTmdb: !!x.needs_tmdb,
-        tvOk: !!x.tv_ok,
-      })),
+      providers: provData.map((x: any) => {
+        const languages = parseLangs(x.lang, x.id);
+        const subtitles = parseSubs(x.subtitles, x.id);
+        return {
+          id: x.id,
+          name: x.name,
+          lang: languages[0] || "multi",
+          languages,
+          subtitles,
+          needsTmdb: !!x.needs_tmdb,
+          tvOk: !!x.tv_ok,
+        };
+      }),
       live: (l.data || []).map((x: any) => ({ id: x.id, name: x.name, format: x.format, list: x.list_url })),
       version: c.data?.value || "",
     });

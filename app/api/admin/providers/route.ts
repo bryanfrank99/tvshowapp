@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supa } from "@/lib/supa";
 import { needAdmin } from "@/lib/access";
-import { DEFAULT_PROVIDER_LANGS } from "@/lib/providers";
+import { parseLangs, parseSubs } from "@/lib/providers";
 
 // GET lista completa (con templates) · PUT upsert · PATCH toggle · DELETE
 export async function GET(req: NextRequest) {
@@ -14,10 +14,16 @@ export async function GET(req: NextRequest) {
     sb.from("config").select("value").eq("key", "providers_version").maybeSingle(),
   ]);
   if (p.error) return NextResponse.json({ error: "db" }, { status: 500 });
-  const enriched = (p.data || []).map((x: any) => ({
-    ...x,
-    lang: x.lang || DEFAULT_PROVIDER_LANGS[x.id] || "multi",
-  }));
+  const enriched = (p.data || []).map((x: any) => {
+    const languages = parseLangs(x.lang, x.id);
+    const subtitles = parseSubs(x.subtitles, x.id);
+    return {
+      ...x,
+      lang: languages.join(","),
+      languages,
+      subtitles,
+    };
+  });
   return NextResponse.json({ providers: enriched, version: c.data?.value || "" });
 }
 
@@ -29,13 +35,28 @@ export async function PUT(req: NextRequest) {
   if (!b.id || !b.name || !b.movie_tpl || !b.tv_tpl) {
     return NextResponse.json({ error: "params" }, { status: 400 });
   }
-  const lang = String(b.lang || DEFAULT_PROVIDER_LANGS[b.id] || "multi");
+
+  let langStr = "multi";
+  if (Array.isArray(b.languages) && b.languages.length) {
+    langStr = b.languages.join(",");
+  } else if (b.lang) {
+    langStr = String(b.lang);
+  }
+
+  let subStr = "";
+  if (Array.isArray(b.subtitles)) {
+    subStr = b.subtitles.join(",");
+  } else if (b.subtitles) {
+    subStr = String(b.subtitles);
+  }
+
   const row = {
     id: String(b.id), name: String(b.name),
     movie_tpl: String(b.movie_tpl), tv_tpl: String(b.tv_tpl),
     needs_tmdb: !!b.needs_tmdb, tv_ok: !!b.tv_ok,
     entry_key: String(b.entry_key || ""),
-    lang,
+    lang: langStr,
+    subtitles: subStr,
     active: b.active !== false, ord: Number(b.ord) || 0,
     updated_at: new Date().toISOString(),
   };
@@ -44,10 +65,16 @@ export async function PUT(req: NextRequest) {
     const { error } = await supa().from("providers").upsert(row, { onConflict: "id" });
     if (error) throw error;
   } catch {
-    // Fallback sin columna lang si no se ha corrido la migración SQL aún
-    const { lang: _, ...baseRow } = row;
-    const { error: baseErr } = await supa().from("providers").upsert(baseRow, { onConflict: "id" });
-    if (baseErr) return NextResponse.json({ error: "db" }, { status: 500 });
+    // Fallback sin columna subtitles si no se ha corrido la migración SQL aún
+    try {
+      const { subtitles: _, ...rowNoSub } = row;
+      const { error: err2 } = await supa().from("providers").upsert(rowNoSub, { onConflict: "id" });
+      if (err2) throw err2;
+    } catch {
+      const { lang: _l, subtitles: _s, ...baseRow } = row;
+      const { error: baseErr } = await supa().from("providers").upsert(baseRow, { onConflict: "id" });
+      if (baseErr) return NextResponse.json({ error: "db" }, { status: 500 });
+    }
   }
   await bump();
   return NextResponse.json({ ok: true });

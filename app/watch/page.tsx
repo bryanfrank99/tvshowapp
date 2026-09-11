@@ -147,37 +147,59 @@ function WatchInner() {
       <p className="text-xs text-zinc-400 mb-3 flex items-center gap-2 flex-wrap">
         <span>{d.servidor} <b className="text-[#008CFF]">{p?.name || "…"}</b></span>
         {p && (
-          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold inline-flex items-center gap-1 ${getProviderLangMeta(p.lang).color}`}>
-            <span>{getProviderLangMeta(p.lang).flag}</span>
-            <span>{getProviderLangMeta(p.lang).name}</span>
-          </span>
+          <>
+            <span className="text-[10px] bg-white/10 border border-white/15 px-2 py-0.5 rounded-full text-zinc-200 font-medium inline-flex items-center gap-1">
+              <span>🔊 Audio:</span>
+              <b className="text-white">{(p.languages || [p.lang]).map((a) => `${getProviderLangMeta(a).flag} ${getProviderLangMeta(a).name}`).join(", ")}</b>
+            </span>
+            {p.subtitles && p.subtitles.length > 0 && (
+              <span className="text-[10px] bg-sky-500/15 border border-sky-500/30 px-2 py-0.5 rounded-full text-sky-300 font-medium inline-flex items-center gap-1">
+                <span>💬 Subs:</span>
+                <b className="text-sky-200">{p.subtitles.map((s) => s.toUpperCase()).join(", ")}</b>
+              </span>
+            )}
+          </>
         )}
         <span className="text-zinc-500">· TMDB #{id} {type === "tv" ? `· ${d.tv_t}${s}${d.ep_e}${e}` : ""}{listVersion ? ` · lista v${listVersion}` : ""}</span>
       </p>
       <div className="flex gap-2 mb-3 flex-wrap items-center">
         {list.map((x) => {
-          const lMeta = getProviderLangMeta(x.lang);
+          const audios = x.languages && x.languages.length ? x.languages : [x.lang];
+          const subs = x.subtitles || [];
           const isSelected = (p?.id || provider) === x.id;
+          const primaryMeta = getProviderLangMeta(audios[0] || x.lang);
           return (
             <button
               key={x.id}
               onClick={() => setProvider(x.id)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-all active:scale-95 touch-manipulation inline-flex items-center gap-1.5 ${
+              className={`text-xs px-3 py-1.5 rounded-full border transition-all active:scale-95 touch-manipulation inline-flex items-center gap-2 ${
                 isSelected
                   ? "bg-[#008CFF] border-[#008CFF] text-white font-bold shadow-[0_0_12px_rgba(0,140,255,0.4)]"
                   : "border-white/15 text-zinc-300 hover:border-white/30 hover:text-white bg-white/5"
               }`}
             >
               <span>{x.name}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded font-semibold inline-flex items-center gap-0.5 ${
-                  isSelected
-                    ? "bg-white/25 text-white"
-                    : lMeta.color
-                }`}
-              >
-                <span>{lMeta.flag}</span>
-                <span>{lMeta.badge}</span>
+              <span className="inline-flex items-center gap-1 text-[10px]">
+                <span
+                  className={`px-1.5 py-0.2 rounded font-semibold inline-flex items-center gap-0.5 ${
+                    isSelected ? "bg-white/20 text-white" : primaryMeta.color
+                  }`}
+                  title={`Audio: ${audios.map((a) => getProviderLangMeta(a).name).join(", ")}`}
+                >
+                  <span>🔊</span>
+                  <span>{audios.map((a) => getProviderLangMeta(a).badge).join("/")}</span>
+                </span>
+                {subs.length > 0 && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded font-semibold inline-flex items-center gap-0.5 ${
+                      isSelected ? "bg-white/20 text-white" : "bg-sky-500/15 border border-sky-500/30 text-sky-300"
+                    }`}
+                    title={`Subtítulos: ${subs.map((s) => s.toUpperCase()).join(", ")}`}
+                  >
+                    <span>💬</span>
+                    <span>{subs.map((s) => s.toUpperCase()).join("/")}</span>
+                  </span>
+                )}
               </span>
             </button>
           );
