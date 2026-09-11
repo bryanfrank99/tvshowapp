@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { getProviderLangMeta, PROVIDER_LANGS } from "@/lib/providers";
 
 // Panel admin moderno: KPIs de estado, dispositivos (máx 3), sesiones, servidores + live.
 type DeviceInfo = {
@@ -32,7 +33,18 @@ type KPIs = {
   maxDevicesPerCode: number;
 };
 
-type Prov = { id: string; name: string; movie_tpl: string; tv_tpl: string; needs_tmdb: boolean; tv_ok: boolean; entry_key: string; active: boolean; ord: number };
+type Prov = {
+  id: string;
+  name: string;
+  lang?: string;
+  movie_tpl: string;
+  tv_tpl: string;
+  needs_tmdb: boolean;
+  tv_ok: boolean;
+  entry_key: string;
+  active: boolean;
+  ord: number;
+};
 type Live = { id: string; name: string; format: string; list: string; active: boolean; ord: number };
 
 const api = (p: string, init?: RequestInit) => fetch(`/api/admin/${p}`, { ...init, cache: "no-store" });
@@ -489,36 +501,54 @@ export default function AdminPage() {
 
       {tab === "prov" && (
         <>
-          <button onClick={() => setEdit({ _new: true, active: true, needs_tmdb: false, tv_ok: false, ord: provs.length } as any)}
+          <button onClick={() => setEdit({ _new: true, active: true, lang: "multi", needs_tmdb: false, tv_ok: false, ord: provs.length } as any)}
             className="mb-4 px-4 py-2 rounded-xl bg-[#008CFF] font-bold text-sm text-white">+ Nuevo servidor</button>
           <div className="space-y-2">
-            {provs.map((p) => (
-              <div key={p.id} className="p-3 rounded-xl border border-white/10 bg-white/5 flex items-center gap-2 flex-wrap">
-                <b className="text-sm text-white">{p.name}</b>
-                <code className="text-xs text-zinc-400">{p.id}</code>
-                {!p.active && <span className="text-xs bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded">inactivo</span>}
-                {p.tv_ok && <span className="text-xs bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">tv ok</span>}
-                <span className="ml-auto flex gap-2">
-                  <button onClick={() => api("providers", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, active: !p.active }) }).then(load)} className={btn}>
-                    {p.active ? "Desactivar" : "Activar"}
-                  </button>
-                  <button onClick={() => setEdit({ ...p })} className={btn}>Editar</button>
-                  <button onClick={() => { if (confirm(`¿Borrar ${p.name}?`)) api(`providers?id=${p.id}`, { method: "DELETE" }).then(load); }} className={`${btn} hover:!border-red-500 hover:text-red-400`}>Borrar</button>
-                </span>
-              </div>
-            ))}
+            {provs.map((p) => {
+              const lMeta = getProviderLangMeta(p.lang);
+              return (
+                <div key={p.id} className="p-3 rounded-xl border border-white/10 bg-white/5 flex items-center gap-2.5 flex-wrap">
+                  <b className="text-sm text-white">{p.name}</b>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold flex items-center gap-1 ${lMeta.color}`}>
+                    <span>{lMeta.flag}</span>
+                    <span>{lMeta.badge}</span>
+                  </span>
+                  <code className="text-xs text-zinc-400">{p.id}</code>
+                  {!p.active && <span className="text-xs bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded">inactivo</span>}
+                  {p.tv_ok && <span className="text-xs bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">tv ok</span>}
+                  <span className="ml-auto flex gap-2">
+                    <button onClick={() => api("providers", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, active: !p.active }) }).then(load)} className={btn}>
+                      {p.active ? "Desactivar" : "Activar"}
+                    </button>
+                    <button onClick={() => setEdit({ ...p, lang: p.lang || "multi" })} className={btn}>Editar</button>
+                    <button onClick={() => { if (confirm(`¿Borrar ${p.name}?`)) api(`providers?id=${p.id}`, { method: "DELETE" }).then(load); }} className={`${btn} hover:!border-red-500 hover:text-red-400`}>Borrar</button>
+                  </span>
+                </div>
+              );
+            })}
           </div>
           {edit && (
             <div className="mt-4 p-4 rounded-2xl border border-[#008CFF]/40 bg-black/60 space-y-3">
               <h3 className="font-bold text-sm text-white">{edit._new ? "Nuevo servidor" : `Editar ${edit.id}`}</h3>
-              <div className="grid sm:grid-cols-2 gap-2">
+              <div className="grid sm:grid-cols-3 gap-2">
                 <input value={edit.id || ""} disabled={!edit._new} onChange={(e) => setEdit({ ...edit, id: e.target.value })} placeholder="id (ej. vidcore)" className={inp} />
                 <input value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Nombre" className={inp} />
+                <select
+                  value={edit.lang || "multi"}
+                  onChange={(e) => setEdit({ ...edit, lang: e.target.value })}
+                  className={`${inp} bg-black/80 text-white cursor-pointer`}
+                >
+                  {PROVIDER_LANGS.map((pl) => (
+                    <option key={pl.id} value={pl.id} className="bg-zinc-900 text-white">
+                      {pl.flag} {pl.name} ({pl.badge})
+                    </option>
+                  ))}
+                </select>
               </div>
               <input value={edit.movie_tpl || ""} onChange={(e) => setEdit({ ...edit, movie_tpl: e.target.value })} placeholder="Plantilla movie (…{id}…)" className={`${inp} font-mono`} />
               <input value={edit.tv_tpl || ""} onChange={(e) => setEdit({ ...edit, tv_tpl: e.target.value })} placeholder="Plantilla tv (…{id}…{s}…{e}…)" className={`${inp} font-mono`} />
               <input value={edit.entry_key || ""} onChange={(e) => setEdit({ ...edit, entry_key: e.target.value })} placeholder="key propia (opcional, ej. view_key)" className={`${inp} font-mono`} />
-              <div className="flex gap-4 text-xs flex-wrap">
+              <div className="flex gap-4 text-xs flex-wrap items-center">
                 <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!edit.needs_tmdb} onChange={(e) => setEdit({ ...edit, needs_tmdb: e.target.checked })} /> needsTmdb</label>
                 <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!edit.tv_ok} onChange={(e) => setEdit({ ...edit, tv_ok: e.target.checked })} /> tvOk (mando)</label>
                 <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={edit.active !== false} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} /> activo</label>

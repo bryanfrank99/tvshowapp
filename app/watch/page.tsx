@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { fetchProviders, type Provider } from "@/lib/providers";
+import { fetchProviders, type Provider, getProviderLangMeta, findBestProvider, sortProvidersByLang } from "@/lib/providers";
 import { useHistory } from "@/hooks/useHistory";
 import { resolveTmdbId } from "@/lib/resolve";
 import { useLang } from "@/hooks/useLang";
@@ -48,16 +48,27 @@ function WatchInner() {
         if (!ok) throw new Error("locked");
         return fetchProviders();
       })
-      .then(({ list, version }) => { setList(list); setListVersion(version); setLoadingList(false); })
+      .then(({ list: rawList, version }) => {
+        const sorted = sortProvidersByLang(rawList, lang);
+        setList(sorted);
+        setListVersion(version);
+        setLoadingList(false);
+
+        // Cargar por defecto el proveedor que mejor se ajuste a la configuración de idioma en la app
+        const best = findBestProvider(sorted, lang, provider);
+        if (best && best.id !== provider) {
+          setProvider(best.id);
+        }
+      })
       .catch((e) => {
         if (String((e as Error)?.message) === "locked") setLocked(true);
         else setListError(true);
         setLoadingList(false);
       });
   };
-  useEffect(loadList, []);
+  useEffect(loadList, [lang]);
 
-  const p = list.find((x) => x.id === provider) || list[0];
+  const p = list.find((x) => x.id === provider) || findBestProvider(list, lang) || list[0];
   const [src, setSrc] = useState("");
 
   // URL final construida en SERVIDOR (/api/embed-url inyecta la key). 401 → intenta re-auth silencioso una vez.
@@ -133,21 +144,44 @@ function WatchInner() {
     <>
       <Link href={`/title?type=${type}&id=${id}`} className="text-xs text-zinc-400">{d.volver}</Link>
       <h1 className="text-2xl font-black">{title}</h1>
-      <p className="text-xs text-zinc-500 mb-3">{d.servidor} <b className="text-[#008CFF]">{p?.name || "…"}</b> · TMDB #{id} {type === "tv" ? `· ${d.tv_t}${s}${d.ep_e}${e}` : ""}{listVersion ? ` · lista v${listVersion}` : ""}</p>
+      <p className="text-xs text-zinc-400 mb-3 flex items-center gap-2 flex-wrap">
+        <span>{d.servidor} <b className="text-[#008CFF]">{p?.name || "…"}</b></span>
+        {p && (
+          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold inline-flex items-center gap-1 ${getProviderLangMeta(p.lang).color}`}>
+            <span>{getProviderLangMeta(p.lang).flag}</span>
+            <span>{getProviderLangMeta(p.lang).name}</span>
+          </span>
+        )}
+        <span className="text-zinc-500">· TMDB #{id} {type === "tv" ? `· ${d.tv_t}${s}${d.ep_e}${e}` : ""}{listVersion ? ` · lista v${listVersion}` : ""}</span>
+      </p>
       <div className="flex gap-2 mb-3 flex-wrap items-center">
-        {list.map((x) => (
-          <button
-            key={x.id}
-            onClick={() => setProvider(x.id)}
-            className={`text-xs px-3 py-1.5 rounded-full border transition-all active:scale-95 touch-manipulation ${
-              provider === x.id
-                ? "bg-[#008CFF] border-[#008CFF] text-white font-bold shadow-[0_0_12px_rgba(0,140,255,0.4)]"
-                : "border-white/15 text-zinc-400 hover:border-white/30 hover:text-zinc-200"
-            }`}
-          >
-            {x.name}
-          </button>
-        ))}
+        {list.map((x) => {
+          const lMeta = getProviderLangMeta(x.lang);
+          const isSelected = (p?.id || provider) === x.id;
+          return (
+            <button
+              key={x.id}
+              onClick={() => setProvider(x.id)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-all active:scale-95 touch-manipulation inline-flex items-center gap-1.5 ${
+                isSelected
+                  ? "bg-[#008CFF] border-[#008CFF] text-white font-bold shadow-[0_0_12px_rgba(0,140,255,0.4)]"
+                  : "border-white/15 text-zinc-300 hover:border-white/30 hover:text-white bg-white/5"
+              }`}
+            >
+              <span>{x.name}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded font-semibold inline-flex items-center gap-0.5 ${
+                  isSelected
+                    ? "bg-white/25 text-white"
+                    : lMeta.color
+                }`}
+              >
+                <span>{lMeta.flag}</span>
+                <span>{lMeta.badge}</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
       <div ref={frameBox} className="rounded-2xl overflow-hidden border border-white/10 bg-black">
         {locked ? (
