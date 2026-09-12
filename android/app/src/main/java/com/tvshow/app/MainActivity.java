@@ -28,6 +28,7 @@ public class MainActivity extends BridgeActivity {
             webView.requestFocus();
             webView.setWebViewClient(new AdBlockWebViewClient(getBridge()));
             webView.setWebChromeClient(new AdBlockWebChromeClient(getBridge()));
+            webView.addJavascriptInterface(new AppUpdaterBridge(this), "AndroidUpdater");
             // Persistencia de cookies (tvsess). Sin esto la cookie queda solo en RAM y se pierde al matar la app (018).
             try {
                 CookieManager cm = CookieManager.getInstance();

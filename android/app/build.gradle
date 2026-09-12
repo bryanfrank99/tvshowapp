@@ -1,5 +1,29 @@
 apply plugin: 'com.android.application'
 
+def getAppVersionFromPackageJson() {
+    try {
+        def pkgFile = file('../../package.json')
+        if (pkgFile.exists()) {
+            def slurper = new groovy.json.JsonSlurper()
+            def pkg = slurper.parse(pkgFile)
+            if (pkg.version) {
+                return pkg.version.toString()
+            }
+        }
+    } catch (Exception ignored) {}
+    return "5.60"
+}
+
+def getAppVersionCodeFromVersion(String ver) {
+    try {
+        String clean = ver.replaceAll("[^0-9]", "")
+        if (clean.length() > 0) {
+            return Integer.parseInt(clean)
+        }
+    } catch (Exception ignored) {}
+    return 560
+}
+
 android {
     namespace = "com.tvshow.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +31,10 @@ android {
         applicationId "com.tvshow.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 401
-        versionName "4.0.1"
+        def appVerName = getAppVersionFromPackageJson()
+        def appVerCode = getAppVersionCodeFromVersion(appVerName)
+        versionCode appVerCode
+        versionName appVerName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
