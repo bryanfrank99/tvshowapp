@@ -17,7 +17,7 @@ function WatchInner() {
   const id = sp.get("id") || "";
   const s = parseInt(sp.get("s") || "1");
   const e = parseInt(sp.get("e") || "1");
-  const { provider, setProvider, save } = useHistory();
+  const { save } = useHistory();
   const { lang } = useLang();
   const d = t(lang);
   const [title, setTitle] = useState(`#${id}`);
@@ -25,6 +25,7 @@ function WatchInner() {
   const [resolving, setResolving] = useState(false);
   const [noTmdb, setNoTmdb] = useState(false);
   const [list, setList] = useState<Provider[]>([]);
+  const [userProvider, setUserProvider] = useState<string | null>(null);
   const [listError, setListError] = useState(false);
   const [locked, setLocked] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
@@ -32,6 +33,12 @@ function WatchInner() {
   const [srcError, setSrcError] = useState(false);
   const [listVersion, setListVersion] = useState("");
   const frameBox = useRef<HTMLDivElement>(null);
+
+  // Cada vez que se cambia de título, temporada, episodio o idioma,
+  // se restablece la selección manual para cargar SIEMPRE el proveedor más recomendado para el idioma.
+  useEffect(() => {
+    setUserProvider(null);
+  }, [id, type, s, e, lang]);
 
   const goFullscreen = () => {
     const el = frameBox.current as any;
@@ -62,12 +69,6 @@ function WatchInner() {
         setList(sorted);
         setListVersion(version);
         setLoadingList(false);
-
-        // Cargar por defecto el proveedor que mejor se ajuste a la configuración de idioma en la app
-        const best = findBestProvider(sorted, lang, provider);
-        if (best && best.id !== provider) {
-          setProvider(best.id);
-        }
       })
       .catch((e) => {
         if (String((e as Error)?.message) === "locked") setLocked(true);
@@ -77,7 +78,8 @@ function WatchInner() {
   };
   useEffect(loadList, [lang]);
 
-  const p = list.find((x) => x.id === provider) || findBestProvider(list, lang) || list[0];
+  const recommended = findBestProvider(list, lang);
+  const p = (userProvider && list.find((x) => x.id === userProvider)) || recommended || list[0];
   const [src, setSrc] = useState("");
 
   // URL final construida en SERVIDOR (/api/embed-url inyecta la key). 401 → intenta re-auth silencioso una vez.
@@ -197,6 +199,11 @@ function WatchInner() {
         <span>{d.servidor} <b className="text-[#008CFF]">{p?.name || "…"}</b></span>
         {p && (
           <>
+            {p.id === recommended?.id && (
+              <span className="text-[10px] bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full text-emerald-300 font-bold inline-flex items-center gap-1">
+                <span>⭐ {lang === "pt" ? "Recomendado" : lang === "es" ? "Recomendado" : "Recommended"}</span>
+              </span>
+            )}
             {p.is_beta && (
               <span className="text-[10px] bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-full text-amber-300 font-bold inline-flex items-center gap-1" title="Servidor Beta: no se selecciona por defecto">
                 <span>🧪 Servidor Beta</span>
@@ -220,12 +227,13 @@ function WatchInner() {
         {list.map((x) => {
           const audios = x.languages && x.languages.length ? x.languages : [x.lang];
           const subs = x.subtitles || [];
-          const isSelected = (p?.id || provider) === x.id;
+          const isSelected = p?.id === x.id;
+          const isRec = x.id === recommended?.id;
           const primaryMeta = getProviderLangMeta(audios[0] || x.lang);
           return (
             <button
               key={x.id}
-              onClick={() => setProvider(x.id)}
+              onClick={() => setUserProvider(x.id)}
               className={`text-xs px-3 py-1.5 rounded-full border transition-all active:scale-95 touch-manipulation inline-flex items-center gap-2 ${
                 isSelected
                   ? "bg-[#008CFF] border-[#008CFF] text-white font-bold shadow-[0_0_12px_rgba(0,140,255,0.4)]"
@@ -235,6 +243,18 @@ function WatchInner() {
               }`}
             >
               <span>{x.name}</span>
+              {isRec && (
+                <span
+                  className={`px-1.5 py-0.2 rounded font-bold text-[9px] uppercase tracking-wider inline-flex items-center gap-0.5 ${
+                    isSelected
+                      ? "bg-emerald-400 text-black shadow-sm"
+                      : "bg-emerald-500/20 border border-emerald-500/40 text-emerald-300"
+                  }`}
+                  title={lang === "pt" ? "Servidor mais recomendado para seu idioma" : "Servidor más recomendado para tu idioma"}
+                >
+                  <span>⭐</span>
+                </span>
+              )}
               {x.is_beta && (
                 <span
                   className={`px-1.5 py-0.2 rounded font-bold text-[9px] uppercase tracking-wider inline-flex items-center gap-0.5 ${
@@ -294,9 +314,9 @@ function WatchInner() {
                 onClick={() => {
                   const nonBeta = list.filter((x) => !x.is_beta);
                   const pool = nonBeta.length > 0 ? nonBeta : list;
-                  const idx = pool.findIndex((x) => x.id === (p?.id || provider));
+                  const idx = pool.findIndex((x) => x.id === p?.id);
                   const nextP = pool[(idx + 1) % pool.length];
-                  if (nextP) setProvider(nextP.id);
+                  if (nextP) setUserProvider(nextP.id);
                 }}
                 className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold active:scale-95 transition"
               >
@@ -314,9 +334,9 @@ function WatchInner() {
                 onClick={() => {
                   const nonBeta = list.filter((x) => !x.is_beta);
                   const pool = nonBeta.length > 0 ? nonBeta : list;
-                  const idx = pool.findIndex((x) => x.id === (p?.id || provider));
+                  const idx = pool.findIndex((x) => x.id === p?.id);
                   const nextP = pool[(idx + 1) % pool.length];
-                  if (nextP) setProvider(nextP.id);
+                  if (nextP) setUserProvider(nextP.id);
                 }}
                 className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold active:scale-95 transition"
               >
@@ -335,9 +355,9 @@ function WatchInner() {
             onClick={() => {
               const nonBeta = list.filter((x) => !x.is_beta);
               const pool = nonBeta.length > 0 ? nonBeta : list;
-              const idx = pool.findIndex((x) => x.id === (p?.id || provider));
+              const idx = pool.findIndex((x) => x.id === p?.id);
               const nextP = pool[(idx + 1) % pool.length];
-              if (nextP) setProvider(nextP.id);
+              if (nextP) setUserProvider(nextP.id);
             }}
             className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm hover:border-[#008CFF] active:scale-95 transition inline-flex items-center gap-1.5 text-zinc-300 hover:text-white"
             title="Probar siguiente servidor si este no carga o tiene errores"

@@ -24,8 +24,7 @@ export function useHistory() {
   useEffect(() => {
     try {
       setHistory(JSON.parse(localStorage.getItem(H) || "[]"));
-      const p = localStorage.getItem(P) as ProviderId | null;
-      if (p) setProviderState(p);
+      localStorage.removeItem("tvshow_provider_v1");
     } catch {}
   }, []);
   const save = (e: Omit<Entry, "updatedAt">) => {
@@ -38,7 +37,6 @@ export function useHistory() {
   };
   const setProvider = (p: ProviderId) => {
     setProviderState(p);
-    localStorage.setItem(P, p);
   };
   const keyOf = (x: Pick<Entry, "type" | "id" | "season" | "episode">) => `${x.type}-${x.id}-${x.season || 0}-${x.episode || 0}`;
   const remove = (e: Pick<Entry, "type" | "id" | "season" | "episode">) => {

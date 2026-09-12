@@ -181,8 +181,7 @@ export function scoreProviderForUser(p: Provider, userLang: string): number {
 
 export function findBestProvider(
   list: Provider[],
-  userLang: string,
-  preferredId?: string | null
+  userLang: string
 ): Provider {
   // Los proveedores BETA nunca se eligen por defecto al reproducir contenido
   const eligible = list.filter((p) => !p.is_beta);
@@ -190,14 +189,6 @@ export function findBestProvider(
 
   if (!pool.length) {
     return buildProvider({ id: "vidcore", name: "VidCore", movie: "", tv: "" });
-  }
-
-  // Si el preferredId existe, NO es beta, y tiene audio o subtítulo compatible (score >= 5), respetarlo
-  if (preferredId) {
-    const found = pool.find((p) => p.id === preferredId && !p.is_beta);
-    if (found && scoreProviderForUser(found, userLang) >= 5) {
-      return found;
-    }
   }
 
   let best = pool[0];
