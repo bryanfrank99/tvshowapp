@@ -1,6 +1,6 @@
 {
   "name": "tvshow",
-  "version": "5.56",
+  "version": "5.57",
   "private": true,
   "engines": {
     "node": ">=22"

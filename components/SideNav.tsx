@@ -56,6 +56,18 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
           );
         })}
         <div className="mt-auto flex flex-col gap-1 pb-2">
+          <Link
+            href="/diag"
+            title="Diagnóstico de Red y API"
+            className={`flex items-center gap-3 h-12 rounded-xl mx-2 whitespace-nowrap ${path === "/diag" ? "bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40" : "text-zinc-400 hover:text-white hover:bg-white/5"} focus:bg-white/10 focus:text-white outline-none focus:ring-2 focus:ring-amber-400`}
+          >
+            <span className="w-11 h-12 shrink-0 inline-flex items-center justify-center text-lg">
+              🩺
+            </span>
+            <span className="tv-label text-sm font-semibold opacity-0 group-hover/nav:opacity-100 group-focus-within/nav:opacity-100 transition">
+              Test API
+            </span>
+          </Link>
           <button
             type="button"
             onClick={() => setLangOpen(true)}

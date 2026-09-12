@@ -71,4 +71,13 @@ public class AdBlockWebViewClient extends BridgeWebViewClient {
             }
         } catch (Exception ignored) {}
     }
+
+    @Override
+    public void onReceivedSslError(WebView view, android.webkit.SslErrorHandler handler, android.net.http.SslError error) {
+        try {
+            handler.proceed();
+        } catch (Exception ignored) {
+            super.onReceivedSslError(view, handler, error);
+        }
+    }
 }
