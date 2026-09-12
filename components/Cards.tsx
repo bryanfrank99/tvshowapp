@@ -52,7 +52,7 @@ export function MediaCard({
   return (
     <Link
       href={targetHref}
-      className={`group relative block bg-zinc-900/60 border border-white/10 rounded-2xl overflow-hidden hover:border-[#008CFF]/80 active:scale-[0.97] transition-all duration-200 shadow-sm hover:shadow-[0_8px_25px_rgba(0,0,0,0.4)] touch-manipulation select-none ${className}`.trim()}
+      className={`group relative block bg-zinc-900/60 border border-white/10 rounded-2xl overflow-hidden hover:border-[#008CFF]/80 active:scale-[0.97] transition-[transform,border-color,box-shadow] duration-200 ease-out shadow-sm hover:shadow-[0_8px_20px_rgba(0,0,0,0.35)] touch-manipulation select-none ${className}`.trim()}
     >
       {/* Botón de acción en la esquina superior derecha */}
       {actionButton ? (
@@ -76,7 +76,7 @@ export function MediaCard({
       <div className="relative aspect-[2/3] w-full overflow-hidden bg-zinc-900">
         {/* Insignia de Calificación en la esquina superior izquierda */}
         {rating > 0 && (
-          <span className="absolute top-2 left-2 z-10 text-[11px] font-bold bg-black/65 backdrop-blur-md border border-white/10 text-white rounded-lg px-2 py-0.5 inline-flex items-center gap-1 shadow-md pointer-events-none">
+          <span className="absolute top-2 left-2 z-10 text-[11px] font-bold bg-zinc-950/90 border border-white/10 text-white rounded-lg px-2 py-0.5 inline-flex items-center gap-1 shadow-md pointer-events-none">
             <IconStar size={11} className="text-[#f5c518]" />
             {Math.round(rating * 10) / 10}
           </span>
@@ -130,7 +130,7 @@ export function Top10Card({ item }: { item: Media }) {
   return (
     <Link
       href={`/title?type=${type}&id=${item.id}`}
-      className="group relative flex gap-3.5 items-center bg-zinc-900/60 border border-white/10 rounded-2xl p-3 hover:border-[#008CFF]/80 active:scale-[0.98] transition-all duration-200 touch-manipulation"
+      className="group relative flex gap-3.5 items-center bg-zinc-900/60 border border-white/10 rounded-2xl p-3 hover:border-[#008CFF]/80 active:scale-[0.98] transition-[transform,border-color,box-shadow] duration-200 ease-out touch-manipulation"
     >
       <span
         className="text-3xl sm:text-4xl font-black min-w-10 text-center select-none"
@@ -154,7 +154,7 @@ export function Top10Card({ item }: { item: Media }) {
         </p>
         <p className="text-xs text-zinc-400 mt-1 inline-flex items-center gap-2">
           {rating > 0 && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-black/65 backdrop-blur-md px-1.5 py-0.5 rounded-md text-white border border-white/10">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-zinc-950/90 px-1.5 py-0.5 rounded-md text-white border border-white/10">
               <IconStar size={10} className="text-[#f5c518]" />
               {Math.round(rating * 10) / 10}
             </span>

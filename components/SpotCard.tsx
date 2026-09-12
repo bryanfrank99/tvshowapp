@@ -14,7 +14,7 @@ export function SpotCard({ show, seasonNum, ep }: { show: any; seasonNum: number
   return (
     <Link
       href={`/watch?type=tv&id=${show.id}&s=${seasonNum}&e=${ep?.episode_number || 1}`}
-      className="group relative block bg-zinc-900/60 border border-white/10 rounded-2xl overflow-hidden hover:border-[#008CFF]/80 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-[0_8px_25px_rgba(0,0,0,0.4)] touch-manipulation select-none shrink-0"
+      className="group relative block bg-zinc-900/60 border border-white/10 rounded-2xl overflow-hidden hover:border-[#008CFF]/80 active:scale-[0.98] transition-[transform,border-color,box-shadow] duration-200 ease-out shadow-sm hover:shadow-[0_8px_20px_rgba(0,0,0,0.35)] touch-manipulation select-none shrink-0"
       style={{ flex: "0 0 280px" }}
     >
       <div className="relative aspect-video w-full overflow-hidden bg-zinc-900">

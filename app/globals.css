@@ -18,6 +18,7 @@
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  transform: translateZ(0);
 }
 .rail > * { flex: 0 0 142px; }
 @media (min-width: 640px) {

@@ -36,7 +36,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
   return (
     <>
       <nav aria-label="Principal"
-        className="flex fixed left-0 top-0 bottom-0 z-40 w-16 hover:w-52 focus-within:w-52 transition-all bg-[#0b0b10] border-r border-white/10 flex-col items-stretch py-4 gap-1 overflow-hidden group/nav">
+        className="flex sticky top-0 h-screen z-40 w-16 hover:w-52 focus-within:w-52 transition-[width] duration-200 ease-in-out bg-[#0b0b10] border-r border-white/10 flex-col items-stretch py-4 gap-1 overflow-hidden shrink-0 group/nav">
         <Link href="/" aria-label="Inicio" className="flex items-center gap-3 px-4 mb-4 h-10">
           <Image src="/favicon.png" alt="TV" width={32} height={32} className="w-8 h-8 shrink-0 group-hover/nav:hidden group-focus-within/nav:hidden" />
           <Image src="/TVSHOW.png" alt="TVSHOW" width={120} height={32} className="tv-label h-7 w-auto shrink-0 hidden group-hover/nav:block group-focus-within/nav:block" />

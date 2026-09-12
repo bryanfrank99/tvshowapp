@@ -50,7 +50,7 @@ export default function ContinueWatching() {
                 }}
                 title={`Quitar ${x.title}`}
                 aria-label={`Quitar ${x.title} de Seguir viendo`}
-                className="w-8 h-8 rounded-full bg-black/65 backdrop-blur-md border border-white/20 hover:bg-red-600 hover:border-red-600 active:scale-90 transition-all flex items-center justify-center text-white shadow-md cursor-pointer"
+                className="w-8 h-8 rounded-full bg-zinc-950/90 border border-white/20 hover:bg-red-600 hover:border-red-600 active:scale-90 transition-colors flex items-center justify-center text-white shadow-md cursor-pointer"
               >
                 <IconX size={12} />
               </button>

@@ -56,9 +56,10 @@ export default function FeaturedCarousel({ items }: { items: Media[] }) {
       {items.map((f, k) => (
         <Image
           key={String(f.id)}
-          src={img(f.backdrop_path || f.poster_path, "original")}
+          src={img(f.backdrop_path || f.poster_path, "w1280")}
           alt={f.title || f.name || ""}
           fill
+          sizes="100vw"
           priority={k === 0}
           className={`object-cover object-top transition-opacity duration-700 ${k === i ? "opacity-100" : "opacity-0"}`}
         />

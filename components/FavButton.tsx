@@ -41,7 +41,7 @@ export default function FavButton({
       "ml-auto shrink-0 w-9 h-9 rounded-full bg-white/5 border border-white/20 text-lg cursor-pointer hover:border-red-400 active:scale-95 transition flex items-center justify-center";
   } else {
     baseClass =
-      "w-8 h-8 rounded-full bg-black/65 backdrop-blur-md border border-white/20 text-sm cursor-pointer hover:border-red-400 hover:bg-black/85 active:scale-90 transition-all flex items-center justify-center shadow-md";
+      "w-8 h-8 rounded-full bg-zinc-950/90 border border-white/20 text-sm cursor-pointer hover:border-red-400 hover:bg-black active:scale-90 transition-[transform,colors,border-color] duration-150 flex items-center justify-center shadow-md";
   }
 
   return (

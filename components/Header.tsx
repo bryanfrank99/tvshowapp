@@ -24,8 +24,8 @@ export default function Header() {
   const crumb = crumbMap[path] || "";
 
   return (
-    <header className="sticky top-0 z-40 backdrop-blur bg-[#0b0b10]/90 border-b border-white/10">
-      <div className="max-w-7xl mx-auto pl-20 pr-3 sm:pr-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4">
+    <header className="sticky top-0 z-30 bg-[#0b0b10]/95 border-b border-white/10">
+      <div className="w-full max-w-[1840px] mx-auto px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4">
         <nav aria-label="Ruta" className="flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm min-w-0 flex-1 overflow-hidden">
           <Link href="/" className="text-zinc-500 hover:text-white shrink-0">{d.nav_home.charAt(0) + d.nav_home.slice(1).toLowerCase()}</Link>
           {crumb && (
