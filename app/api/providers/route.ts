@@ -42,12 +42,14 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json({
-      providers: provData.map((x: any) => {
+      providers: provData.map((x: any, idx: number) => {
         const languages = parseLangs(x.lang, x.id);
         const subtitles = parseSubs(x.subtitles, x.id);
+        const simulatedName = `S${idx + 1}`;
         return {
           id: x.id,
-          name: x.name,
+          name: simulatedName,
+          simulated_name: simulatedName,
           lang: languages[0] || "multi",
           languages,
           subtitles,

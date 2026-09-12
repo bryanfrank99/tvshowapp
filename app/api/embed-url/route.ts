@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { supa } from "@/lib/supa";
 import { checkSession, SESSION_COOKIE } from "@/lib/access";
@@ -39,7 +39,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       url: fill(tpl, id, s, e, (data as any).entry_key || key),
       needsTmdb: !!(data as any).needs_tmdb,
-      name: (data as any).name,
     });
   } catch {
     return NextResponse.json({ error: "db" }, { status: 500 });

@@ -14,11 +14,15 @@ export async function GET(req: NextRequest) {
     sb.from("config").select("value").eq("key", "providers_version").maybeSingle(),
   ]);
   if (p.error) return NextResponse.json({ error: "db" }, { status: 500 });
+  let activeIndex = 1;
   const enriched = (p.data || []).map((x: any) => {
     const languages = parseLangs(x.lang, x.id);
     const subtitles = parseSubs(x.subtitles, x.id);
+    const simulated_name = x.active ? `S${activeIndex++}` : "S-";
     return {
       ...x,
+      real_name: x.name,
+      simulated_name,
       lang: languages.join(","),
       languages,
       subtitles,

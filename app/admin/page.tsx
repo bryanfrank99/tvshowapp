@@ -36,6 +36,8 @@ type KPIs = {
 type Prov = {
   id: string;
   name: string;
+  real_name?: string;
+  simulated_name?: string;
   lang?: string;
   languages?: string[];
   subtitles?: string[];
@@ -507,12 +509,28 @@ export default function AdminPage() {
           <button onClick={() => setEdit({ _new: true, active: true, is_beta: false, lang: "multi", languages: ["multi"], subtitles: ["es", "en"], needs_tmdb: false, tv_ok: false, ord: provs.length } as any)}
             className="mb-4 px-4 py-2 rounded-xl bg-[#008CFF] font-bold text-sm text-white">+ Nuevo servidor</button>
           <div className="space-y-2">
-            {provs.map((p) => {
+            {provs.map((p, idx) => {
               const audios = p.languages && p.languages.length ? p.languages : parseLangs(p.lang, p.id);
               const subs = p.subtitles && p.subtitles.length ? p.subtitles : parseSubs(p.subtitles, p.id);
+              const simName = p.simulated_name || (p.active ? `S${idx + 1}` : "S-");
               return (
                 <div key={p.id} className="p-3 rounded-xl border border-white/10 bg-white/5 flex items-center gap-2.5 flex-wrap">
-                  <b className="text-sm text-white">{p.name}</b>
+                  <span
+                    className={`px-2 py-0.5 rounded font-mono font-bold text-xs border ${
+                      p.active
+                        ? "bg-[#008CFF]/20 border-[#008CFF]/40 text-[#008CFF]"
+                        : "bg-zinc-700/30 border-zinc-600/30 text-zinc-500"
+                    }`}
+                    title={p.active ? `Nombre simulado en app: ${simName}` : "Servidor inactivo (sin alias activo)"}
+                  >
+                    {simName}
+                  </span>
+                  <div className="inline-flex items-baseline gap-1.5">
+                    <b className="text-sm text-white">{p.name}</b>
+                    <span className="text-[11px] text-zinc-400 font-mono">
+                      ({simName} en app)
+                    </span>
+                  </div>
                   {p.is_beta && (
                     <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1" title="Servidor Beta: nunca sale por defecto al reproducir">
                       <span>🧪</span>
@@ -546,7 +564,7 @@ export default function AdminPage() {
                       {p.active ? "Desactivar" : "Activar"}
                     </button>
                     <button onClick={() => setEdit({ ...p, is_beta: !!p.is_beta, languages: audios, subtitles: subs, lang: audios.join(",") })} className={btn}>Editar</button>
-                    <button onClick={() => { if (confirm(`¿Borrar ${p.name}?`)) api(`providers?id=${p.id}`, { method: "DELETE" }).then(load); }} className={`${btn} hover:!border-red-500 hover:text-red-400`}>Borrar</button>
+                    <button onClick={() => { if (confirm(`¿Borrar servidor ${p.name} (${simName})?`)) api(`providers?id=${p.id}`, { method: "DELETE" }).then(load); }} className={`${btn} hover:!border-red-500 hover:text-red-400`}>Borrar</button>
                   </span>
                 </div>
               );
@@ -554,10 +572,28 @@ export default function AdminPage() {
           </div>
           {edit && (
             <div className="mt-4 p-4 rounded-2xl border border-[#008CFF]/40 bg-black/60 space-y-3">
-              <h3 className="font-bold text-sm text-white">{edit._new ? "Nuevo servidor" : `Editar ${edit.id}`}</h3>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                  <span>{edit._new ? "Nuevo servidor" : `Editar ${edit.id}`}</span>
+                  {edit.simulated_name && (
+                    <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-[#008CFF]/20 text-[#008CFF] border border-[#008CFF]/40">
+                      {edit.simulated_name}
+                    </span>
+                  )}
+                </h3>
+                <span className="text-xs text-zinc-400">
+                  Nombre visible para usuarios: <b className="text-[#008CFF] font-mono">{edit.simulated_name || (edit.active !== false ? "S..." : "S- (inactivo)")}</b>
+                </span>
+              </div>
               <div className="grid sm:grid-cols-2 gap-2">
-                <input value={edit.id || ""} disabled={!edit._new} onChange={(e) => setEdit({ ...edit, id: e.target.value })} placeholder="id (ej. vidcore)" className={inp} />
-                <input value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Nombre" className={inp} />
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">ID interno:</label>
+                  <input value={edit.id || ""} disabled={!edit._new} onChange={(e) => setEdit({ ...edit, id: e.target.value })} placeholder="id (ej. vidcore)" className={inp} />
+                </div>
+                <div>
+                  <label className="text-[11px] text-zinc-400 block mb-1">Nombre real (solo admin):</label>
+                  <input value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Nombre real (ej. VidCore)" className={inp} />
+                </div>
               </div>
 
               {/* Selector de múltiples audios */}

@@ -102,6 +102,8 @@ export function parseSubs(val: any, fallbackId = ""): string[] {
 export type ProviderDef = {
   id: string;
   name: string;
+  real_name?: string;
+  simulated_name?: string;
   lang?: string | string[];
   languages?: ProviderLang[];
   subtitles?: string | string[];
@@ -117,6 +119,8 @@ export type ProviderDef = {
 export type Provider = {
   id: string;
   name: string;
+  real_name?: string;
+  simulated_name?: string;
   lang: ProviderLang;
   languages: ProviderLang[];
   subtitles: string[];
@@ -143,6 +147,8 @@ export function buildProvider(def: ProviderDef, envKey = ""): Provider {
   return {
     id: def.id,
     name: def.name,
+    real_name: def.real_name || def.name,
+    simulated_name: def.simulated_name,
     lang: primaryLang,
     languages,
     subtitles,
@@ -188,7 +194,7 @@ export function findBestProvider(
   const pool = eligible.length > 0 ? eligible : list;
 
   if (!pool.length) {
-    return buildProvider({ id: "vidcore", name: "VidCore", movie: "", tv: "" });
+    return buildProvider({ id: "vidcore", name: "S1", movie: "", tv: "" });
   }
 
   let best = pool[0];
