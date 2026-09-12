@@ -4,8 +4,9 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { IconHome, IconFilm, IconTv, IconSignal, IconHeart, IconSearch, IconGlobe, IconKey } from "@/components/Icons";
 import { useState } from "react";
-import { useLang, LANGS, setClientLang } from "@/hooks/useLang";
+import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
+import LanguageModal from "@/components/LanguageModal";
 
 // Navbar izquierda: iconos + etiquetas al expandir; abajo idioma + estado.
 const ITEMS = [
@@ -59,11 +60,11 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
         <div className="mt-auto flex flex-col gap-1 pb-2">
           <button
             type="button"
-            onClick={() => setLangOpen((v) => !v)}
-            aria-haspopup="menu"
+            onClick={() => setLangOpen(true)}
+            aria-haspopup="dialog"
             aria-expanded={langOpen}
             title={`${d.lang_label}: ${LANG_NAMES[lang]}`}
-            className="flex items-center gap-3 h-12 rounded-xl mx-2 whitespace-nowrap text-zinc-400 hover:text-white hover:bg-white/5"
+            className="flex items-center gap-3 h-12 rounded-xl mx-2 whitespace-nowrap text-zinc-400 hover:text-white hover:bg-white/5 focus:bg-white/10 focus:text-white outline-none focus:ring-2 focus:ring-[#008CFF]"
           >
             <span className="w-11 h-12 shrink-0 inline-flex items-center justify-center">
               <IconGlobe size={22} />
@@ -72,19 +73,9 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
               {LANG_NAMES[lang]}
             </span>
           </button>
-          {langOpen && (
-            <div role="menu" className="fixed left-[4.5rem] bottom-6 w-40 rounded-xl border border-white/10 bg-[#14141c] shadow-xl overflow-hidden z-50">
-              {LANGS.map((l) => (
-                <button key={l} role="menuitem" onClick={() => { setLangOpen(false); if (l !== lang) setClientLang(l); }}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-white/5 ${l === lang ? "text-white" : "text-zinc-400"}`}>
-                  {LANG_NAMES[l]}
-                  {l === lang && <span className="text-[#008CFF]">✓</span>}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </nav>
+      <LanguageModal isOpen={langOpen} onClose={() => setLangOpen(false)} />
     </>
   );
 }
