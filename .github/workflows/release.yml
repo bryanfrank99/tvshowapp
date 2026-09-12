@@ -1,0 +1,91 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Nombre del tag o versión (ej. v5.59). Si se deja vacío, toma la de package.json'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Compilar APK y Publicar Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código fuente
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Instalar dependencias de Node
+        run: npm ci
+
+      - name: Configurar Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 21
+          cache: 'gradle'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Aceptar licencias de Android SDK
+        run: yes | sdkmanager --licenses || true
+
+      - name: Sincronizar Capacitor con Android
+        run: npx cap sync android
+
+      - name: Dar permisos de ejecución a gradlew
+        run: chmod +x android/gradlew
+
+      - name: Compilar APK con Gradle
+        run: |
+          cd android
+          ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Preparar APK y determinar etiqueta de versión
+        id: prep
+        run: |
+          if [ -n "${{ github.event.inputs.tag_name }}" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+          elif [ -n "${{ github.ref_name }}" ] && [[ "${{ github.ref_name }}" == v* ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            PKG_VER=$(node -p "require('./package.json').version")
+            TAG="v${PKG_VER}"
+          fi
+          
+          SRC_APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          DEST_APK="TVShow-${TAG}.apk"
+          cp "$SRC_APK" "$DEST_APK"
+          
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "DEST_APK=$DEST_APK" >> $GITHUB_OUTPUT
+          echo "APK listo para publicar: $DEST_APK"
+
+      - name: Publicar Release en GitHub con APK adjunto
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.prep.outputs.TAG }}
+          name: TVShow ${{ steps.prep.outputs.TAG }}
+          files: ${{ steps.prep.outputs.DEST_APK }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
