@@ -16,17 +16,28 @@ def getAppVersionFromPackageJson() {
 
 def getAppVersionCodeFromVersion(String ver) {
     try {
-        String clean = ver.replaceAll("[^0-9]", "")
-        if (clean.length() > 0) {
-            return Integer.parseInt(clean)
-        }
+        String[] parts = ver.split("\\.")
+        int major = parts.length > 0 ? Integer.parseInt(parts[0].replaceAll("[^0-9]", "")) : 6
+        int minor = parts.length > 1 ? Integer.parseInt(parts[1].replaceAll("[^0-9]", "")) : 0
+        int patch = parts.length > 2 ? Integer.parseInt(parts[2].replaceAll("[^0-9]", "")) : 0
+        return major * 10000 + minor * 100 + patch
     } catch (Exception ignored) {}
-    return 560
+    return 60100
 }
 
 android {
     namespace = "com.tvshow.app"
     compileSdk = rootProject.ext.compileSdkVersion
+
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
     defaultConfig {
         applicationId "com.tvshow.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -43,7 +54,11 @@ android {
         }
     }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
+            signingConfig signingConfigs.debug
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
