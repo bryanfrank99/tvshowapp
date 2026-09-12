@@ -259,8 +259,15 @@ export default function AppUpdater() {
         {updateState === "countdown" && (
           <div className="w-full mb-6">
             <p className="text-zinc-300 text-sm mb-3">
-              Hay una actualización importante disponible para TVShow.
+              Hay una actualización disponible para TVShow.
             </p>
+
+            {versionInfo.releaseNotes && (
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 mb-3 text-xs text-zinc-300 text-left max-h-24 overflow-y-auto font-sans leading-relaxed">
+                <span className="font-semibold text-zinc-400 block mb-1">Novedades:</span>
+                {versionInfo.releaseNotes}
+              </div>
+            )}
 
             {/* Aviso de cuenta regresiva */}
             {countdown !== null && (
