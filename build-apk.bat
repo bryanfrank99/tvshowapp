@@ -8,7 +8,7 @@ echo ========================================================
 :: 1. Obtener la Key por parametro o preguntar interactivamente
 set "TARGET_KEY=%~1"
 if "%TARGET_KEY%"=="" (
-    set /p "TARGET_KEY=Introduce la Key para embeber en la APK (o ENTER para estandar sin key): "
+    set /p "TARGET_KEY=Introduce la Key para embeber en la APK o presiona ENTER para estandar sin key: "
 )
 
 :: Limpiar espacios
@@ -30,7 +30,7 @@ if not "!TARGET_KEY!"=="" (
     <nul set /p="!TARGET_KEY!"> "%KEY_FILE%"
     set "APK_FILENAME=TVShow-!TARGET_KEY!.apk"
 ) else (
-    echo [INFO] Compilando APK estandar (sin key por defecto)...
+    echo [INFO] Compilando APK estandar sin key por defecto...
     if exist "%KEY_FILE%" del /f /q "%KEY_FILE%"
     set "APK_FILENAME=TVShow-standard.apk"
 )
@@ -58,12 +58,13 @@ cd /d "%ANDROID_DIR%"
 echo [INFO] Ejecutando Gradle assembleDebug...
 call gradlew.bat :app:assembleDebug --no-daemon --console=plain
 
-if %ERRORLEVEL% neq 0 (
+set "BUILD_RESULT=%ERRORLEVEL%"
+if %BUILD_RESULT% neq 0 (
     echo.
     echo [ERROR] La compilacion de la APK ha fallado.
     if exist "%KEY_FILE%" del /f /q "%KEY_FILE%"
     cd /d "%PROJECT_DIR%"
-    exit /b %ERRORLEVEL%
+    exit /b %BUILD_RESULT%
 )
 
 :: 5. Copiar APK generada
