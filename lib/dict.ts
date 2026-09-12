@@ -57,7 +57,7 @@ const es = {
   servidores_label: "Servidores",
   cargar_mas: "Cargar más", cargando: "Cargando…",
   crumb_detalle: "Detalle", crumb_persona: "Persona", crumb_genero: "Género", crumb_ver: "Ver",
-  nav_code: "CÓDIGO", vincular_tv: "Key",
+  nav_code: "CÓDIGO", vincular_tv: "Key", nav_key: "KEY",
 };
 
 export type Dict = typeof es;
@@ -118,7 +118,7 @@ const en: Dict = {
   servidores_label: "Servers",
   cargar_mas: "Load more", cargando: "Loading…",
   crumb_detalle: "Details", crumb_persona: "Person", crumb_genero: "Genre", crumb_ver: "Watch",
-  nav_code: "ACCESS CODE", vincular_tv: "Key",
+  nav_code: "ACCESS CODE", vincular_tv: "Key", nav_key: "KEY",
 };
 
 const pt: Dict = {
@@ -177,7 +177,7 @@ const pt: Dict = {
   servidores_label: "Servidores",
   cargar_mas: "Carregar mais", cargando: "Carregando…",
   crumb_detalle: "Detalhes", crumb_persona: "Pessoa", crumb_genero: "Gênero", crumb_ver: "Assistir",
-  nav_code: "CÓDIGO", vincular_tv: "Key",
+  nav_code: "CÓDIGO", vincular_tv: "Key", nav_key: "KEY",
 };
 
 export const STR: Record<Lang, Dict> = { es, en, pt };

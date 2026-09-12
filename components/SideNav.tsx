@@ -6,7 +6,6 @@ import { IconHome, IconFilm, IconTv, IconSignal, IconHeart, IconSearch, IconGlob
 import { useState } from "react";
 import { useLang, LANGS, setClientLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
-import AccessModal from "@/components/AccessModal";
 
 // Navbar izquierda: iconos + etiquetas al expandir; abajo idioma + estado.
 const ITEMS = [
@@ -16,6 +15,7 @@ const ITEMS = [
   { href: "/series", Icon: IconTv },
   { href: "/live", Icon: IconSignal },
   { href: "/list", Icon: IconHeart },
+  { href: "/key", Icon: IconKey },
 ];
 
 const LANG_NAMES = { es: "Español", en: "English", pt: "Português" } as const;
@@ -24,7 +24,6 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
   const path = usePathname();
   const { lang } = useLang();
   const [langOpen, setLangOpen] = useState(false);
-  const [accessOpen, setAccessOpen] = useState(false);
   const d = t(lang);
   const names: Record<string, string> = {
     "/search": labels.nav_search,
@@ -33,6 +32,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
     "/series": labels.nav_series,
     "/live": labels.nav_live,
     "/list": labels.nav_list,
+    "/key": labels.nav_key || "KEY",
   };
   return (
     <>
@@ -57,19 +57,6 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
           );
         })}
         <div className="mt-auto flex flex-col gap-1 pb-2">
-          <button
-            type="button"
-            onClick={() => setAccessOpen(true)}
-            title="Key"
-            className="flex items-center gap-3 h-12 rounded-xl mx-2 whitespace-nowrap text-zinc-300 hover:text-white hover:bg-white/10"
-          >
-            <span className="w-11 h-12 shrink-0 inline-flex items-center justify-center">
-              <IconKey size={22} />
-            </span>
-            <span className="tv-label text-sm font-semibold opacity-0 group-hover/nav:opacity-100 group-focus-within/nav:opacity-100 transition">
-              Key
-            </span>
-          </button>
           <button
             type="button"
             onClick={() => setLangOpen((v) => !v)}
@@ -98,7 +85,6 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
           )}
         </div>
       </nav>
-      <AccessModal isOpen={accessOpen} onClose={() => setAccessOpen(false)} />
     </>
   );
 }

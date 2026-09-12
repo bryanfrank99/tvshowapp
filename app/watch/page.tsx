@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { fetchProviders, type Provider, getProviderLangMeta, findBestProvider, sortProvidersByLang } from "@/lib/providers";
+import { fetchProviders, type Provider, getProviderLangMeta, findBestProvider, sortProvidersByLang, clearProvidersCache } from "@/lib/providers";
 import { useHistory } from "@/hooks/useHistory";
 import { resolveTmdbId } from "@/lib/resolve";
 import { useLang } from "@/hooks/useLang";
@@ -28,6 +28,8 @@ function WatchInner() {
   const [listError, setListError] = useState(false);
   const [locked, setLocked] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
+  const [loadingSrc, setLoadingSrc] = useState(false);
+  const [srcError, setSrcError] = useState(false);
   const [listVersion, setListVersion] = useState("");
   const frameBox = useRef<HTMLDivElement>(null);
 
@@ -43,12 +45,19 @@ function WatchInner() {
     setListError(false);
     setLocked(false);
     setLoadingList(true);
+    setSrcError(false);
     ensureSession()
       .then((ok) => {
-        if (!ok) throw new Error("locked");
+        if (!ok) {
+          setLocked(true);
+          setLoadingList(false);
+          return null;
+        }
         return fetchProviders();
       })
-      .then(({ list: rawList, version }) => {
+      .then((res) => {
+        if (!res) return;
+        const { list: rawList, version } = res;
         const sorted = sortProvidersByLang(rawList, lang);
         setList(sorted);
         setListVersion(version);
@@ -73,33 +82,73 @@ function WatchInner() {
 
   // URL final construida en SERVIDOR (/api/embed-url inyecta la key). 401 → intenta re-auth silencioso una vez.
   useEffect(() => {
-    if (!p) { setSrc(""); return; }
+    if (!p) {
+      setSrc("");
+      setLoadingSrc(false);
+      return;
+    }
+    if (locked) {
+      setSrc("");
+      setLoadingSrc(false);
+      return;
+    }
     const eid = embedId || id;
+    setLoadingSrc(true);
+    setSrcError(false);
+    let cancelled = false;
+
     fetch(`/api/embed-url?provider=${p.id}&type=${type}&id=${encodeURIComponent(eid)}&s=${s}&e=${e}`, { cache: "no-store" })
       .then(async (r) => {
+        if (cancelled) return;
         if (r.status === 401) {
           const ok = await ensureSession();
+          if (cancelled) return;
           if (ok) {
             const r2 = await fetch(`/api/embed-url?provider=${p.id}&type=${type}&id=${encodeURIComponent(eid)}&s=${s}&e=${e}`, { cache: "no-store" });
+            if (cancelled) return;
             if (r2.ok) {
               const j2 = await r2.json();
-              if (j2.url) { setSrc(j2.url); return null; }
+              if (j2.url) {
+                setSrc(j2.url);
+                setLoadingSrc(false);
+                return;
+              }
             }
           }
-          const { clearProvidersCache } = await import("@/lib/providers");
           clearProvidersCache();
           setLocked(true);
-          throw new Error("locked");
+          setSrc("");
+          setLoadingSrc(false);
+          return;
+        }
+        if (!r.ok) {
+          setSrc("");
+          setSrcError(true);
+          setLoadingSrc(false);
+          return;
         }
         const j = await r.json();
-        if (!j.url) throw new Error("no url");
-        return j;
+        if (!j.url) {
+          setSrc("");
+          setSrcError(true);
+          setLoadingSrc(false);
+          return;
+        }
+        setSrc(j.url);
+        setLoadingSrc(false);
       })
-      .then((j) => { if (j) setSrc(j.url || ""); })
       .catch(() => {
-        if (!locked) setSrc("");
+        if (!cancelled) {
+          setSrc("");
+          setSrcError(true);
+          setLoadingSrc(false);
+        }
       });
-  }, [p, embedId, type, id, s, e]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [p, embedId, type, id, s, e, locked]);
 
   // Si el proveedor exige TMDB y el id es IMDb, resolver vía Cinemeta.
   useEffect(() => {
@@ -227,8 +276,10 @@ function WatchInner() {
       </div>
       <div ref={frameBox} className="rounded-2xl overflow-hidden border border-white/10 bg-black">
         {locked ? (
-          <div className="aspect-video flex flex-col items-center justify-center gap-3 p-4 overflow-y-auto">
-            <AccessGate onOk={loadList} />
+          <div className="aspect-video flex flex-col items-center justify-center gap-4 p-4 overflow-y-auto">
+            <div className="w-full max-w-lg">
+              <AccessGate onOk={loadList} />
+            </div>
             <p className="text-xs text-zinc-500">{d.gate_contact} · Ref guardada en este navegador</p>
           </div>
         ) : listError ? (
@@ -236,7 +287,7 @@ function WatchInner() {
             <p className="text-sm text-red-300">{d.list_error}</p>
             <button onClick={loadList} className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold active:scale-95 transition">{d.reintentar}</button>
           </div>
-        ) : loadingList || resolving || !src ? (
+        ) : (loadingList || resolving || loadingSrc) && !srcError ? (
           <PlayerSkeleton />
         ) : noTmdb ? (
           <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
@@ -255,6 +306,41 @@ function WatchInner() {
                 🔄 Probar otro servidor
               </button>
             )}
+          </div>
+        ) : !src || srcError ? (
+          <div className="aspect-video flex flex-col items-center justify-center gap-4 p-6 text-center">
+            <span className="text-3xl">⚠️</span>
+            <p className="text-base font-bold text-red-300">
+              {lang === "pt" ? "Não foi possível carregar o reprodutor deste servidor." : "No se pudo cargar el reproductor de este servidor."}
+            </p>
+            <p className="text-xs text-zinc-400 max-w-md">
+              {lang === "pt"
+                ? "Verifique se sua Key está vinculada ou selecione outro servidor da lista."
+                : "Verifica si tu Key está vinculada o selecciona otro servidor de la lista."}
+            </p>
+            <div className="flex gap-3 flex-wrap justify-center mt-2">
+              <Link
+                href="/key"
+                className="px-5 py-2.5 rounded-xl bg-[#008CFF] hover:bg-[#0070cc] text-white text-sm font-bold active:scale-95 transition inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-white"
+              >
+                <span>🔑</span>
+                <span>{d.vincular_tv || "Key"}</span>
+              </Link>
+              {list.length > 1 && (
+                <button
+                  onClick={() => {
+                    const nonBeta = list.filter((x) => !x.is_beta);
+                    const pool = nonBeta.length > 0 ? nonBeta : list;
+                    const idx = pool.findIndex((x) => x.id === (p?.id || provider));
+                    const nextP = pool[(idx + 1) % pool.length];
+                    if (nextP) setProvider(nextP.id);
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-bold active:scale-95 transition focus:outline-none focus:ring-2 focus:ring-[#008CFF]"
+                >
+                  🔄 Probar otro servidor
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <iframe key={src} src={src} autoFocus referrerPolicy="origin" title={title} className="w-full aspect-video bg-black" allowFullScreen allow="autoplay; encrypted-media; fullscreen; picture-in-picture" />

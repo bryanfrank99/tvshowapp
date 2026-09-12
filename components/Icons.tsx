@@ -89,12 +89,9 @@ export const IconHome = ({ size = 20, className = "" }: P) => (
     <path d="M4 11l8-7 8 7M6 9.5V20h12V9.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-export const IconKey = ({ size = 22, className = "" }: P) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <circle cx="8" cy="15" r="4" />
-    <line x1="10.85" y1="12.15" x2="19" y2="4" />
-    <line x1="18" y1="5" x2="20" y2="7" />
-    <line x1="15" y1="8" x2="17" y2="10" />
+export const IconKey = ({ size = 20, className = "" }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
   </svg>
 );
 
