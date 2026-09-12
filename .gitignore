@@ -29,3 +29,8 @@ ios/
 
 # typescript build cache
 *.tsbuildinfo
+
+# APKs y claves de test embebidas
+*.apk
+apks/
+android/app/src/main/assets/default_key.txt

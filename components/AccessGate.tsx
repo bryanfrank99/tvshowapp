@@ -3,13 +3,12 @@ import { useEffect, useState } from "react";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 import { clearProvidersCache } from "@/lib/providers";
-import { DEFAULT_ACCESS_CODE } from "@/hooks/useSession";
 
 // Modal / Gate: pide el código de acceso y crea sesión.
 export default function AccessGate({ onOk }: { onOk: () => void }) {
   const { lang } = useLang();
   const d = t(lang);
-  const [code, setCode] = useState(DEFAULT_ACCESS_CODE);
+  const [code, setCode] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [storedRef, setStoredRef] = useState("");
@@ -17,14 +16,13 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
   useEffect(() => {
     try {
       setStoredRef(localStorage.getItem("tvshow_ref_code") || "");
-      const existing = localStorage.getItem("tvshow_code");
-      if (existing) {
-        setCode(existing);
-      } else {
-        localStorage.setItem("tvshow_code", DEFAULT_ACCESS_CODE);
-        setCode(DEFAULT_ACCESS_CODE);
-      }
     } catch {}
+
+    const onKeyReady = (e: any) => {
+      if (e?.detail) setCode(String(e.detail));
+    };
+    window.addEventListener("tvshow_key_ready", onKeyReady);
+    return () => window.removeEventListener("tvshow_key_ready", onKeyReady);
   }, []);
 
   const submit = async (e: React.FormEvent) => {

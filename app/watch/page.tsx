@@ -77,6 +77,14 @@ function WatchInner() {
   };
   useEffect(loadList, [lang]);
 
+  useEffect(() => {
+    const onKeyReady = () => {
+      loadList();
+    };
+    window.addEventListener("tvshow_key_ready", onKeyReady);
+    return () => window.removeEventListener("tvshow_key_ready", onKeyReady);
+  }, []);
+
   const p = list.find((x) => x.id === provider) || findBestProvider(list, lang) || list[0];
   const [src, setSrc] = useState("");
 

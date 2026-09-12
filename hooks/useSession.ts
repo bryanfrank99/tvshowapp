@@ -2,23 +2,14 @@
 
 const CODE_KEY = "tvshow_code";
 const REF_KEY = "tvshow_ref_code";
-export const DEFAULT_ACCESS_CODE = "50DAFC04";
 
 let inflight: Promise<boolean> | null = null;
 
 export function getStoredCode(): string {
-  try {
-    const val = localStorage.getItem(CODE_KEY);
-    if (val !== null && val !== "") return val;
-    if (val === "") return ""; // Explicitly cleared
-    localStorage.setItem(CODE_KEY, DEFAULT_ACCESS_CODE);
-    return DEFAULT_ACCESS_CODE;
-  } catch {
-    return DEFAULT_ACCESS_CODE;
-  }
+  try { return localStorage.getItem(CODE_KEY) || ""; } catch { return ""; }
 }
 export function clearStoredCode() {
-  try { localStorage.setItem(CODE_KEY, ""); } catch {}
+  try { localStorage.removeItem(CODE_KEY); } catch {}
 }
 
 // Intenta re-autenticar silenciosamente si el cookie se perdió pero hay code en LS.

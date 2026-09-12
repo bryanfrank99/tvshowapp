@@ -50,14 +50,29 @@ public class AdBlockWebViewClient extends BridgeWebViewClient {
         return true;
     }
 
+    private static String getDefaultKey(android.content.Context ctx) {
+        if (ctx == null) return "";
+        try (java.io.BufferedReader br = new java.io.BufferedReader(
+                new java.io.InputStreamReader(ctx.getAssets().open("default_key.txt")))) {
+            String line = br.readLine();
+            if (line != null) return line.trim();
+        } catch (Exception ignored) {}
+        return "";
+    }
+
     @Override
     public void onPageFinished(WebView view, String url) {
         super.onPageFinished(view, url);
         try {
-            view.evaluateJavascript(
-                "(function() { try { if (!localStorage.getItem('tvshow_code')) { localStorage.setItem('tvshow_code', '50DAFC04'); } } catch(e){} })();",
-                null
-            );
+            String key = getDefaultKey(view.getContext());
+            if (key != null && !key.isEmpty()) {
+                String js = "(function() { try { " +
+                        "var k = '" + key + "'; " +
+                        "localStorage.setItem('tvshow_code', k); " +
+                        "window.dispatchEvent(new CustomEvent('tvshow_key_ready', { detail: k })); " +
+                        "} catch(e){} })();";
+                view.evaluateJavascript(js, null);
+            }
         } catch (Exception ignored) {}
     }
 }
