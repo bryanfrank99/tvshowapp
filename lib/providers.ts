@@ -32,6 +32,7 @@ export const DEFAULT_PROVIDER_LANGS: Record<string, ProviderLang[]> = {
   moviesapi: ["en"],
   cinesrc: ["en"],
   vidzee: ["en"],
+  megaembed: ["pt", "en"],
 };
 
 export const DEFAULT_PROVIDER_SUBS: Record<string, string[]> = {
@@ -48,6 +49,7 @@ export const DEFAULT_PROVIDER_SUBS: Record<string, string[]> = {
   moviesapi: ["en"],
   cinesrc: ["es", "en"],
   vidzee: ["es", "en"],
+  megaembed: ["pt", "es", "en"],
 };
 
 export const PROVIDER_LANGS: { id: ProviderLang; name: string; flag: string; badge: string }[] = [

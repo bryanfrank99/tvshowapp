@@ -21,7 +21,7 @@ public class AdBlockWebChromeClient extends BridgeWebChromeClient {
         if (host == null) return false;
         host = host.toLowerCase();
         if (host.equals("tvshowapp-one.vercel.app") || host.endsWith(".vercel.app") || host.equals("localhost") || host.equals("capacitor")) return true;
-        String[] allow = {"myembed.biz","redeflixapi.store","pipocacine.lat","vidcore.io","vidzy.org","vimeus.com","multiembed.mov","moviesapi.to","cinesrc.st","player.vidzee.wtf","embos.top","vidapi.xyz","streambetter.shop","image.tmdb.org"};
+        String[] allow = {"myembed.biz","redeflixapi.store","pipocacine.lat","vidcore.io","vidzy.org","vimeus.com","multiembed.mov","moviesapi.to","cinesrc.st","player.vidzee.wtf","embos.top","vidapi.xyz","streambetter.shop","megaembed.com","mgeb.top","image.tmdb.org"};
         for (String a : allow) if (host.equals(a) || host.endsWith("." + a)) return true;
         return false;
     }
