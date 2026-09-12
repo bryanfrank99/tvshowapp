@@ -62,15 +62,15 @@ a:focus-visible, button:focus-visible {
   }
 }
 
-/* Densidad TV: más compacto + hero contenido + rail sin expansión */
-html.tv, html:has(body.tv) { font-size: 54%; }
+/* Optimización estándar 16:9 para Android TV y pantallas panorámicas */
+html.tv, html:has(body.tv) { font-size: 100%; }
 
-/* Foco destacado para Android TV */
+/* Foco destacado para mando Android TV en 16:9 */
 body.tv :focus,
 body.tv :focus-visible {
   outline: 3px solid #008CFF !important;
-  outline-offset: 2px !important;
-  box-shadow: 0 0 15px rgba(0, 140, 255, 0.8), 0 0 25px rgba(0, 140, 255, 0.3) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 16px rgba(0, 140, 255, 0.85), 0 0 30px rgba(0, 140, 255, 0.4) !important;
   transition: transform 0.15s ease, outline 0.15s ease, box-shadow 0.15s ease !important;
   z-index: 30 !important;
 }
@@ -79,26 +79,46 @@ body.tv button:focus,
 body.tv a:focus,
 body.tv input:focus,
 body.tv [tabindex]:focus {
-  transform: scale(1.04) !important;
+  transform: scale(1.05) !important;
 }
 
-body.tv .tv-hero { height: 10rem !important; }
-@media (min-width: 768px) { body.tv .tv-hero { height: 14rem !important; } }
-body.tv nav[aria-label="Principal"] { width: 4rem !important; }
-body.tv nav[aria-label="Principal"]:hover { width: 4rem !important; }
-body.tv nav[aria-label="Principal"] .tv-label { display: none !important; }
+/* Hero cinemático proporcionado a pantalla 16:9 */
+body.tv .tv-hero {
+  height: 20rem !important;
+}
+@media (min-width: 1024px) {
+  body.tv .tv-hero { height: 24rem !important; }
+}
+@media (min-width: 1440px) {
+  body.tv .tv-hero { height: 28rem !important; }
+}
+
+/* Barra lateral TV: compacta para maximizar el canvas 16:9 */
+body.tv nav[aria-label="Principal"] { width: 4.25rem !important; }
+body.tv nav[aria-label="Principal"]:hover { width: 4.25rem !important; }
+body.tv nav[aria-label="Principal"]:focus-within { width: 13rem !important; }
 body.tv nav[aria-label="Principal"] img[alt="TV"] { display: block !important; opacity: 1 !important; }
-body.tv .rail { gap: 6px; }
-body.tv .rail > * { flex: 0 0 88px !important; }
-@media (min-width: 640px) { body.tv .rail > * { flex-basis: 96px !important; } }
-@media (min-width: 1024px) { body.tv .rail > * { flex-basis: 104px !important; } }
-/* Grids (películas/series/mi lista) más densos en TV — Top 10 excluido */
-body.tv div.grid:not(.top10) { gap: 0.35rem !important; }
-body.tv div.grid:not(.top10) > a, body.tv div.grid:not(.top10) > div { border-radius: 0.5rem !important; }
-body.tv div.grid:not(.top10) > a img, body.tv div.grid:not(.top10) > div img { border-radius: 0.5rem !important; }
-body.tv div.grid:not(.top10) > a p, body.tv div.grid:not(.top10) > div p { font-size: 0.85em; }
-@media (min-width: 640px) { body.tv .sm\:grid-cols-4:not(.top10) { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; } }
-@media (min-width: 1024px) { body.tv .lg\:grid-cols-6:not(.top10) { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; } }
-/* Top 10 en TV idéntico a web: 2 cols, gap y tamaños web para no romper números */
-body.tv .top10 { gap: 0.75rem !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+/* Carriles de contenido adaptados a proporciones de TV 16:9 */
+body.tv .rail {
+  gap: 14px;
+  padding-bottom: 14px;
+  padding-top: 6px;
+}
+body.tv .rail > * { flex: 0 0 160px !important; }
+@media (min-width: 1024px) { body.tv .rail > * { flex-basis: 175px !important; } }
+@media (min-width: 1440px) { body.tv .rail > * { flex-basis: 195px !important; } }
+
+/* Grids fluidos para pantallas 16:9 (1080p / 1440p / 4K) */
+body.tv div.grid:not(.top10) { gap: 1rem !important; }
+body.tv div.grid:not(.top10) > a, body.tv div.grid:not(.top10) > div { border-radius: 0.85rem !important; }
+body.tv div.grid:not(.top10) > a img, body.tv div.grid:not(.top10) > div img { border-radius: 0.85rem !important; }
+@media (min-width: 640px) { body.tv .sm\:grid-cols-4:not(.top10) { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
+@media (min-width: 1024px) { body.tv .lg\:grid-cols-6:not(.top10) { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; } }
+@media (min-width: 1440px) { body.tv .lg\:grid-cols-6:not(.top10) { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; } }
+@media (min-width: 1800px) { body.tv .lg\:grid-cols-6:not(.top10) { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; } }
+
+/* Top 10 en TV 16:9 */
+body.tv .top10 { gap: 1rem !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 @media (max-width: 767px) { body.tv .top10 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; } }
+

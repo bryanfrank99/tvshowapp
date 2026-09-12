@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -48,7 +48,7 @@ export default function FeaturedCarousel({ items }: { items: Media[] }) {
 
   return (
     <div
-      className="tv-hero relative rounded-2xl overflow-hidden border border-white/10 h-72 sm:h-80 md:h-[26rem] cursor-pointer"
+      className="tv-hero relative rounded-2xl overflow-hidden border border-white/10 h-72 sm:h-80 md:h-[26rem] lg:h-[28rem] xl:h-[30rem] cursor-pointer"
       onClick={() => router.push(`/title?type=${type}&id=${it.id}`)}
       onMouseEnter={() => timer.current && clearInterval(timer.current)}
       onMouseLeave={() => { if (n > 1) timer.current = setInterval(() => setI((v) => (v + 1) % n), 7000); }}
