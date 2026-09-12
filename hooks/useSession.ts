@@ -6,7 +6,23 @@ const REF_KEY = "tvshow_ref_code";
 let inflight: Promise<boolean> | null = null;
 
 export function getStoredCode(): string {
-  try { return localStorage.getItem(CODE_KEY) || ""; } catch { return ""; }
+  try {
+    const fromLs = localStorage.getItem(CODE_KEY);
+    if (fromLs) return fromLs;
+    if (typeof document !== "undefined") {
+      const match = document.cookie.match(/(?:^|;\s*)tv_apk_key=([^;]+)/);
+      if (match && match[1]) {
+        const k = decodeURIComponent(match[1]).trim();
+        if (k) {
+          try { localStorage.setItem(CODE_KEY, k); } catch {}
+          return k;
+        }
+      }
+    }
+    return "";
+  } catch {
+    return "";
+  }
 }
 export function clearStoredCode() {
   try { localStorage.removeItem(CODE_KEY); } catch {}

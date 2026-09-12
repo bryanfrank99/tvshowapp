@@ -157,6 +157,43 @@ export async function checkSession(token: string | undefined | null) {
   return { codeId };
 }
 
+export function extractEmbeddedKey(req: NextRequest): string {
+  try {
+    const c = req.cookies.get("tv_apk_key")?.value?.trim();
+    if (c) return c;
+  } catch {}
+  try {
+    const ua = req.headers.get("user-agent") || "";
+    const m = ua.match(/TVKey\/([A-Za-z0-9_-]+)/);
+    if (m && m[1]) return m[1].trim();
+  } catch {}
+  return "";
+}
+
+export async function checkSessionOrEmbedded(req: NextRequest): Promise<{ codeId: string; autoSetToken?: string } | null> {
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  if (token) {
+    const s = await checkSession(token);
+    if (s) return s;
+  }
+
+  // Fallback a clave embebida en la APK
+  const key = extractEmbeddedKey(req);
+  if (!key) return null;
+
+  const row = await validateCode(key);
+  if (!row) return null;
+
+  const ua = req.headers.get("user-agent") || "";
+  const deviceHint = parseDeviceHint(ua);
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const sessResult = await createSession(row.id, deviceHint, ip);
+  if (!sessResult) return null;
+
+  const newToken = (sessResult as any).token;
+  return { codeId: row.id, autoSetToken: newToken };
+}
+
 export async function destroySession(token: string) {
   try {
     const tokenHash = sha(token);

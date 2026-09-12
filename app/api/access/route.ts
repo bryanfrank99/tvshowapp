@@ -1,16 +1,20 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { validateCode, findCodeByHash, createSession, destroySession, rateOk, SESSION_COOKIE, sessionCookieOpts, checkSession, parseDeviceHint } from "@/lib/access";
+import { validateCode, findCodeByHash, createSession, destroySession, rateOk, SESSION_COOKIE, sessionCookieOpts, checkSession, checkSessionOrEmbedded, parseDeviceHint } from "@/lib/access";
 
 function ip(req: NextRequest) {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 }
 
-// GET verifica sesión existente (para re-auth silencioso).
+// GET verifica sesión existente (para re-auth silencioso o clave embebida en APK).
 export async function GET(req: NextRequest) {
-  const sess = await checkSession(req.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
-  if (!sess) return NextResponse.json({ ok: false, error: "locked" }, { status: 401 });
-  return NextResponse.json({ ok: true });
+  const auth = await checkSessionOrEmbedded(req).catch(() => null);
+  if (!auth) return NextResponse.json({ ok: false, error: "locked" }, { status: 401 });
+  const res = NextResponse.json({ ok: true });
+  if (auth.autoSetToken) {
+    res.cookies.set(SESSION_COOKIE, auth.autoSetToken, sessionCookieOpts());
+  }
+  return res;
 }
 
 // POST {code} → crea sesión. DELETE → cierra sesión.

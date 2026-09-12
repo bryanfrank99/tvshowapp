@@ -1,13 +1,13 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { supa } from "@/lib/supa";
-import { checkSession, SESSION_COOKIE } from "@/lib/access";
+import { checkSessionOrEmbedded, SESSION_COOKIE, sessionCookieOpts } from "@/lib/access";
 import { parseLangs, parseSubs } from "@/lib/providers";
 
-// Catálogo para el cliente (sin templates ni keys). Requiere sesión.
+// Catálogo para el cliente (sin templates ni keys). Requiere sesión o clave embebida.
 export async function GET(req: NextRequest) {
-  const sess = await checkSession(req.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
-  if (!sess) return NextResponse.json({ error: "locked" }, { status: 401 });
+  const auth = await checkSessionOrEmbedded(req).catch(() => null);
+  if (!auth) return NextResponse.json({ error: "locked" }, { status: 401 });
   try {
     const sb = supa();
     let provData: any[] = [];
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       sb.from("config").select("value").eq("key", "providers_version").maybeSingle(),
     ]);
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       providers: provData.map((x: any) => {
         const languages = parseLangs(x.lang, x.id);
         const subtitles = parseSubs(x.subtitles, x.id);
@@ -59,6 +59,10 @@ export async function GET(req: NextRequest) {
       live: (l.data || []).map((x: any) => ({ id: x.id, name: x.name, format: x.format, list: x.list_url })),
       version: c.data?.value || "",
     });
+    if (auth.autoSetToken) {
+      res.cookies.set(SESSION_COOKIE, auth.autoSetToken, sessionCookieOpts());
+    }
+    return res;
   } catch {
     return NextResponse.json({ error: "db" }, { status: 500 });
   }

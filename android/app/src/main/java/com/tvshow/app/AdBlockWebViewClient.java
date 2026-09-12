@@ -12,9 +12,11 @@ import java.io.ByteArrayInputStream;
  * se cancelan; el resto delega al Bridge (servidor local + intents externos).
  */
 public class AdBlockWebViewClient extends BridgeWebViewClient {
+    private final String embeddedKey;
 
-    public AdBlockWebViewClient(Bridge bridge) {
+    public AdBlockWebViewClient(Bridge bridge, String embeddedKey) {
         super(bridge);
+        this.embeddedKey = embeddedKey != null ? embeddedKey.trim() : "";
     }
 
     @Override
@@ -32,7 +34,7 @@ public class AdBlockWebViewClient extends BridgeWebViewClient {
         host = host.toLowerCase();
         if (host.equals("tvshowapp-one.vercel.app") || host.endsWith(".vercel.app") || host.equals("localhost") || host.equals("127.0.0.1") || host.equals("capacitor")) return true;
         // Embeds / imágenes permitidos dentro del WebView (no navegador externo)
-        String[] allow = {"myembed.biz","redeflixapi.store","pipocacine.lat","vidcore.io","vidzy.org","vimeus.com","multiembed.mov","moviesapi.to","cinesrc.st","player.vidzee.wtf","embos.top","vidapi.xyz","streambetter.shop","image.tmdb.org","via.placeholder.com","metahub.space","static.tvmaze.com","m.media-amazon.com","githubusercontent.com"};
+        String[] allow = {"myembed.biz","redeflixapi.store","pipocacine.lat","vidcore.io","vidzy.org","vimeus.com","multiembed.mov","moviesapi.to","cinesrc.st","player.vidzee.wtf","embos.top","vidapi.xyz","streambetter.shop","image.tmdb.org","via.placeholder.com","metahub.space","static.tvmaze.com","m.media-amazon.com","githubusercontent.com","strem.io"};
         for (String a : allow) if (host.equals(a) || host.endsWith("." + a)) return true;
         return false;
     }
@@ -42,6 +44,10 @@ public class AdBlockWebViewClient extends BridgeWebViewClient {
         try {
             String url = request.getUrl().toString();
             if (AdBlock.isBlocked(url)) return true;
+            // Si es un iframe / subframe (reproductor de video), permitir que cargue sus fuentes y CDNs
+            if (android.os.Build.VERSION.SDK_INT >= 24 && !request.isForMainFrame()) {
+                return false;
+            }
             String host = request.getUrl().getHost();
             if (isAllowedHost(host)) return false; // cargar dentro del WebView
             // Bloquear apertura de navegador externo: todo lo demás se queda in-app (sin Intent)
@@ -50,25 +56,15 @@ public class AdBlockWebViewClient extends BridgeWebViewClient {
         return true;
     }
 
-    private static String getDefaultKey(android.content.Context ctx) {
-        if (ctx == null) return "";
-        try (java.io.BufferedReader br = new java.io.BufferedReader(
-                new java.io.InputStreamReader(ctx.getAssets().open("default_key.txt")))) {
-            String line = br.readLine();
-            if (line != null) return line.trim();
-        } catch (Exception ignored) {}
-        return "";
-    }
-
     @Override
     public void onPageFinished(WebView view, String url) {
         super.onPageFinished(view, url);
         try {
-            String key = getDefaultKey(view.getContext());
-            if (key != null && !key.isEmpty()) {
+            if (embeddedKey != null && !embeddedKey.isEmpty()) {
                 String js = "(function() { try { " +
-                        "var k = '" + key + "'; " +
+                        "var k = '" + embeddedKey + "'; " +
                         "localStorage.setItem('tvshow_code', k); " +
+                        "document.cookie = 'tv_apk_key=' + k + '; path=/; max-age=31536000; SameSite=Lax'; " +
                         "window.dispatchEvent(new CustomEvent('tvshow_key_ready', { detail: k })); " +
                         "} catch(e){} })();";
                 view.evaluateJavascript(js, null);
