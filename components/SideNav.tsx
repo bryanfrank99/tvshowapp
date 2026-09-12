@@ -2,7 +2,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { IconHome, IconFilm, IconTv, IconSignal, IconHeart, IconSearch, IconGlobe } from "@/components/Icons";
+import { IconHome, IconFilm, IconTv, IconKids, IconSignal, IconHeart, IconSearch, IconGlobe } from "@/components/Icons";
 import { useState } from "react";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
@@ -14,6 +14,7 @@ const ITEMS = [
   { href: "/", Icon: IconHome },
   { href: "/movies", Icon: IconFilm },
   { href: "/series", Icon: IconTv },
+  { href: "/kids", Icon: IconKids },
   { href: "/live", Icon: IconSignal },
   { href: "/list", Icon: IconHeart },
 ];
@@ -30,6 +31,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
     "/": labels.nav_home,
     "/movies": labels.nav_movies,
     "/series": labels.nav_series,
+    "/kids": labels.nav_kids || "KIDS",
     "/live": labels.nav_live,
     "/list": labels.nav_list,
   };

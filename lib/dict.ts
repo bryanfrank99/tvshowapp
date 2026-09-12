@@ -2,8 +2,8 @@
 export type Lang = "es" | "en" | "pt";
 
 const es = {
-  nav_home: "INICIO", nav_movies: "PELÍCULAS", nav_series: "SERIES", nav_live: "TV EN VIVO", nav_list: "MI LISTA", nav_search: "BUSCAR",
-  tabs_home: "Inicio", tabs_movies: "Pelis", tabs_series: "Series", tabs_live: "En vivo", tabs_list: "Mi lista", tabs_search: "Buscar",
+  nav_home: "INICIO", nav_movies: "PELÍCULAS", nav_series: "SERIES", nav_kids: "KIDS", nav_live: "TV EN VIVO", nav_list: "MI LISTA", nav_search: "BUSCAR",
+  tabs_home: "Inicio", tabs_movies: "Pelis", tabs_series: "Series", tabs_kids: "Kids", tabs_live: "En vivo", tabs_list: "Mi lista", tabs_search: "Buscar",
   search_ph: "Buscar películas, series…", search_btn: "Buscar",
   feat: "Featured today", feat_kicker: "Contenido destacado",
   spotlight: "Episode Spotlight", toppicks: "Top picks", upcoming: "Upcoming", top10: "Top 10 on IMDb this week",
@@ -58,13 +58,14 @@ const es = {
   cargar_mas: "Cargar más", cargando: "Cargando…",
   crumb_detalle: "Detalle", crumb_persona: "Persona", crumb_genero: "Género", crumb_ver: "Ver",
   nav_code: "CÓDIGO", vincular_tv: "Key", nav_key: "KEY",
+  kids_title: "Zona Kids", kids_movies_rail: "Películas para Niños", kids_series_rail: "Series Infantiles", kids_all_section: "Todo el contenido Kids", kids_desc: "Películas y series infantiles seleccionadas para toda la familia",
 };
 
 export type Dict = typeof es;
 
 const en: Dict = {
-  nav_home: "HOME", nav_movies: "MOVIES", nav_series: "SERIES", nav_live: "LIVE TV", nav_list: "MY LIST", nav_search: "SEARCH",
-  tabs_home: "Home", tabs_movies: "Movies", tabs_series: "Series", tabs_live: "Live", tabs_list: "My list", tabs_search: "Search",
+  nav_home: "HOME", nav_movies: "MOVIES", nav_series: "SERIES", nav_kids: "KIDS", nav_live: "LIVE TV", nav_list: "MY LIST", nav_search: "SEARCH",
+  tabs_home: "Home", tabs_movies: "Movies", tabs_series: "Series", tabs_kids: "Kids", tabs_live: "Live", tabs_list: "My list", tabs_search: "Search",
   search_ph: "Search movies, series…", search_btn: "Search",
   feat: "Featured today", feat_kicker: "Featured",
   spotlight: "Episode Spotlight", toppicks: "Top picks", upcoming: "Upcoming", top10: "Top 10 on IMDb this week",
@@ -119,11 +120,12 @@ const en: Dict = {
   cargar_mas: "Load more", cargando: "Loading…",
   crumb_detalle: "Details", crumb_persona: "Person", crumb_genero: "Genre", crumb_ver: "Watch",
   nav_code: "ACCESS CODE", vincular_tv: "Key", nav_key: "KEY",
+  kids_title: "Kids Zone", kids_movies_rail: "Kids Movies", kids_series_rail: "Kids TV Series", kids_all_section: "All Kids Content", kids_desc: "Animated and family movies and series selected for everyone",
 };
 
 const pt: Dict = {
-  nav_home: "INÍCIO", nav_movies: "FILMES", nav_series: "SÉRIES", nav_live: "TV AO VIVO", nav_list: "MINHA LISTA", nav_search: "BUSCAR",
-  tabs_home: "Início", tabs_movies: "Filmes", tabs_series: "Séries", tabs_live: "Ao vivo", tabs_list: "Minha lista", tabs_search: "Buscar",
+  nav_home: "INÍCIO", nav_movies: "FILMES", nav_series: "SÉRIES", nav_kids: "KIDS", nav_live: "TV AO VIVO", nav_list: "MINHA LISTA", nav_search: "BUSCAR",
+  tabs_home: "Início", tabs_movies: "Filmes", tabs_series: "Séries", tabs_kids: "Kids", tabs_live: "Ao vivo", tabs_list: "Minha lista", tabs_search: "Buscar",
   search_ph: "Buscar filmes, séries…", search_btn: "Buscar",
   feat: "Destaques de hoje", feat_kicker: "Conteúdo em destaque",
   spotlight: "Episódio em destaque", toppicks: "Escolhas top", upcoming: "Em breve", top10: "Top 10 no IMDb esta semana",
@@ -178,9 +180,8 @@ const pt: Dict = {
   cargar_mas: "Carregar mais", cargando: "Carregando…",
   crumb_detalle: "Detalhes", crumb_persona: "Pessoa", crumb_genero: "Gênero", crumb_ver: "Assistir",
   nav_code: "CÓDIGO", vincular_tv: "Key", nav_key: "KEY",
+  kids_title: "Espaço Kids", kids_movies_rail: "Filmes Infantis", kids_series_rail: "Séries Infantis", kids_all_section: "Todo o conteúdo Kids", kids_desc: "Filmes e séries infantis selecionados para toda a família",
 };
 
 export const STR: Record<Lang, Dict> = { es, en, pt };
 export const t = (lang: Lang): Dict => STR[lang] || pt;
-
-

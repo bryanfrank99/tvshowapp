@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-[#0b0b10] text-zinc-100 min-h-screen">
         <div className="flex min-h-screen w-full">
           <TvNav />
-          <SideNav labels={{ nav_home: d.nav_home, nav_movies: d.nav_movies, nav_series: d.nav_series, nav_search: d.nav_search, nav_live: d.nav_live, nav_list: d.nav_list }} />
+          <SideNav labels={{ nav_home: d.nav_home, nav_movies: d.nav_movies, nav_series: d.nav_series, nav_kids: d.nav_kids, nav_search: d.nav_search, nav_live: d.nav_live, nav_list: d.nav_list }} />
           <div className="flex-1 min-w-0 flex flex-col min-h-screen">
             <Header />
             <main className="w-full max-w-[1840px] mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 pb-8 flex-1">{children}</main>

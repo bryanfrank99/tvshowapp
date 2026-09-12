@@ -12,6 +12,7 @@ export default function Header() {
   const crumbMap: Record<string, string> = {
     "/movies": d.nav_movies.charAt(0) + d.nav_movies.slice(1).toLowerCase(),
     "/series": d.nav_series.charAt(0) + d.nav_series.slice(1).toLowerCase(),
+    "/kids": "Kids",
     "/live": d.nav_live.charAt(0) + d.nav_live.slice(1).toLowerCase(),
     "/list": d.nav_list.charAt(0) + d.nav_list.slice(1).toLowerCase(),
     "/search": d.nav_search.charAt(0) + d.nav_search.slice(1).toLowerCase(),

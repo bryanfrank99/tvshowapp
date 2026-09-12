@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFeaturedToday, getEpisodeSpotlight, getTopPicks, getUpcoming, getMovies, getSeries, getTrending, searchAll, getByGenre } from "@/lib/catalog";
+import { getFeaturedToday, getEpisodeSpotlight, getTopPicks, getUpcoming, getMovies, getSeries, getKids, getTrending, searchAll, getByGenre } from "@/lib/catalog";
 
 // Paginación genérica para "Cargar más". ?source=&page=&id=&name=&q=
 export async function GET(req: NextRequest) {
@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
       case "upcoming": out = await getUpcoming(page, 12); break;
       case "movies": out = await getMovies(page, 24); break;
       case "series": out = await getSeries(page, 24); break;
+      case "kids": out = await getKids(page, 24); break;
       case "trending": out = await getTrending(page, 20); break;
       case "genre": out = await getByGenre(q.get("id") || "0", q.get("name") || "", page, 24); break;
       case "search": out = await searchAll(q.get("q") || "", page, 20); break;

@@ -130,6 +130,80 @@ export async function getSeries(page = 1, per = 24): Promise<Page<Media>> {
   });
 }
 
+export async function getKidsMovies(page = 1, per = 12): Promise<Page<Media>> {
+  return tmdbOr(async () => {
+    const d = await tmdb<Paged<{ results: Media[] }>>(
+      `/discover/movie?sort_by=popularity.desc&page=${page}&with_genres=10751|16&without_genres=27,53,80&certification_country=US&certification.lte=PG`,
+      3600
+    );
+    return {
+      items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie" })),
+      hasMore: page < (d.total_pages || 1),
+    };
+  }, async () => {
+    const items = await free.cineCatalogByGenre("movie", "Animation", per + 1);
+    return { items: items.slice(0, per), hasMore: items.length > per };
+  });
+}
+
+export async function getKidsSeries(page = 1, per = 12): Promise<Page<Media>> {
+  return tmdbOr(async () => {
+    const d = await tmdb<Paged<{ results: Media[] }>>(
+      `/discover/tv?sort_by=popularity.desc&page=${page}&with_genres=10762|10751&without_genres=27,53,80,18,10763,10764,10767&vote_count.gte=5`,
+      3600
+    );
+    return {
+      items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "tv" })),
+      hasMore: page < (d.total_pages || 1),
+    };
+  }, async () => {
+    const items = await free.cineCatalogByGenre("series", "Animation", per + 1);
+    return { items: items.slice(0, per), hasMore: items.length > per };
+  });
+}
+
+export async function getKids(page = 1, per = 24): Promise<Page<Media>> {
+  const half = Math.ceil(per / 2);
+  return tmdbOr(async () => {
+    const [m, t] = await Promise.all([
+      tmdb<Paged<{ results: Media[] }>>(
+        `/discover/movie?sort_by=popularity.desc&page=${page}&with_genres=10751|16&without_genres=27,53,80&certification_country=US&certification.lte=PG`,
+        3600
+      ),
+      tmdb<Paged<{ results: Media[] }>>(
+        `/discover/tv?sort_by=popularity.desc&page=${page}&with_genres=10762|10751&without_genres=27,53,80,18,10763,10764,10767&vote_count.gte=5`,
+        3600
+      ),
+    ]);
+    const movies = (m.results || []).slice(0, half).map((x) => ({ ...x, media_type: "movie" }));
+    const series = (t.results || []).slice(0, half).map((x) => ({ ...x, media_type: "tv" }));
+
+    const combined: Media[] = [];
+    const maxLen = Math.max(movies.length, series.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (i < movies.length) combined.push(movies[i]);
+      if (i < series.length) combined.push(series[i]);
+    }
+
+    return {
+      items: combined.slice(0, per),
+      hasMore: page < Math.min(m.total_pages || 1, t.total_pages || 1),
+    };
+  }, async () => {
+    const [m, s] = await Promise.all([
+      free.cineCatalogByGenre("movie", "Animation", half + 1),
+      free.cineCatalogByGenre("series", "Animation", half + 1),
+    ]);
+    const combined: Media[] = [];
+    const maxLen = Math.max(m.length, s.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (i < m.length) combined.push(m[i]);
+      if (i < s.length) combined.push(s[i]);
+    }
+    return { items: combined.slice(0, per), hasMore: m.length + s.length >= per };
+  });
+}
+
 export async function getTrending(page = 1, per = 20): Promise<Page<Media>> {
   return tmdbOr(async () => {
     const d = await tmdb<Paged<{ results: Media[] }>>(`/trending/all/week?page=${page}`, 600);
