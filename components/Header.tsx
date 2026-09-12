@@ -19,7 +19,6 @@ export default function Header() {
     "/person": d.crumb_persona,
     "/genre": d.crumb_genero,
     "/watch": d.crumb_ver,
-    "/key": d.vincular_tv || "Key",
     "/dmca": "DMCA",
   };
   const crumb = crumbMap[path] || "";

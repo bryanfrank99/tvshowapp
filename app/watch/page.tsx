@@ -276,10 +276,8 @@ function WatchInner() {
       </div>
       <div ref={frameBox} className="rounded-2xl overflow-hidden border border-white/10 bg-black">
         {locked ? (
-          <div className="aspect-video flex flex-col items-center justify-center gap-4 p-4 overflow-y-auto">
-            <div className="w-full max-w-lg">
-              <AccessGate onOk={loadList} />
-            </div>
+          <div className="aspect-video flex flex-col items-center justify-center gap-3 p-4 overflow-y-auto">
+            <AccessGate onOk={loadList} />
             <p className="text-xs text-zinc-500">{d.gate_contact} · Ref guardada en este navegador</p>
           </div>
         ) : listError ? (
@@ -308,39 +306,24 @@ function WatchInner() {
             )}
           </div>
         ) : !src || srcError ? (
-          <div className="aspect-video flex flex-col items-center justify-center gap-4 p-6 text-center">
-            <span className="text-3xl">⚠️</span>
-            <p className="text-base font-bold text-red-300">
+          <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <p className="text-sm text-yellow-300">
               {lang === "pt" ? "Não foi possível carregar o reprodutor deste servidor." : "No se pudo cargar el reproductor de este servidor."}
             </p>
-            <p className="text-xs text-zinc-400 max-w-md">
-              {lang === "pt"
-                ? "Verifique se sua Key está vinculada ou selecione outro servidor da lista."
-                : "Verifica si tu Key está vinculada o selecciona otro servidor de la lista."}
-            </p>
-            <div className="flex gap-3 flex-wrap justify-center mt-2">
-              <Link
-                href="/key"
-                className="px-5 py-2.5 rounded-xl bg-[#008CFF] hover:bg-[#0070cc] text-white text-sm font-bold active:scale-95 transition inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-white"
+            {list.length > 1 && (
+              <button
+                onClick={() => {
+                  const nonBeta = list.filter((x) => !x.is_beta);
+                  const pool = nonBeta.length > 0 ? nonBeta : list;
+                  const idx = pool.findIndex((x) => x.id === (p?.id || provider));
+                  const nextP = pool[(idx + 1) % pool.length];
+                  if (nextP) setProvider(nextP.id);
+                }}
+                className="px-4 py-2 rounded-xl bg-[#008CFF] text-sm font-bold active:scale-95 transition"
               >
-                <span>🔑</span>
-                <span>{d.vincular_tv || "Key"}</span>
-              </Link>
-              {list.length > 1 && (
-                <button
-                  onClick={() => {
-                    const nonBeta = list.filter((x) => !x.is_beta);
-                    const pool = nonBeta.length > 0 ? nonBeta : list;
-                    const idx = pool.findIndex((x) => x.id === (p?.id || provider));
-                    const nextP = pool[(idx + 1) % pool.length];
-                    if (nextP) setProvider(nextP.id);
-                  }}
-                  className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-bold active:scale-95 transition focus:outline-none focus:ring-2 focus:ring-[#008CFF]"
-                >
-                  🔄 Probar otro servidor
-                </button>
-              )}
-            </div>
+                🔄 Probar otro servidor
+              </button>
+            )}
           </div>
         ) : (
           <iframe key={src} src={src} autoFocus referrerPolicy="origin" title={title} className="w-full aspect-video bg-black" allowFullScreen allow="autoplay; encrypted-media; fullscreen; picture-in-picture" />
