@@ -262,3 +262,163 @@ export async function getPersonWorks(name: string): Promise<{ person: any; works
   }
   return { person: { name: person.name, photo: person.image?.medium || null, known: "" }, works };
 }
+
+const MOVIE_TO_TV_GENRES: Record<number, number> = {
+  28: 10759,  // Action -> Action & Adventure
+  12: 10759,  // Adventure -> Action & Adventure
+  16: 16,     // Animation
+  35: 35,     // Comedy
+  80: 80,     // Crime
+  99: 99,     // Documentary
+  18: 18,     // Drama
+  10751: 10751, // Family
+  14: 10765,  // Fantasy -> Sci-Fi & Fantasy
+  36: 10768,  // History -> War & Politics
+  27: 9648,   // Horror -> Mystery
+  10402: 35,  // Music -> Comedy
+  9648: 9648, // Mystery
+  10749: 18,  // Romance -> Drama
+  878: 10765, // Sci-Fi -> Sci-Fi & Fantasy
+  53: 80,     // Thriller -> Crime
+  10752: 10768, // War -> War & Politics
+  37: 37,     // Western
+};
+
+const TV_TO_MOVIE_GENRES: Record<number, number[]> = {
+  10759: [28, 12],   // Action & Adventure -> Action, Adventure
+  16: [16],          // Animation
+  35: [35],          // Comedy
+  80: [80],          // Crime
+  99: [99],          // Documentary
+  18: [18],          // Drama
+  10751: [10751],    // Family
+  10762: [10751, 16],// Kids -> Family, Animation
+  9648: [9648],      // Mystery
+  10765: [878, 14],  // Sci-Fi & Fantasy -> Sci-Fi, Fantasy
+  10768: [10752, 36],// War & Politics -> War, History
+  37: [37],          // Western
+};
+
+export async function getSimilarTitles(
+  type: "movie" | "tv",
+  id: string | number,
+  genres?: { id?: any; name?: string }[] | string[]
+): Promise<Media[]> {
+  const isMov = type === "movie";
+  const otherType: "movie" | "tv" = isMov ? "tv" : "movie";
+  const numId = String(id);
+  const isFree = free.isImdbId(id) || !hasKey();
+
+  if (!isFree) {
+    try {
+      // 1. Recomendaciones y similares del mismo tipo (película -> películas, serie -> series)
+      const [recsRes, simRes, kwsRes] = await Promise.all([
+        tmdb<any>(`/${type}/${id}/recommendations`, 3600).catch(() => ({ results: [] })),
+        tmdb<any>(`/${type}/${id}/similar`, 3600).catch(() => ({ results: [] })),
+        tmdb<any>(`/${type}/${id}/keywords`, 3600).catch(() => ({})),
+      ]);
+
+      const sameRaw = [...(recsRes.results || []), ...(simRes.results || [])];
+      const sameSeen = new Set<string>();
+      const same: Media[] = sameRaw
+        .filter((x: any) => {
+          if (!x || !x.poster_path || String(x.id) === numId || sameSeen.has(String(x.id))) return false;
+          if (!x.title && !x.name) return false;
+          sameSeen.add(String(x.id));
+          return true;
+        })
+        .map((x: any) => ({
+          ...x,
+          media_type: type,
+        }));
+
+      // 2. Recomendaciones cruzadas (película -> series, serie -> películas)
+      const kwsList = (isMov ? kwsRes.keywords : kwsRes.results) || [];
+      const topKws = kwsList.slice(0, 3).map((k: any) => k.id).filter(Boolean).join("|");
+
+      // Mapear géneros entre formatos
+      const rawGenreIds: number[] = (genres || [])
+        .map((g: any) => (typeof g === "object" && g != null ? Number(g.id) : null))
+        .filter((n): n is number => n != null && Number.isFinite(n));
+
+      let crossGenreIds: number[] = [];
+      if (isMov) {
+        crossGenreIds = Array.from(new Set(rawGenreIds.map((gid) => MOVIE_TO_TV_GENRES[gid]).filter(Boolean)));
+      } else {
+        crossGenreIds = Array.from(new Set(rawGenreIds.flatMap((gid) => TV_TO_MOVIE_GENRES[gid] || []).filter(Boolean)));
+      }
+
+      let crossRaw: any[] = [];
+      // Buscar primero por temáticas exactas (keywords)
+      if (topKws) {
+        const kwRes = await tmdb<any>(`/discover/${otherType}?with_keywords=${encodeURIComponent(topKws)}&sort_by=popularity.desc`, 3600).catch(() => ({ results: [] }));
+        crossRaw.push(...(kwRes.results || []));
+      }
+
+      // Complementar con géneros equivalentes
+      if (crossRaw.length < 10 && crossGenreIds.length > 0) {
+        const genreStr = crossGenreIds.slice(0, 3).join(",");
+        const genreRes = await tmdb<any>(`/discover/${otherType}?with_genres=${genreStr}&sort_by=popularity.desc`, 3600).catch(() => ({ results: [] }));
+        crossRaw.push(...(genreRes.results || []));
+      }
+
+      // Fallback a los más votados del otro tipo
+      if (crossRaw.length < 6) {
+        const fallbackRes = await tmdb<any>(`/discover/${otherType}?sort_by=vote_count.desc`, 3600).catch(() => ({ results: [] }));
+        crossRaw.push(...(fallbackRes.results || []));
+      }
+
+      const crossSeen = new Set<string>();
+      const cross: Media[] = crossRaw
+        .filter((x: any) => {
+          if (!x || !x.poster_path || String(x.id) === numId || crossSeen.has(String(x.id))) return false;
+          if (!x.title && !x.name) return false;
+          crossSeen.add(String(x.id));
+          return true;
+        })
+        .map((x: any) => ({
+          ...x,
+          media_type: otherType,
+        }));
+
+      // 3. Intercalar de forma balanceada (películas y series similares)
+      const combined: Media[] = [];
+      const totalMax = Math.max(same.length, cross.length);
+      for (let i = 0; i < totalMax && combined.length < 20; i++) {
+        if (same[i]) combined.push(same[i]);
+        if (cross[i]) combined.push(cross[i]);
+      }
+
+      if (combined.length > 0) return combined;
+    } catch {
+      // Fallback si falla TMDB
+    }
+  }
+
+  // Fallback modo Free (Cinemeta)
+  try {
+    const genreName = (genres || []).map((g: any) => (typeof g === "string" ? g : g?.name)).filter(Boolean)[0] || "Action";
+    const [mList, sList] = await Promise.all([
+      free.cineCatalogByGenre("movie", genreName, 10).catch(() => []),
+      free.cineCatalogByGenre("series", genreName, 10).catch(() => []),
+    ]);
+
+    const mFiltered = mList.filter((x) => String(x.id) !== numId && !!x.poster_path);
+    const sFiltered = sList.filter((x) => String(x.id) !== numId && !!x.poster_path);
+
+    const combined: Media[] = [];
+    const max = Math.max(mFiltered.length, sFiltered.length);
+    for (let i = 0; i < max && combined.length < 20; i++) {
+      if (isMov) {
+        if (mFiltered[i]) combined.push(mFiltered[i]);
+        if (sFiltered[i]) combined.push(sFiltered[i]);
+      } else {
+        if (sFiltered[i]) combined.push(sFiltered[i]);
+        if (mFiltered[i]) combined.push(mFiltered[i]);
+      }
+    }
+    return combined;
+  } catch {
+    return [];
+  }
+}

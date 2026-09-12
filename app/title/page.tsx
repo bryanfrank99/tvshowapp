@@ -12,6 +12,8 @@ import ContinueSeriesButton from "@/components/ContinueSeriesButton";
 import TrailerButton from "@/components/TrailerButton";
 import ScoreRing from "@/components/ScoreRing";
 import { IconPlay, IconStar } from "@/components/Icons";
+import { MediaCard } from "@/components/Cards";
+import { getSimilarTitles } from "@/lib/catalog";
 import { t } from "@/lib/dict";
 import { getTitle, saveTitle, getEpisodes, saveSeason, certOf } from "@/lib/db";
 
@@ -116,6 +118,7 @@ async function MovieDetail(id: string) {
   const trailer = vids.find((v: any) => v.key && (!v.site || v.site === "YouTube"));
   const trailerKey = trailer?.key || "";
   const cert = m.certification || "";
+  const similar = await getSimilarTitles("movie", id, m.genres);
 
   return (
     <>
@@ -189,6 +192,17 @@ async function MovieDetail(id: string) {
           </div>
         </section>
       )}
+
+      {similar.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-xl font-extrabold mb-3">{d.similares_h}</h2>
+          <div className="rail">
+            {similar.map((item: any) => (
+              <MediaCard key={`${item.media_type || item.type}-${item.id}`} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
     </>
   );
 }
@@ -205,7 +219,8 @@ async function TvDetail(id: string, seasonParam?: string) {
     const seasons = cineSeasons(meta);
     const sel = parseInt(seasonParam || String(seasons[0]?.season_number || 1));
     det = { episodes: cineEpisodes(meta, sel) };
-    return renderTv(s, det, id, sel, seasons, id, d);
+    const similar = await getSimilarTitles("tv", id, s.genres);
+    return renderTv(s, det, id, sel, seasons, id, d, similar);
   }
   const cached = await getTitle("tv", id, lang);
   s = cached || await tmdb(`/tv/${id}?append_to_response=credits,videos,content_ratings`);
@@ -227,10 +242,11 @@ async function TvDetail(id: string, seasonParam?: string) {
     det = await tmdb(`/tv/${id}/season/${sel}`);
     await saveSeason(id, sel, lang, det);
   }
-  return renderTv(s, det, id, sel, seasons, imdbId, d);
+  const similar = await getSimilarTitles("tv", id, s.genres);
+  return renderTv(s, det, id, sel, seasons, imdbId, d, similar);
 }
 
-function renderTv(s: any, det: any, id: string, sel: number, seasons: any[], imdbId: string | null, d: any) {
+function renderTv(s: any, det: any, id: string, sel: number, seasons: any[], imdbId: string | null, d: any, similar: any[] = []) {
   const year = (s.first_air_date || "").slice(0, 4);
   const genres: { id: any; name: string }[] = (s.genres || []).map((g: any) =>
     typeof g === "string" ? { id: g, name: g } : { id: g.id, name: g.name });
@@ -326,6 +342,17 @@ function renderTv(s: any, det: any, id: string, sel: number, seasons: any[], imd
                   <p className="text-[11px] text-zinc-500 truncate">{c.character || ""}</p>
                 </div>
               </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {similar.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-xl font-extrabold mb-3">{d.similares_h}</h2>
+          <div className="rail">
+            {similar.map((item: any) => (
+              <MediaCard key={`${item.media_type || item.type}-${item.id}`} item={item} />
             ))}
           </div>
         </section>

@@ -38,6 +38,12 @@ export async function cineCatalog(type: "movie" | "series", list = "top", n = 12
   return (d.metas || []).slice(0, n).map((m) => cineMedia(m, t as "movie" | "tv"));
 }
 
+export async function cineCatalogByGenre(type: "movie" | "series", genre: string, n = 12): Promise<Media[]> {
+  const d = await j<{ metas: any[] }>(`${CINEMETA}/catalog/${type}/top/genre=${encodeURIComponent(genre)}.json`, 3600).catch(() => ({ metas: [] }));
+  const t = type === "movie" ? "movie" : "tv";
+  return (d.metas || []).slice(0, n).map((m) => cineMedia(m, t as "movie" | "tv"));
+}
+
 export async function cineSearch(q: string, n = 12): Promise<Media[]> {
   const [m, s] = await Promise.all([
     j<{ metas: any[] }>(`${CINEMETA}/catalog/movie/top/search=${encodeURIComponent(q)}.json`, 300).catch(() => ({ metas: [] })),
