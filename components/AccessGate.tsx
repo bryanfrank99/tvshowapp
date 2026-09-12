@@ -17,12 +17,6 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
     try {
       setStoredRef(localStorage.getItem("tvshow_ref_code") || "");
     } catch {}
-
-    const onKeyReady = (e: any) => {
-      if (e?.detail) setCode(String(e.detail));
-    };
-    window.addEventListener("tvshow_key_ready", onKeyReady);
-    return () => window.removeEventListener("tvshow_key_ready", onKeyReady);
   }, []);
 
   const submit = async (e: React.FormEvent) => {
