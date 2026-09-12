@@ -49,4 +49,15 @@ public class AdBlockWebViewClient extends BridgeWebViewClient {
         } catch (Exception ignored) {}
         return true;
     }
+
+    @Override
+    public void onPageFinished(WebView view, String url) {
+        super.onPageFinished(view, url);
+        try {
+            view.evaluateJavascript(
+                "(function() { try { if (!localStorage.getItem('tvshow_code')) { localStorage.setItem('tvshow_code', '50DAFC04'); } } catch(e){} })();",
+                null
+            );
+        } catch (Exception ignored) {}
+    }
 }
