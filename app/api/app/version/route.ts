@@ -18,17 +18,20 @@ interface VersionCache {
 
 let cache: VersionCache | null = null;
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const isFresh = url.searchParams.get("fresh") === "1" || url.searchParams.get("nocache") === "1";
   const now = Date.now();
-  if (cache && cache.expiresAt > now) {
+
+  if (!isFresh && cache && cache.expiresAt > now) {
     return NextResponse.json(cache.data, {
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control": "public, max-age=10, s-maxage=15, stale-while-revalidate=30",
       },
     });
   }
 
-  const defaultVersion = String((pkg as any).version || "5.60");
+  const defaultVersion = String((pkg as any).version || "6.1");
   const fallbackApkUrl = `https://github.com/bryanfrank99/tvshowapp/releases/download/v${defaultVersion}/TVShow-v${defaultVersion}.apk`;
 
   try {
@@ -37,7 +40,7 @@ export async function GET() {
         "User-Agent": "TVShow-AutoUpdater",
         Accept: "application/vnd.github.v3+json",
       },
-      next: { revalidate: 300 },
+      next: { revalidate: isFresh ? 0 : 15 },
     });
 
     if (!res.ok) {
@@ -71,11 +74,13 @@ export async function GET() {
       publishedAt: release.published_at || new Date().toISOString(),
     };
 
-    cache = { data, expiresAt: now + 5 * 60 * 1000 };
+    cache = { data, expiresAt: now + 15 * 1000 };
 
     return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control": isFresh
+          ? "no-store, no-cache, must-revalidate"
+          : "public, max-age=10, s-maxage=15, stale-while-revalidate=30",
       },
     });
   } catch (err: any) {

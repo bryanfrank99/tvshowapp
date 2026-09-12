@@ -86,8 +86,8 @@ export default function AppUpdater() {
       } catch {}
     }
 
-    // Consulta la API de versiones
-    fetch("/api/app/version")
+    // Consulta la API de versiones siempre fresca sin caché
+    fetch(`/api/app/version?fresh=1&t=${Date.now()}`)
       .then((res) => res.json())
       .then((data: VersionInfo) => {
         if (!data || !data.latestVersion) return;
