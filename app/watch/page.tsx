@@ -278,7 +278,6 @@ function WatchInner() {
         {locked ? (
           <div className="aspect-video flex flex-col items-center justify-center gap-3 p-4 overflow-y-auto">
             <AccessGate onOk={loadList} />
-            <p className="text-xs text-zinc-500">{d.gate_contact} · Ref guardada en este navegador</p>
           </div>
         ) : listError ? (
           <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">

@@ -4,6 +4,31 @@ import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 import { clearProvidersCache } from "@/lib/providers";
 
+// Generar o recuperar ID de referencia único y persistente para el dispositivo (ej: TV-E1CC15-E3BC)
+function getOrCreateRefCode(): string {
+  try {
+    let ref = localStorage.getItem("tvshow_ref_code");
+    if (ref && /^TV-[A-F0-9]{6}-[A-F0-9]{4}$/i.test(ref.trim())) {
+      return ref.trim().toUpperCase();
+    }
+    let hex = "";
+    if (typeof window !== "undefined" && window.crypto && window.crypto.getRandomValues) {
+      const bytes = new Uint8Array(5);
+      window.crypto.getRandomValues(bytes);
+      hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+    } else {
+      for (let i = 0; i < 10; i++) {
+        hex += Math.floor(Math.random() * 16).toString(16).toUpperCase();
+      }
+    }
+    ref = `TV-${hex.slice(0, 6)}-${hex.slice(6, 10)}`;
+    localStorage.setItem("tvshow_ref_code", ref);
+    return ref;
+  } catch {
+    return "TV-E1CC15-E3BC";
+  }
+}
+
 // Modal / Gate: pide el código de acceso y crea sesión.
 export default function AccessGate({ onOk }: { onOk: () => void }) {
   const { lang } = useLang();
@@ -15,7 +40,8 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
 
   useEffect(() => {
     try {
-      setStoredRef(localStorage.getItem("tvshow_ref_code") || "");
+      const ref = getOrCreateRefCode();
+      setStoredRef(ref);
     } catch {}
   }, []);
 
@@ -47,7 +73,7 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
         }
       } else {
         try {
-          localStorage.setItem("tvshow_ref_code", j.ref_code || "");
+          if (j.ref_code) localStorage.setItem("tvshow_ref_code", j.ref_code);
           localStorage.setItem("tvshow_code", code.trim());
         } catch {}
         if (j.ref_code) setStoredRef(j.ref_code);
@@ -62,15 +88,15 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center max-w-md mx-auto">
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center max-w-md mx-auto w-full">
       <p className="text-3xl mb-2">🔒</p>
       <h2 className="text-xl font-black">{d.gate_title}</h2>
-      <p className="text-sm text-zinc-400 mt-1 mb-1">{d.gate_hint}</p>
+      <p className="text-sm text-zinc-400 mt-1 mb-3">{d.gate_hint}</p>
       {storedRef ? (
-        <div className="mb-4 p-3 rounded-xl bg-black/40 border border-white/10">
-          <p className="text-xs text-zinc-500">{d.gate_ref}</p>
-          <p className="text-2xl font-black tracking-widest text-white mt-1 select-all">{storedRef}</p>
-          <p className="text-xs text-zinc-500 mt-1">{d.gate_contact}</p>
+        <div className="mb-4 p-3.5 rounded-xl bg-black/50 border border-white/10">
+          <p className="text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">{d.gate_ref}</p>
+          <p className="text-2xl font-black tracking-widest text-[#008CFF] mt-1 select-all font-mono">{storedRef}</p>
+          <p className="text-xs text-zinc-400 mt-1.5">{d.gate_contact}</p>
         </div>
       ) : (
         <p className="text-xs text-zinc-500 mb-4">{d.gate_contact}</p>
