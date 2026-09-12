@@ -23,6 +23,9 @@ public class MainActivity extends BridgeActivity {
             webView.getSettings().setTextZoom(100);
             webView.getSettings().setUseWideViewPort(true);
             webView.getSettings().setLoadWithOverviewMode(true);
+            webView.setFocusable(true);
+            webView.setFocusableInTouchMode(true);
+            webView.requestFocus();
             webView.setWebViewClient(new AdBlockWebViewClient(getBridge()));
             webView.setWebChromeClient(new AdBlockWebChromeClient(getBridge()));
             // Persistencia de cookies (tvsess). Sin esto la cookie queda solo en RAM y se pierde al matar la app (018).

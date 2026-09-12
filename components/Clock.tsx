@@ -6,7 +6,7 @@ import type { Lang } from "@/lib/dict";
 // Reloj en el header. Clic = rotar idioma (también disponible en el rail).
 export default function Clock() {
   const [now, setNow] = useState<Date | null>(null);
-  const [lang, setLang] = useState<Lang>("es");
+  const [lang, setLang] = useState<Lang>("pt");
   useEffect(() => {
     setNow(new Date());
     setLang(getClientLang());

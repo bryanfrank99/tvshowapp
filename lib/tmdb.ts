@@ -11,9 +11,9 @@ export function hasKey() {
 export function getLang(): "es" | "en" | "pt" {
   try {
     const v = cookies().get("tvshow_lang")?.value;
-    return v === "en" || v === "pt" ? v : "es";
+    return v === "es" || v === "en" ? v : "pt";
   } catch {
-    return "es";
+    return "pt";
   }
 }
 

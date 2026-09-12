@@ -49,6 +49,7 @@ const es = {
   block_tip: "¿Ventanas emergentes? Bloquéalas con:",
   gate_title: "Acceso restringido", gate_hint: "Introduce tu código para ver los servidores.",
   gate_ph: "Tu código", gate_ok: "Entrar", gate_invalid: "Código inválido o caducado.", gate_revoked: "Código revocado.", gate_expired: "Código expirado.", gate_ref: "Ref", gate_contact: "Contacta al administrador para renovación.", gate_rate: "Demasiados intentos, espera un minuto.",
+  gate_current: "Código activo actual", gate_unlink: "Desvincular", gate_clear: "Limpiar", gate_backspace: "Borrar",
   abrir_externo: "Abrir externo",
   tv_hint: "Dentro del video mandan las flechas del reproductor · Atrás para salir",
   fullscreen: "Pantalla completa",
@@ -56,6 +57,7 @@ const es = {
   servidores_label: "Servidores",
   cargar_mas: "Cargar más", cargando: "Cargando…",
   crumb_detalle: "Detalle", crumb_persona: "Persona", crumb_genero: "Género", crumb_ver: "Ver",
+  nav_code: "CÓDIGO", vincular_tv: "Key",
 };
 
 export type Dict = typeof es;
@@ -108,6 +110,7 @@ const en: Dict = {
   block_tip: "Pop-ups? Block them with:",
   gate_title: "Restricted access", gate_hint: "Enter your code to see the servers.",
   gate_ph: "Your code", gate_ok: "Enter", gate_invalid: "Invalid or expired code.", gate_revoked: "Code revoked.", gate_expired: "Code expired.", gate_ref: "Ref", gate_contact: "Contact the administrator to renew.", gate_rate: "Too many attempts, wait a minute.",
+  gate_current: "Current active code", gate_unlink: "Unlink", gate_clear: "Clear", gate_backspace: "Delete",
   abrir_externo: "Open externally",
   tv_hint: "Inside the video, the player's arrows rule · Back to exit",
   fullscreen: "Fullscreen",
@@ -115,6 +118,7 @@ const en: Dict = {
   servidores_label: "Servers",
   cargar_mas: "Load more", cargando: "Loading…",
   crumb_detalle: "Details", crumb_persona: "Person", crumb_genero: "Genre", crumb_ver: "Watch",
+  nav_code: "ACCESS CODE", vincular_tv: "Key",
 };
 
 const pt: Dict = {
@@ -128,7 +132,7 @@ const pt: Dict = {
   serie: "Série", pelicula: "Filme", movie: "Filme", tv: "Série",
   seguir: "Continuar assistindo", limpiar: "Limpar tudo", limpiar_confirm: "Apagar tudo de Continuar assistindo?",
   visto: "visto", iniciado: "iniciado", now: "agora", min: "min", h: "h", d: "d", ago_m: "há", ago_h: "há", ago_d: "há",
-  mi_lista: "Minha lista", mi_lista_vacia: "Minha lista está vazia", mi_lista_hint: "Toque no coração de qualquer cartão para salvá-lo aqui.",
+  mi_lista: "Minha lista", mi_lista_vacia: "Minha lista está vazia", mi_lista_hint: "Toque no coração de cualquier tarjeta para salvá-lo aqui.",
   explorar: "Explorar", quitar: "Remover", resultados: "Resultados",
   ver_ahora_btn: "Assistir agora", continuar: "Continuar", capitulos: "Episódios", temporada_n: "Episódios",
   sin_sinopsis: "Sem sinopse.", sin_desc: "Sem descrição.",
@@ -165,6 +169,7 @@ const pt: Dict = {
   block_tip: "Pop-ups? Bloqueie com:",
   gate_title: "Acesso restrito", gate_hint: "Digite seu código para ver os servidores.",
   gate_ph: "Seu código", gate_ok: "Entrar", gate_invalid: "Código inválido ou expirado.", gate_revoked: "Código revogado.", gate_expired: "Código expirado.", gate_ref: "Ref", gate_contact: "Entre em contato com o administrador para renovar.", gate_rate: "Muitas tentativas, aguarde um minuto.",
+  gate_current: "Código ativo atual", gate_unlink: "Desvincular", gate_clear: "Limpar", gate_backspace: "Apagar",
   abrir_externo: "Abrir externo",
   tv_hint: "Dentro do vídeo mandam as setas do player · Voltar para sair",
   fullscreen: "Tela cheia",
@@ -172,9 +177,10 @@ const pt: Dict = {
   servidores_label: "Servidores",
   cargar_mas: "Carregar mais", cargando: "Carregando…",
   crumb_detalle: "Detalhes", crumb_persona: "Pessoa", crumb_genero: "Gênero", crumb_ver: "Assistir",
+  nav_code: "CÓDIGO", vincular_tv: "Key",
 };
 
 export const STR: Record<Lang, Dict> = { es, en, pt };
-export const t = (lang: Lang): Dict => STR[lang] || es;
+export const t = (lang: Lang): Dict => STR[lang] || pt;
 
 

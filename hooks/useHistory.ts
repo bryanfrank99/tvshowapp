@@ -55,7 +55,7 @@ export function useHistory() {
   return { history, save, remove, clear, provider, setProvider };
 }
 
-export const timeAgo = (ts: number, lang: Lang = "es") => {
+export const timeAgo = (ts: number, lang: Lang = "pt") => {
   const d = t(lang);
   const m = Math.floor((Date.now() - ts) / 60000);
   if (m < 1) return d.now;

@@ -63,7 +63,25 @@ a:focus-visible, button:focus-visible {
 }
 
 /* Densidad TV: más compacto + hero contenido + rail sin expansión */
-html:has(body.tv) { font-size: 54%; }
+html.tv, html:has(body.tv) { font-size: 54%; }
+
+/* Foco destacado para Android TV */
+body.tv :focus,
+body.tv :focus-visible {
+  outline: 3px solid #008CFF !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 15px rgba(0, 140, 255, 0.8), 0 0 25px rgba(0, 140, 255, 0.3) !important;
+  transition: transform 0.15s ease, outline 0.15s ease, box-shadow 0.15s ease !important;
+  z-index: 30 !important;
+}
+
+body.tv button:focus,
+body.tv a:focus,
+body.tv input:focus,
+body.tv [tabindex]:focus {
+  transform: scale(1.04) !important;
+}
+
 body.tv .tv-hero { height: 10rem !important; }
 @media (min-width: 768px) { body.tv .tv-hero { height: 14rem !important; } }
 body.tv nav[aria-label="Principal"] { width: 4rem !important; }
