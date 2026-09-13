@@ -3,10 +3,26 @@
 import { tmdb, hasKey, getLang } from "./tmdb";
 import { withImdbIds, type Media } from "./imdb";
 import { getPerson, savePerson } from "./db";
+import { getNowPlayingIds } from "./theaters-server";
 import * as free from "./free";
 
 export type Spot = { show: any; seasonNum: number; ep: any | null };
 export type Page<T> = { items: T[]; hasMore: boolean };
+
+async function tagInTheaters(items: Media[]): Promise<Media[]> {
+  try {
+    const ids = await getNowPlayingIds();
+    if (!ids || ids.size === 0) return items;
+    return items.map((x: any) => {
+      if ((x.media_type === "movie" || !x.media_type) && ids.has(Number(x.id))) {
+        return { ...x, in_theaters: true };
+      }
+      return x;
+    });
+  } catch {
+    return items;
+  }
+}
 
 async function tmdbOr<T>(fn: () => Promise<T>, fallback: () => Promise<T>): Promise<T> {
   if (hasKey()) {
@@ -24,7 +40,8 @@ type Paged<T = any> = T & { total_pages?: number };
 export async function getFeaturedToday(page = 1, per = 5): Promise<Page<Media>> {
   return tmdbOr(async () => {
     const d = await tmdb<Paged<{ results: Media[] }>>(`/trending/all/day?page=${page}`, 1800);
-    const items = d.results.filter((x) => x.backdrop_path).slice(0, per);
+    const raw = d.results.filter((x) => x.backdrop_path).slice(0, per);
+    const items = await tagInTheaters(raw);
     return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
     const skip = (page - 1) * per;
@@ -82,12 +99,13 @@ export async function getTopPicks(page = 1, per = 12): Promise<Page<Media>> {
       tmdb<Paged<{ results: Media[] }>>(`/movie/top_rated?page=${page}`, 3600),
       tmdb<Paged<{ results: Media[] }>>(`/tv/top_rated?page=${page}`, 3600),
     ]);
-    const items = [
+    const raw = [
       ...m.results.slice(0, half).map((x) => ({ ...x, media_type: "movie" })),
       ...t.results.slice(0, half).map((x) => ({ ...x, media_type: "tv" })),
     ]
       .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
       .slice(0, per);
+    const items = await tagInTheaters(raw as any);
     return { items, hasMore: page < Math.min(m.total_pages || 1, t.total_pages || 1) };
   }, async () => {
     const skip = (page - 1) * half;
@@ -103,7 +121,9 @@ export async function getTopPicks(page = 1, per = 12): Promise<Page<Media>> {
 export async function getUpcoming(page = 1, per = 12): Promise<Page<Media>> {
   return tmdbOr(async () => {
     const d = await tmdb<Paged<{ results: Media[] }>>(`/movie/upcoming?page=${page}`, 3600);
-    return { items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie" })), hasMore: page < (d.total_pages || 1) };
+    const raw = d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie" }));
+    const items = await tagInTheaters(raw);
+    return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
     const items = await free.cineCatalog("movie", "top", per + 1, (page - 1) * per);
     return { items: items.slice(0, per), hasMore: items.length > per };
@@ -113,7 +133,9 @@ export async function getUpcoming(page = 1, per = 12): Promise<Page<Media>> {
 export async function getMovies(page = 1, per = 24): Promise<Page<Media>> {
   return tmdbOr(async () => {
     const d = await tmdb<Paged<{ results: Media[] }>>(`/discover/movie?sort_by=popularity.desc&page=${page}`, 3600);
-    return { items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie" })), hasMore: page < (d.total_pages || 1) };
+    const raw = d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie" }));
+    const items = await tagInTheaters(raw);
+    return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
     const items = await free.cineCatalog("movie", "top", per + 1, (page - 1) * per);
     return { items: items.slice(0, per), hasMore: items.length > per };
@@ -207,7 +229,8 @@ export async function getKids(page = 1, per = 24): Promise<Page<Media>> {
 export async function getTrending(page = 1, per = 20): Promise<Page<Media>> {
   return tmdbOr(async () => {
     const d = await tmdb<Paged<{ results: Media[] }>>(`/trending/all/week?page=${page}`, 600);
-    const items = d.results.filter((x) => x.media_type === "movie" || x.media_type === "tv").slice(0, per);
+    const raw = d.results.filter((x) => x.media_type === "movie" || x.media_type === "tv").slice(0, per);
+    const items = await tagInTheaters(raw);
     return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
     const skip = (page - 1) * Math.ceil(per / 2);
@@ -217,6 +240,18 @@ export async function getTrending(page = 1, per = 20): Promise<Page<Media>> {
     ]);
     const items = [...m, ...s].slice(0, per);
     return { items, hasMore: m.length + s.length > per };
+  });
+}
+
+export async function getNowPlaying(page = 1, per = 24): Promise<Page<Media>> {
+  return tmdbOr(async () => {
+    const d = await tmdb<Paged<{ results: Media[] }>>(`/movie/now_playing?page=${page}`, 3600);
+    return {
+      items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie", in_theaters: true })),
+      hasMore: page < (d.total_pages || 1),
+    };
+  }, async () => {
+    return { items: [], hasMore: false };
   });
 }
 
@@ -232,7 +267,8 @@ export async function getTop10ImdbWeek(): Promise<Media[]> {
         media_type: x.media_type || ((x as any).first_air_date ? "tv" : "movie"),
         rank: i + 1,
       }));
-    return withImdbIds(ranked, 10);
+    const withIds = await withImdbIds(ranked, 10);
+    return tagInTheaters(withIds);
   }, async () => {
     // En modo free el rating IMDb es NATIVO (Cinemeta trae imdbRating real).
     const [m, s] = await Promise.all([free.cineCatalog("movie", "top", 8), free.cineCatalog("series", "top", 8)]);

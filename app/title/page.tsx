@@ -16,6 +16,7 @@ import { MediaCard } from "@/components/Cards";
 import { getSimilarTitles } from "@/lib/catalog";
 import { t } from "@/lib/dict";
 import { getTitle, saveTitle, getEpisodes, saveSeason, certOf } from "@/lib/db";
+import { isMovieInTheaters } from "@/lib/theaters";
 
 const fmtRuntime = (min: any) => {
   const n = Number(min);
@@ -119,6 +120,7 @@ async function MovieDetail(id: string) {
   const trailerKey = trailer?.key || "";
   const cert = m.certification || "";
   const similar = await getSimilarTitles("movie", id, m.genres);
+  const inTheaters = isMovieInTheaters(m);
 
   return (
     <>
@@ -134,6 +136,12 @@ async function MovieDetail(id: string) {
           <div className="min-w-0">
             <h1 className="text-3xl font-black">{m.title} {year && <span className="font-light text-zinc-400">({year})</span>}</h1>
             <p className="text-sm text-zinc-400 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              {inTheaters && (
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-gradient-to-r from-amber-500 to-amber-400 text-black shadow-md inline-flex items-center gap-1 uppercase tracking-wider border border-amber-300/40">
+                  <span>🍿</span>
+                  <span>{lang === "pt" ? "Nos Cinemas" : lang === "en" ? "In Theaters" : "En Cines"}</span>
+                </span>
+              )}
               {cert && <span className="border border-white/30 rounded px-1.5 text-xs">{cert}</span>}
               {m.release_date && <span>{m.release_date}</span>}
               {genres.length > 0 && <span>· {genres.map((g) => g.name).join(", ")}</span>}
@@ -148,6 +156,27 @@ async function MovieDetail(id: string) {
               </span>
               {trailerKey && <TrailerButton videoKey={trailerKey} label={d.ver_trailer} />}
             </div>
+            {inTheaters && (
+              <div className="mt-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs sm:text-sm flex items-start gap-3 shadow-inner">
+                <span className="text-xl shrink-0">🍿</span>
+                <div>
+                  <p className="font-bold text-amber-300">
+                    {lang === "pt"
+                      ? "Filme atualmente nos cinemas"
+                      : lang === "en"
+                      ? "Movie currently in theaters"
+                      : "Película actualmente en cines"}
+                  </p>
+                  <p className="text-amber-200/90 text-xs mt-0.5 leading-relaxed">
+                    {lang === "pt"
+                      ? "O conteúdo disponível no momento é gravação de cinema (qualidade CAM / Telesync). A versão digital em alta definição (1080p / 4K) estará disponível após o lançamento em streaming."
+                      : lang === "en"
+                      ? "The currently available stream is a theater recording (CAM / Telesync quality). Clean HD / 4K digital release will be available once released on streaming platforms."
+                      : "El contenido disponible en este momento corresponde a una grabación de sala (calidad CAM / Telesync). La versión digital limpia en alta definición (1080p / 4K) estará disponible cuando la distribuidora estrene la película en plataformas digitales."}
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="flex gap-2 mt-4 flex-wrap items-center">
               <Link href={`/watch?type=movie&id=${m.id || id}`} className="bg-[#008CFF] rounded-xl px-5 py-2.5 font-bold inline-flex items-center gap-2 text-sm"><IconPlay size={15} />{d.ver_ahora_btn}</Link>
               <FavButton big type="movie" id={id} title={m.title} poster={img(m.poster_path)} rating={m.vote_average ?? 0} />
