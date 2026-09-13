@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { supa } from "@/lib/supa";
-import { needAdmin } from "@/lib/access";
+import { needAdmin, needSuperAdmin } from "@/lib/access";
 import { parseLangs, parseSubs } from "@/lib/providers";
 
 // GET lista completa (con templates) · PUT upsert · PATCH toggle · DELETE
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const deny = await needAdmin(req);
+  const deny = await needSuperAdmin(req);
   if (deny) return deny;
   let b: any = {};
   try { b = await req.json(); } catch {}
@@ -94,7 +94,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const deny = await needAdmin(req);
+  const deny = await needSuperAdmin(req);
   if (deny) return deny;
   let b: any = {};
   try { b = await req.json(); } catch {}
@@ -109,7 +109,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const deny = await needAdmin(req);
+  const deny = await needSuperAdmin(req);
   if (deny) return deny;
   const id = req.nextUrl.searchParams.get("id") || "";
   if (!id) return NextResponse.json({ error: "params" }, { status: 400 });

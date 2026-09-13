@@ -1,7 +1,7 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { supa } from "@/lib/supa";
-import { needAdmin } from "@/lib/access";
+import { needAdmin, needSuperAdmin } from "@/lib/access";
 
 // GET/PUT/DELETE fuentes live (misma forma que providers, tabla live_sources).
 export async function GET(req: NextRequest) {
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const deny = await needAdmin(req);
+  const deny = await needSuperAdmin(req);
   if (deny) return deny;
   let b: any = {};
   try { b = await req.json(); } catch {}
@@ -29,7 +29,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const deny = await needAdmin(req);
+  const deny = await needSuperAdmin(req);
   if (deny) return deny;
   let b: any = {};
   try { b = await req.json(); } catch {}
@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const deny = await needAdmin(req);
+  const deny = await needSuperAdmin(req);
   if (deny) return deny;
   const id = req.nextUrl.searchParams.get("id") || "";
   if (!id) return NextResponse.json({ error: "params" }, { status: 400 });

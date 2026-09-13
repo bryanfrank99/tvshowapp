@@ -182,49 +182,318 @@ export async function resetSessionsForCode(codeId: string) {
   }
 }
 
-// ---- Admin (en Supabase, sesiones en tabla) ----
-export async function adminLoginOk(pass: string) {
-  if (!pass) return false;
+// ---- Admin Multi-Usuario (en Supabase, sesiones en tabla) ----
+export type AdminUser = {
+  id: string;
+  username: string;
+  name: string;
+  role: "superadmin" | "admin";
+  is_active: boolean;
+};
+
+export async function authenticateAdmin(
+  usernameInput: string,
+  passInput: string
+): Promise<{ user?: AdminUser; error?: string }> {
+  if (!passInput) return { error: "missing_password" };
+  const username = (usernameInput || "admin").trim().toLowerCase();
+
   try {
     const sb = supa();
-    const { data, error } = await sb.from("admin_users").select("password_hash").eq("username", "admin").maybeSingle();
-    if (error) throw error;
-    if (!data?.password_hash) {
-      // Bootstrap: si no hay admin, el primer login crea el admin con esa clave
-      const env = process.env.ADMIN_PASSWORD || "";
-      if (env) {
-        if (env === pass) {
-          try { await (sb as any).from("admin_users").upsert({ username: "admin", password_hash: sha(pass) }, { onConflict: "username" }); } catch {}
-          return true;
-        }
-        return false;
+    let user: any = null;
+    try {
+      const { data, error } = await sb
+        .from("admin_users")
+        .select("id,username,name,role,is_active,password_hash")
+        .eq("username", username)
+        .maybeSingle();
+
+      if (error && error.code !== "PGRST116") throw error;
+      user = data;
+    } catch {
+      // Fallback si columnas name/role/is_active aún no existen en DB
+      const { data } = await sb
+        .from("admin_users")
+        .select("id,username,password_hash")
+        .eq("username", username)
+        .maybeSingle();
+      if (data) {
+        user = {
+          ...data,
+          name: data.username === "admin" ? "Administrador Principal" : data.username,
+          role: data.username === "admin" ? "superadmin" : "admin",
+          is_active: true,
+        };
       }
-      try { await (sb as any).from("admin_users").upsert({ username: "admin", password_hash: sha(pass) }, { onConflict: "username" }); } catch {}
-      return true;
     }
-    return sha(pass) === data.password_hash;
-  } catch {
+
+    // Si el usuario existe en DB
+    if (user) {
+      if (user.is_active === false) {
+        return { error: "suspended" };
+      }
+      if (sha(passInput) !== user.password_hash) {
+        return { error: "invalid_credentials" };
+      }
+
+      // Actualizar last_login_at de forma asíncrona
+      try {
+        sb.from("admin_users")
+          .update({ last_login_at: new Date().toISOString() })
+          .eq("id", user.id)
+          .then(() => {});
+      } catch {}
+
+      return {
+        user: {
+          id: user.id,
+          username: user.username,
+          name: user.name || user.username,
+          role: (user.role as any) || (user.username === "admin" ? "superadmin" : "admin"),
+          is_active: true,
+        },
+      };
+    }
+
+    // Bootstrap para el usuario 'admin' inicial si no existe en DB
+    if (username === "admin") {
+      const env = process.env.ADMIN_PASSWORD || "";
+      if (!env || env === passInput) {
+        const { data: created, error: createErr } = await (sb as any)
+          .from("admin_users")
+          .upsert(
+            {
+              username: "admin",
+              name: "Administrador Principal",
+              role: "superadmin",
+              is_active: true,
+              password_hash: sha(passInput),
+            },
+            { onConflict: "username" }
+          )
+          .select("id,username,name,role,is_active")
+          .maybeSingle();
+
+        if (!createErr && created) {
+          return {
+            user: {
+              id: created.id,
+              username: created.username,
+              name: created.name || "Administrador Principal",
+              role: "superadmin",
+              is_active: true,
+            },
+          };
+        }
+
+        return {
+          user: {
+            id: "default-admin-id",
+            username: "admin",
+            name: "Administrador Principal",
+            role: "superadmin",
+            is_active: true,
+          },
+        };
+      }
+    }
+
+    return { error: "invalid_credentials" };
+  } catch (err) {
+    // Fallback de contingencia contra process.env
     const env = process.env.ADMIN_PASSWORD || "";
-    return !!env && env === pass;
+    if (env && env === passInput && (username === "admin" || !usernameInput)) {
+      return {
+        user: {
+          id: "env-admin-id",
+          username: "admin",
+          name: "Administrador Principal",
+          role: "superadmin",
+          is_active: true,
+        },
+      };
+    }
+    return { error: "invalid_credentials" };
   }
 }
 
-export async function createAdminSession() {
+// Compatibilidad retroactiva con adminLoginOk(pass)
+export async function adminLoginOk(pass: string) {
+  const res = await authenticateAdmin("admin", pass);
+  return Boolean(res.user);
+}
+
+export async function createAdminSession(user?: AdminUser | null) {
   const token = newToken();
+  const tokenHash = sha(token);
+  const sb = supa();
+  const now = new Date().toISOString();
+
   try {
-    await supa().from("admin_sessions").insert({ token_hash: sha(token) });
-  } catch {}
+    const { error } = await sb.from("admin_sessions").insert({
+      token_hash: tokenHash,
+      user_id: user?.id || null,
+      username: user?.username || "admin",
+      role: user?.role || "superadmin",
+      last_seen_at: now,
+      created_at: now,
+    });
+    if (error) throw error;
+  } catch {
+    // Fallback si la tabla aún no tiene las nuevas columnas en Supabase
+    try {
+      await sb.from("admin_sessions").insert({
+        token_hash: tokenHash,
+        created_at: now,
+      });
+    } catch {}
+  }
+
   return token;
 }
 
-export async function checkAdmin(cookieVal: string | undefined | null) {
-  if (!cookieVal) return false;
+export async function getAdminUserFromToken(token: string | undefined | null): Promise<AdminUser | null> {
+  if (!token) return null;
+  const tokenHash = sha(token);
+
   try {
-    const { data } = await supa().from("admin_sessions").select("token_hash").eq("token_hash", sha(cookieVal)).maybeSingle();
-    return !!data;
+    const sb = supa();
+    let sess: any = null;
+    try {
+      const { data: sessData, error: sessErr } = await sb
+        .from("admin_sessions")
+        .select("token_hash,user_id,username,role,last_seen_at")
+        .eq("token_hash", tokenHash)
+        .maybeSingle();
+
+      if (sessErr && sessErr.code !== "PGRST116") throw sessErr;
+      sess = sessData;
+    } catch {
+      // Fallback si admin_sessions solo contiene token_hash
+      try {
+        const { data: baseSess } = await sb
+          .from("admin_sessions")
+          .select("token_hash,created_at")
+          .eq("token_hash", tokenHash)
+          .maybeSingle();
+        if (baseSess) {
+          sess = {
+            ...baseSess,
+            username: "admin",
+            role: "superadmin",
+          };
+        }
+      } catch {}
+    }
+
+    if (!sess) {
+      return null;
+    }
+
+    // Si la sesión tiene user_id, verificar estado en admin_users
+    if (sess.user_id) {
+      let user: any = null;
+      try {
+        const { data: userData, error: userErr } = await sb
+          .from("admin_users")
+          .select("id,username,name,role,is_active")
+          .eq("id", sess.user_id)
+          .maybeSingle();
+        if (userErr && userErr.code !== "PGRST116") throw userErr;
+        user = userData;
+      } catch {
+        const { data: baseUser } = await sb
+          .from("admin_users")
+          .select("id,username")
+          .eq("id", sess.user_id)
+          .maybeSingle();
+        if (baseUser) {
+          user = {
+            ...baseUser,
+            name: baseUser.username,
+            role: baseUser.username === "admin" ? "superadmin" : "admin",
+            is_active: true,
+          };
+        }
+      }
+
+      if (!user || user.is_active === false) {
+        // Sesión inválida o usuario suspendido: eliminar sesión
+        destroyAdminSession(token);
+        return null;
+      }
+
+      return {
+        id: user.id,
+        username: user.username,
+        name: user.name || user.username,
+        role: (user.role as any) || "admin",
+        is_active: user.is_active !== false,
+      };
+    }
+
+    // Si la sesión tiene username pero no user_id (o sesión legacy)
+    const uname = sess.username || "admin";
+    let user: any = null;
+    try {
+      const { data: userData, error: userErr } = await sb
+        .from("admin_users")
+        .select("id,username,name,role,is_active")
+        .eq("username", uname)
+        .maybeSingle();
+      if (userErr && userErr.code !== "PGRST116") throw userErr;
+      user = userData;
+    } catch {
+      const { data: baseUser } = await sb
+        .from("admin_users")
+        .select("id,username")
+        .eq("username", uname)
+        .maybeSingle();
+      if (baseUser) {
+        user = {
+          ...baseUser,
+          name: baseUser.username,
+          role: baseUser.username === "admin" ? "superadmin" : "admin",
+          is_active: true,
+        };
+      }
+    }
+
+    if (user) {
+      if (user.is_active === false) {
+        destroyAdminSession(token);
+        return null;
+      }
+      return {
+        id: user.id,
+        username: user.username,
+        name: user.name || user.username,
+        role: (user.role as any) || (user.username === "admin" ? "superadmin" : "admin"),
+        is_active: true,
+      };
+    }
+
+    // Fallback por defecto si no hay registro específico pero la sesión existía
+    return {
+      id: "legacy-admin",
+      username: uname,
+      name: "Administrador Principal",
+      role: uname === "admin" ? "superadmin" : "admin",
+      is_active: true,
+    };
   } catch {
-    return false;
+    return null;
   }
+}
+
+export async function checkAdmin(cookieVal: string | undefined | null) {
+  const user = await getAdminUserFromToken(cookieVal);
+  return !!user;
+}
+
+export async function getAdminUser(req: NextRequest): Promise<AdminUser | null> {
+  const cookieVal = req.cookies.get(ADMIN_COOKIE)?.value;
+  return getAdminUserFromToken(cookieVal);
 }
 
 export async function destroyAdminSession(token: string | undefined | null) {
@@ -234,8 +503,29 @@ export async function destroyAdminSession(token: string | undefined | null) {
   } catch {}
 }
 
+export async function destroyAllSessionsForUser(userId: string) {
+  if (!userId) return;
+  try {
+    await supa().from("admin_sessions").delete().eq("user_id", userId);
+  } catch {}
+}
+
 export async function needAdmin(req: NextRequest) {
-  return (await checkAdmin(req.cookies.get(ADMIN_COOKIE)?.value)) ? null : NextResponse.json({ error: "admin" }, { status: 403 });
+  const user = await getAdminUser(req);
+  if (!user) return NextResponse.json({ error: "admin" }, { status: 403 });
+  return null;
+}
+
+export async function needSuperAdmin(req: NextRequest) {
+  const user = await getAdminUser(req);
+  if (!user) return NextResponse.json({ error: "admin" }, { status: 403 });
+  if (user.role !== "superadmin") {
+    return NextResponse.json(
+      { error: "forbidden", message: "Esta acción requiere privilegios de Super Administrador" },
+      { status: 403 }
+    );
+  }
+  return null;
 }
 
 export { ADMIN_COOKIE };
