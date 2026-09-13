@@ -232,7 +232,7 @@ function WatchInner() {
           className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-zinc-400 hover:text-white transition group py-1.5 px-3 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 active:scale-95 touch-manipulation"
         >
           <span className="group-hover:-translate-x-0.5 transition-transform">←</span>
-          <span>{d.volver}</span>
+          <span>{d.volver.replace(/^←\s*/, "")}</span>
         </Link>
 
         <div className="flex items-center gap-2">
