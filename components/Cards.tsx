@@ -8,6 +8,7 @@ import { IconStar, IconPlay } from "@/components/Icons";
 import { useLang } from "@/hooks/useLang";
 import { useIsTV } from "@/hooks/useIsTV";
 import { t } from "@/lib/dict";
+import { isMovieInTheaters } from "@/lib/theaters";
 
 export function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -44,7 +45,8 @@ export function MediaCard({
   const posterSrc = img(item.poster_path || (item as any).poster || null);
   const rawRating = item.vote_average ?? (item as any).rating ?? 0;
   const rating = Number(rawRating);
-  const targetHref = href || `/title?type=${type}&id=${item.id}`;
+  const isCine = Boolean(item.in_theaters || (type === "movie" && isMovieInTheaters(item)));
+  const targetHref = href || `/title?type=${type}&id=${item.id}${isCine ? "&theaters=1" : ""}`;
   const { lang } = useLang();
   const d = t(lang);
   const isTV = useIsTV();
@@ -83,7 +85,7 @@ export function MediaCard({
         )}
 
         {/* Insignia EN CINES */}
-        {Boolean(item.in_theaters) && (
+        {isCine && (
           <span className="absolute bottom-2 left-2 z-10 text-[9.5px] sm:text-[10px] font-extrabold bg-gradient-to-r from-amber-500 to-amber-400 text-black rounded-md px-1.5 py-0.5 shadow-lg inline-flex items-center gap-1 backdrop-blur-sm uppercase tracking-wider pointer-events-none border border-amber-300/40">
             <span>🍿</span>
             <span>{lang === "pt" ? "Nos Cinemas" : lang === "en" ? "In Theaters" : "En Cines"}</span>

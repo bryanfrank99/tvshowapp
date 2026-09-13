@@ -42,7 +42,8 @@ function WatchInner() {
   const [loadingSrc, setLoadingSrc] = useState(false);
   const [srcError, setSrcError] = useState(false);
   const [listVersion, setListVersion] = useState("");
-  const [inTheaters, setInTheaters] = useState(false);
+  const spTheaters = sp.get("theaters") === "1" || sp.get("in_theaters") === "1";
+  const [inTheaters, setInTheaters] = useState(spTheaters);
   const frameBox = useRef<HTMLDivElement>(null);
 
   // Cada vez que cambia el título, temporada o episodio, se restablece la selección manual
@@ -210,7 +211,8 @@ function WatchInner() {
         save({ type, id, title: t || `#${id}`, poster: posterUrl, rating: m.vote_average ?? 0, season: s, episode: e });
 
         if (type === "movie") {
-          setInTheaters(Boolean(isMovieInTheaters(m)));
+          const isCine = spTheaters || Boolean(d.in_theaters) || Boolean(m.in_theaters) || isMovieInTheaters(m);
+          setInTheaters(isCine);
         } else {
           setInTheaters(false);
         }
@@ -377,21 +379,17 @@ function WatchInner() {
 
       {/* 4. Banner Informativo de Calidad CAM para Películas en Cines */}
       {inTheaters && (
-        <div className="mt-4 p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs sm:text-sm flex items-start gap-3 shadow-inner">
+        <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border-2 border-amber-500/40 text-amber-200 text-xs sm:text-sm flex items-start gap-3.5 shadow-[0_4px_20px_rgba(245,158,11,0.15)]">
           <span className="text-2xl shrink-0 mt-0.5">🍿</span>
           <div className="min-w-0">
-            <p className="font-bold text-amber-300 text-sm sm:text-base flex items-center gap-2 flex-wrap">
-              <span>{lang === "pt" ? "Filme em exibição nos cinemas" : lang === "en" ? "Movie currently in theaters" : "Película actualmente en cines"}</span>
-              <span className="text-[10px] bg-amber-500/30 border border-amber-500/50 px-2 py-0.5 rounded text-amber-200 uppercase font-black tracking-wider">
-                {lang === "pt" ? "Qualidade CAM" : "Calidad CAM"}
+            <p className="font-extrabold text-amber-300 text-sm sm:text-base flex items-center gap-2 flex-wrap">
+              <span>AVISO: Película actualmente en cines</span>
+              <span className="text-[10px] font-black bg-amber-500 text-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                Calidad CAM
               </span>
             </p>
-            <p className="text-amber-200/90 text-xs sm:text-sm mt-1 leading-relaxed">
-              {lang === "pt"
-                ? "O áudio e o vídeo disponíveis correspondem a gravação de sala de cinema (CAM / Telesync). A versão digital limpa (1080p / 4K) estará disponível assim que for lançada oficialmente em plataformas de streaming."
-                : lang === "en"
-                ? "Available video and audio is a theater recording (CAM / Telesync). Clean 1080p / 4K digital release will become available once the movie is officially released on streaming platforms."
-                : "El audio y video disponibles en este momento corresponden a una grabación de sala de cine (CAM / Telesync). La versión limpia en alta definición (1080p / 4K) estará disponible automáticamente en cuanto la película se estrene en plataformas digitales."}
+            <p className="text-amber-100/90 text-xs sm:text-sm mt-1 leading-relaxed">
+              La calidad actual suele ser grabación de sala (CAM / Telesync). La versión Full HD / 4K estará disponible al salir en plataformas digitales.
             </p>
           </div>
         </div>

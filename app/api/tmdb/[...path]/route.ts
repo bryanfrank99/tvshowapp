@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getNowPlayingIds } from "@/lib/theaters-server";
+import { isMovieInTheaters } from "@/lib/theaters";
 
 const BASE = "https://api.themoviedb.org/3";
 
@@ -15,5 +17,13 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   const url = `${BASE}${path}?${forwardParams.toString()}`;
   const r = await fetch(url, { next: { revalidate: 3600 } });
   const j = await r.json();
+
+  if (params.path?.[0] === "movie" && j && j.id) {
+    try {
+      const nowPlayingIds = await getNowPlayingIds();
+      j.in_theaters = nowPlayingIds.has(Number(j.id)) || isMovieInTheaters(j);
+    } catch {}
+  }
+
   return NextResponse.json(j, { status: r.status });
 }

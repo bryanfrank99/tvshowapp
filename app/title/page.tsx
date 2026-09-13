@@ -17,6 +17,7 @@ import { getSimilarTitles } from "@/lib/catalog";
 import { t } from "@/lib/dict";
 import { getTitle, saveTitle, getEpisodes, saveSeason, certOf } from "@/lib/db";
 import { isMovieInTheaters } from "@/lib/theaters";
+import { getNowPlayingIds } from "@/lib/theaters-server";
 
 const fmtRuntime = (min: any) => {
   const n = Number(min);
@@ -62,17 +63,18 @@ export async function generateMetadata({ searchParams }: { searchParams: { type?
   }
 }
 
-export default async function TitlePage({ searchParams }: { searchParams: { type?: string; id?: string; season?: string } }) {
+export default async function TitlePage({ searchParams }: { searchParams: { type?: string; id?: string; season?: string; theaters?: string } }) {
   const type = searchParams.type === "tv" ? "tv" : "movie";
   const id = searchParams.id || "";
+  const theatersParam = searchParams.theaters;
   if (!id) return <p>—</p>;
   try {
-    const el = type === "movie" ? await MovieDetail(id) : await TvDetail(id, searchParams.season);
+    const el = type === "movie" ? await MovieDetail(id, theatersParam) : await TvDetail(id, searchParams.season);
     // Si el tipo no trae título (404 silencioso), probar el otro tipo.
     return el;
   } catch {
     try {
-      return type === "movie" ? await TvDetail(id, undefined) : await MovieDetail(id);
+      return type === "movie" ? await TvDetail(id, undefined) : await MovieDetail(id, theatersParam);
     } catch {
       return (
         <div className="text-center py-16">
@@ -84,7 +86,7 @@ export default async function TitlePage({ searchParams }: { searchParams: { type
   }
 }
 
-async function MovieDetail(id: string) {
+async function MovieDetail(id: string, theatersParam?: string) {
   const lang = getLang();
   const d = t(lang);
   const useFree = isImdbId(id) || !hasKey();
@@ -120,7 +122,14 @@ async function MovieDetail(id: string) {
   const trailerKey = trailer?.key || "";
   const cert = m.certification || "";
   const similar = await getSimilarTitles("movie", id, m.genres);
-  const inTheaters = isMovieInTheaters(m);
+  
+  // Detección robusta de en cines: query param + nowPlaying cache + release_dates
+  const nowPlayingIds = await getNowPlayingIds();
+  const inTheaters =
+    theatersParam === "1" ||
+    nowPlayingIds.has(Number(id)) ||
+    isMovieInTheaters(m) ||
+    Boolean(m?.in_theaters);
 
   return (
     <>
@@ -157,28 +166,26 @@ async function MovieDetail(id: string) {
               {trailerKey && <TrailerButton videoKey={trailerKey} label={d.ver_trailer} />}
             </div>
             {inTheaters && (
-              <div className="mt-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs sm:text-sm flex items-start gap-3 shadow-inner">
-                <span className="text-xl shrink-0">🍿</span>
+              <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border-2 border-amber-500/40 text-amber-200 text-xs sm:text-sm flex items-start gap-3.5 shadow-[0_4px_20px_rgba(245,158,11,0.15)]">
+                <span className="text-2xl shrink-0 mt-0.5">🍿</span>
                 <div>
-                  <p className="font-bold text-amber-300">
-                    {lang === "pt"
-                      ? "Filme atualmente nos cinemas"
-                      : lang === "en"
-                      ? "Movie currently in theaters"
-                      : "Película actualmente en cines"}
+                  <p className="font-extrabold text-amber-300 text-sm sm:text-base flex items-center gap-2 flex-wrap">
+                    <span>AVISO: Película actualmente en cines</span>
+                    <span className="text-[10px] font-black bg-amber-500 text-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                      Calidad CAM
+                    </span>
                   </p>
-                  <p className="text-amber-200/90 text-xs mt-0.5 leading-relaxed">
-                    {lang === "pt"
-                      ? "O conteúdo disponível no momento é gravação de cinema (qualidade CAM / Telesync). A versão digital em alta definição (1080p / 4K) estará disponível após o lançamento em streaming."
-                      : lang === "en"
-                      ? "The currently available stream is a theater recording (CAM / Telesync quality). Clean HD / 4K digital release will be available once released on streaming platforms."
-                      : "El contenido disponible en este momento corresponde a una grabación de sala (calidad CAM / Telesync). La versión digital limpia en alta definición (1080p / 4K) estará disponible cuando la distribuidora estrene la película en plataformas digitales."}
+                  <p className="text-amber-100/90 text-xs sm:text-sm mt-1 leading-relaxed">
+                    La calidad actual suele ser grabación de sala (CAM / Telesync). La versión Full HD / 4K estará disponible al salir en plataformas digitales.
                   </p>
                 </div>
               </div>
             )}
             <div className="flex gap-2 mt-4 flex-wrap items-center">
-              <Link href={`/watch?type=movie&id=${m.id || id}`} className="bg-[#008CFF] rounded-xl px-5 py-2.5 font-bold inline-flex items-center gap-2 text-sm"><IconPlay size={15} />{d.ver_ahora_btn}</Link>
+              <Link href={`/watch?type=movie&id=${m.id || id}${inTheaters ? "&theaters=1" : ""}`} className="bg-[#008CFF] hover:bg-[#0077dd] rounded-xl px-5 py-2.5 font-bold inline-flex items-center gap-2 text-sm shadow-lg active:scale-95 transition">
+                <IconPlay size={15} />
+                {d.ver_ahora_btn}
+              </Link>
               <FavButton big type="movie" id={id} title={m.title} poster={img(m.poster_path)} rating={m.vote_average ?? 0} />
             </div>
             {m.tagline && <p className="mt-4 italic text-zinc-400">{m.tagline}</p>}
