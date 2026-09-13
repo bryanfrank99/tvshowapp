@@ -148,7 +148,7 @@ async function MovieDetail(id: string, theatersParam?: string) {
               {inTheaters && (
                 <span className="px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-gradient-to-r from-amber-500 to-amber-400 text-black shadow-md inline-flex items-center gap-1 uppercase tracking-wider border border-amber-300/40">
                   <span>🍿</span>
-                  <span>{lang === "pt" ? "Nos Cinemas" : lang === "en" ? "In Theaters" : "En Cines"}</span>
+                  <span>{d.theater_badge}</span>
                 </span>
               )}
               {cert && <span className="border border-white/30 rounded px-1.5 text-xs">{cert}</span>}
@@ -170,10 +170,10 @@ async function MovieDetail(id: string, theatersParam?: string) {
                 <span className="text-2xl shrink-0 mt-0.5">🍿</span>
                 <div>
                   <p className="font-extrabold text-amber-300 text-sm sm:text-base">
-                    AVISO: Película actualmente en cines
+                    {d.theater_notice_title}
                   </p>
                   <p className="text-amber-100/90 text-xs sm:text-sm mt-1 leading-relaxed">
-                    La calidad actual suele ser baja. La versión Full HD / 4K estará disponible al salir en plataformas digitales.
+                    {d.theater_notice_desc}
                   </p>
                 </div>
               </div>

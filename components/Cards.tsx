@@ -88,7 +88,7 @@ export function MediaCard({
         {isCine && (
           <span className="absolute bottom-2 left-2 z-10 text-[9.5px] sm:text-[10px] font-extrabold bg-gradient-to-r from-amber-500 to-amber-400 text-black rounded-md px-1.5 py-0.5 shadow-lg inline-flex items-center gap-1 backdrop-blur-sm uppercase tracking-wider pointer-events-none border border-amber-300/40">
             <span>🍿</span>
-            <span>{lang === "pt" ? "Nos Cinemas" : lang === "en" ? "In Theaters" : "En Cines"}</span>
+            <span>{d.theater_badge}</span>
           </span>
         )}
 

@@ -59,6 +59,9 @@ const es = {
   crumb_detalle: "Detalle", crumb_persona: "Persona", crumb_genero: "Género", crumb_ver: "Ver",
   nav_code: "CÓDIGO", vincular_tv: "Key", nav_key: "KEY",
   kids_title: "Zona Kids", kids_movies_rail: "Películas para Niños", kids_series_rail: "Series Infantiles", kids_all_section: "Todo el contenido Kids", kids_desc: "Películas y series infantiles seleccionadas para toda la familia",
+  theater_badge: "En Cines",
+  theater_notice_title: "AVISO: Película actualmente en cines",
+  theater_notice_desc: "La calidad actual suele ser baja. La versión Full HD / 4K estará disponible al salir en plataformas digitales.",
 };
 
 export type Dict = typeof es;
@@ -121,6 +124,9 @@ const en: Dict = {
   crumb_detalle: "Details", crumb_persona: "Person", crumb_genero: "Genre", crumb_ver: "Watch",
   nav_code: "ACCESS CODE", vincular_tv: "Key", nav_key: "KEY",
   kids_title: "Kids Zone", kids_movies_rail: "Kids Movies", kids_series_rail: "Kids TV Series", kids_all_section: "All Kids Content", kids_desc: "Animated and family movies and series selected for everyone",
+  theater_badge: "In Theaters",
+  theater_notice_title: "NOTICE: Movie currently in theaters",
+  theater_notice_desc: "The current quality is usually low. The clean Full HD / 4K version will be available once released on digital platforms.",
 };
 
 const pt: Dict = {
@@ -181,6 +187,9 @@ const pt: Dict = {
   crumb_detalle: "Detalhes", crumb_persona: "Pessoa", crumb_genero: "Gênero", crumb_ver: "Assistir",
   nav_code: "CÓDIGO", vincular_tv: "Key", nav_key: "KEY",
   kids_title: "Espaço Kids", kids_movies_rail: "Filmes Infantis", kids_series_rail: "Séries Infantis", kids_all_section: "Todo o conteúdo Kids", kids_desc: "Filmes e séries infantis selecionados para toda a família",
+  theater_badge: "Nos Cinemas",
+  theater_notice_title: "AVISO: Filme atualmente nos cinemas",
+  theater_notice_desc: "A qualidade atual costuma ser baixa. A versão Full HD / 4K estará disponível assim que for lançada em plataformas digitais.",
 };
 
 export const STR: Record<Lang, Dict> = { es, en, pt };
