@@ -169,14 +169,11 @@ async function MovieDetail(id: string, theatersParam?: string) {
               <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border-2 border-amber-500/40 text-amber-200 text-xs sm:text-sm flex items-start gap-3.5 shadow-[0_4px_20px_rgba(245,158,11,0.15)]">
                 <span className="text-2xl shrink-0 mt-0.5">🍿</span>
                 <div>
-                  <p className="font-extrabold text-amber-300 text-sm sm:text-base flex items-center gap-2 flex-wrap">
-                    <span>AVISO: Película actualmente en cines</span>
-                    <span className="text-[10px] font-black bg-amber-500 text-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                      Calidad CAM
-                    </span>
+                  <p className="font-extrabold text-amber-300 text-sm sm:text-base">
+                    AVISO: Película actualmente en cines
                   </p>
                   <p className="text-amber-100/90 text-xs sm:text-sm mt-1 leading-relaxed">
-                    La calidad actual suele ser grabación de sala (CAM / Telesync). La versión Full HD / 4K estará disponible al salir en plataformas digitales.
+                    La calidad actual suele ser baja. La versión Full HD / 4K estará disponible al salir en plataformas digitales.
                   </p>
                 </div>
               </div>
