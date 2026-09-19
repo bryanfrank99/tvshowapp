@@ -211,7 +211,10 @@ function WatchInner() {
         save({ type, id, title: t || `#${id}`, poster: posterUrl, rating: m.vote_average ?? 0, season: s, episode: e });
 
         if (type === "movie") {
-          const isCine = spTheaters || Boolean(d.in_theaters) || Boolean(m.in_theaters) || isMovieInTheaters(m);
+          const isCine = isMovieInTheaters({
+            ...m,
+            in_theaters: spTheaters || Boolean(d?.in_theaters) || Boolean(m?.in_theaters),
+          });
           setInTheaters(isCine);
         } else {
           setInTheaters(false);

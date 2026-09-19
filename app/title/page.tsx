@@ -123,13 +123,12 @@ async function MovieDetail(id: string, theatersParam?: string) {
   const cert = m.certification || "";
   const similar = await getSimilarTitles("movie", id, m.genres);
   
-  // Detección robusta de en cines: query param + nowPlaying cache + release_dates
+  // Detección robusta de en cines: prioritariamente evalúa isMovieInTheaters con release_dates
   const nowPlayingIds = await getNowPlayingIds();
-  const inTheaters =
-    theatersParam === "1" ||
-    nowPlayingIds.has(Number(id)) ||
-    isMovieInTheaters(m) ||
-    Boolean(m?.in_theaters);
+  const inTheaters = isMovieInTheaters({
+    ...m,
+    in_theaters: nowPlayingIds.has(Number(id)) || theatersParam === "1" || Boolean(m?.in_theaters),
+  });
 
   return (
     <>

@@ -12,52 +12,61 @@ export function isMovieInTheaters(m: any): boolean {
     return false;
   }
 
-  // 1. Si la película ya viene marcada explícitamente como en cines (p. ej. por now_playing o query param)
-  if (m.in_theaters === true) {
-    return true;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const now = Date.now();
+
+  // 1. Si la película tiene fecha de estreno y es de hace más de 90 días, NO es exclusiva de cines
+  if (m.release_date) {
+    const relTime = new Date(m.release_date).getTime();
+    if (!isNaN(relTime)) {
+      const daysSince = (now - relTime) / (1000 * 60 * 60 * 24);
+      // Películas estrenadas hace más de 90 días ya tienen distribución digital / streaming
+      if (daysSince > 90) {
+        return false;
+      }
+    }
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  // 2. Análisis detallado si disponemos de release_dates (vía append_to_response=release_dates)
+  // 2. Si disponemos de release_dates (vía append_to_response=release_dates), comprobar si YA salió en streaming / digital o físico
   const results = m.release_dates?.results || [];
   if (Array.isArray(results) && results.length > 0) {
     const all = results.flatMap((r: any) => r.release_dates || []);
 
-    // Verificar si ya tuvo estreno en cines en algún país
-    const hasTheatrical = all.some(
-      (x: any) => (x.type === 2 || x.type === 3) && x.release_date && x.release_date.slice(0, 10) <= todayStr
-    );
-
-    if (!hasTheatrical) {
-      // Si la fecha de estreno en cines aún no ha llegado, verificar fecha general
-      if (m.release_date) {
-        const daysSince = (Date.now() - new Date(m.release_date).getTime()) / (1000 * 60 * 60 * 24);
-        return daysSince >= 0 && daysSince <= 90;
-      }
-      return false;
-    }
-
-    // Comprobar si ya existe estreno digital o físico (Tipo 4 o 5) que ya haya salido
-    // Filtramos prioritariamente por mercados hispanos/globales principales (US, ES, MX, BR)
+    // Comprobar si ya existe estreno digital (4) o físico (5) cuya fecha ya pasó
     const releasedDigitalOrPhysical = all.some(
       (x: any) => (x.type === 4 || x.type === 5) && x.release_date && x.release_date.slice(0, 10) <= todayStr
     );
 
+    // Si ya está en streaming/digital/físico, DEFINITIVAMENTE NO es calidad CAM de cines
     if (releasedDigitalOrPhysical) {
       return false;
     }
 
-    return true;
+    // Comprobar si tuvo estreno en cines reciente (tipo 2 o 3)
+    const hasTheatrical = all.some(
+      (x: any) => (x.type === 2 || x.type === 3) && x.release_date && x.release_date.slice(0, 10) <= todayStr
+    );
+
+    if (hasTheatrical) {
+      return true;
+    }
   }
 
-  // 3. Fallback heurístico por fecha de estreno general si no hay release_dates desglosado (p. ej. desde caché local)
+  // 3. Si viene marcada explícitamente por now_playing, validar que sea reciente (últimos 90 días)
+  if (m.in_theaters === true) {
+    if (m.release_date) {
+      const relTime = new Date(m.release_date).getTime();
+      const daysSince = (now - relTime) / (1000 * 60 * 60 * 24);
+      return daysSince >= -14 && daysSince <= 90;
+    }
+    return false;
+  }
+
+  // 4. Fallback por fecha de estreno (últimos 45 días)
   if (m.release_date) {
     const relTime = new Date(m.release_date).getTime();
-    const nowTime = Date.now();
-    const daysSince = (nowTime - relTime) / (1000 * 60 * 60 * 24);
-    // En cines si se estrenó en los últimos 90 días (ventana teatral típica antes de streaming)
-    return daysSince >= 0 && daysSince <= 90;
+    const daysSince = (now - relTime) / (1000 * 60 * 60 * 24);
+    return daysSince >= 0 && daysSince <= 45;
   }
 
   return false;

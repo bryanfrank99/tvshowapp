@@ -13,8 +13,13 @@ async function tagInTheaters(items: Media[]): Promise<Media[]> {
   try {
     const ids = await getNowPlayingIds();
     if (!ids || ids.size === 0) return items;
+    const now = Date.now();
     return items.map((x: any) => {
       if ((x.media_type === "movie" || !x.media_type) && ids.has(Number(x.id))) {
+        if (x.release_date) {
+          const daysSince = (now - new Date(x.release_date).getTime()) / (1000 * 60 * 60 * 24);
+          if (daysSince > 90) return x;
+        }
         return { ...x, in_theaters: true };
       }
       return x;
@@ -245,9 +250,10 @@ export async function getTrending(page = 1, per = 20): Promise<Page<Media>> {
 
 export async function getNowPlaying(page = 1, per = 24): Promise<Page<Media>> {
   return tmdbOr(async () => {
+    const ids = await getNowPlayingIds();
     const d = await tmdb<Paged<{ results: Media[] }>>(`/movie/now_playing?page=${page}`, 3600);
     return {
-      items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie", in_theaters: true })),
+      items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie", in_theaters: ids.has(Number(x.id)) })),
       hasMore: page < (d.total_pages || 1),
     };
   }, async () => {

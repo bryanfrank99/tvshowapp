@@ -21,7 +21,10 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   if (params.path?.[0] === "movie" && j && j.id) {
     try {
       const nowPlayingIds = await getNowPlayingIds();
-      j.in_theaters = nowPlayingIds.has(Number(j.id)) || isMovieInTheaters(j);
+      j.in_theaters = isMovieInTheaters({
+        ...j,
+        in_theaters: nowPlayingIds.has(Number(j.id)),
+      });
     } catch {}
   }
 
