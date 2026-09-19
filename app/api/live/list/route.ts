@@ -14,7 +14,11 @@ export async function GET(req: Request) {
   try {
     const r = await fetch(target, { next: { revalidate: 300 } });
     if (!r.ok) throw new Error("http " + r.status);
-    return NextResponse.json(await r.json());
+    return NextResponse.json(await r.json(), {
+      headers: {
+        "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800",
+      },
+    });
   } catch {
     return NextResponse.json({ error: "fetch" }, { status: 502 });
   }

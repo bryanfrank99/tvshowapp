@@ -8,6 +8,7 @@ const isStatic = process.env.STATIC_EXPORT === "1" || process.env.OUTPUT_EXPORT 
 const nextConfig = {
   ...(isStatic ? { output: "export" } : {}),
   images: {
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "image.tmdb.org" },
       { protocol: "https", hostname: "via.placeholder.com" },
@@ -15,7 +16,6 @@ const nextConfig = {
       { protocol: "https", hostname: "static.tvmaze.com" },
       { protocol: "https", hostname: "m.media-amazon.com" },
     ],
-    ...(isStatic ? { unoptimized: true } : {}),
   },
   webpack: (config) => {
     if (isStatic) {

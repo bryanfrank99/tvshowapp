@@ -11,7 +11,11 @@ const TTL = 86400 * 1000;
 
 export async function GET() {
   try {
-    if (cache && Date.now() - cache.t < TTL) return NextResponse.json({ logos: cache.data, cached: true });
+    if (cache && Date.now() - cache.t < TTL) {
+      return NextResponse.json({ logos: cache.data, cached: true }, {
+        headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=86400" },
+      });
+    }
     const r = await fetch("https://iptv-org.github.io/api/logos.json", { cache: "no-store" });
     if (!r.ok) throw new Error("http " + r.status);
     const j = await r.json();
@@ -24,7 +28,9 @@ export async function GET() {
       map[k] = l.url;
     }
     cache = { t: Date.now(), data: map };
-    return NextResponse.json({ logos: map });
+    return NextResponse.json({ logos: map }, {
+      headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=86400" },
+    });
   } catch {
     return NextResponse.json({ logos: {} }, { status: 502 });
   }

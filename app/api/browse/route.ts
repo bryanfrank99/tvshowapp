@@ -25,7 +25,11 @@ export async function GET(req: NextRequest) {
       case "search": out = await searchAll(q.get("q") || "", page, 20); break;
       default: return NextResponse.json({ error: "source" }, { status: 400 });
     }
-    return NextResponse.json(out);
+    return NextResponse.json(out, {
+      headers: {
+        "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=86400",
+      },
+    });
   } catch {
     return NextResponse.json({ items: [], hasMore: false }, { status: 502 });
   }

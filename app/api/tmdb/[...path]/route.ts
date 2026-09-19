@@ -25,5 +25,10 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
     } catch {}
   }
 
-  return NextResponse.json(j, { status: r.status });
+  return NextResponse.json(j, {
+    status: r.status,
+    headers: {
+      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+    },
+  });
 }

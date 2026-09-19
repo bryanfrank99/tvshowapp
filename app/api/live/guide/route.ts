@@ -25,7 +25,11 @@ function parseTime(s: string): number {
 
 export async function GET() {
   try {
-    if (cache && Date.now() - cache.t < TTL) return NextResponse.json({ guide: cache.data, cached: true });
+    if (cache && Date.now() - cache.t < TTL) {
+      return NextResponse.json({ guide: cache.data, cached: true }, {
+        headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200" },
+      });
+    }
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
     const map: Record<string, { now: any; next: any }> = {};
     await Promise.all(
@@ -69,7 +73,9 @@ export async function GET() {
       })
     );
     cache = { t: Date.now(), data: map };
-    return NextResponse.json({ guide: map });
+    return NextResponse.json({ guide: map }, {
+      headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200" },
+    });
   } catch {
     return NextResponse.json({ guide: {} }, { status: 502 });
   }
