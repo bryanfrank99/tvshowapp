@@ -18,6 +18,11 @@ export type ProviderId = string;
 
 export type ProviderLang = "es" | "lat" | "en" | "pt" | "multi";
 
+// Re-exportar tipos del modelo unificado Sources
+export type { Source, SourceStreamType, SourceQuality, SourceSubtitle, ResolveRequest, ResolveResponse } from "./sources";
+export { scoreSourceForUser, sortSourcesByPriority, findBestSource, getStreamTypeMeta } from "./sources";
+export { fillTemplate, detectStreamType, formatSubtitles, providerToSource, providersToSources } from "./adapters/provider-adapter";
+
 export const DEFAULT_PROVIDER_LANGS: Record<string, ProviderLang[]> = {
   vidcore: ["es", "en"],
   embos: ["lat", "es", "en"],

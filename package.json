@@ -1,6 +1,6 @@
 {
   "name": "tvshow",
-  "version": "6.13",
+  "version": "6.14",
   "private": true,
   "engines": {
     "node": ">=22"
@@ -13,6 +13,11 @@
     "lint": "next lint",
     "sync": "node scripts/sync-tmdb.mjs",
     "release": "node scripts/release.mjs",
+    "test:phase1": "npx tsx scripts/test-phase1-sources.mjs",
+    "test:phase2": "npx tsx scripts/test-phase2-resolver.mjs",
+    "test:phase3-4": "npx tsx scripts/test-phase3-4-player.mjs",
+    "test:phase5": "npx tsx scripts/test-phase5-healthcheck.mjs",
+    "test:sources": "npm run test:phase1 && npm run test:phase2 && npm run test:phase3-4 && npm run test:phase5",
     "prepare": "husky"
   },
   "dependencies": {

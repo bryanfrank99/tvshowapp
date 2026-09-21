@@ -7,13 +7,7 @@ import type { ProviderDef } from "@/lib/providers";
 // Construye la URL de embed en SERVIDOR. Requiere sesión (código válido).
 // La view_key de Vimeus nunca sale al cliente.
 // GET /api/embed-url?provider=vidcore&type=movie&id=550&s=1&e=1
-const fill = (tpl: string, id: string, s: string, e: string, key: string) => {
-  const idparam = id.startsWith("tt") ? `imdb=${id}` : `tmdb=${id}`;
-  const tmdbflag = id.startsWith("tt") ? "" : "&tmdb=1";
-  return tpl
-    .split("{id}").join(id).split("{s}").join(s).split("{e}").join(e)
-    .split("{key}").join(key).split("{idparam}").join(idparam).split("{tmdbflag}").join(tmdbflag);
-};
+import { fillTemplate } from "@/lib/adapters/provider-adapter";
 
 export async function GET(req: NextRequest) {
   const sess = await checkSession(req.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
@@ -37,7 +31,7 @@ export async function GET(req: NextRequest) {
     const key = process.env.VIMEUS_VIEW_KEY || "";
     const tpl = type === "movie" ? data.movie_tpl : data.tv_tpl;
     return NextResponse.json({
-      url: fill(tpl, id, s, e, (data as any).entry_key || key),
+      url: fillTemplate(tpl, id, parseInt(s, 10) || 1, parseInt(e, 10) || 1, (data as any).entry_key || key),
       needsTmdb: !!(data as any).needs_tmdb,
     });
   } catch {

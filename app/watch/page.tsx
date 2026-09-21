@@ -1,54 +1,44 @@
 // @ts-nocheck
 "use client";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  fetchProviders,
-  type Provider,
-  getProviderLangMeta,
-  findBestProvider,
-  sortProvidersByLang,
-  clearProvidersCache,
-} from "@/lib/providers";
 import { useHistory } from "@/hooks/useHistory";
-import { resolveTmdbId } from "@/lib/resolve";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 import { PlayerSkeleton } from "@/components/Skeleton";
-import AccessGate from "@/components/AccessGate";
 import { ensureSession } from "@/hooks/useSession";
 import { isMovieInTheaters } from "@/lib/theaters";
+import type { Source, ResolveResponse } from "@/lib/sources";
+import PlayerContainer from "@/components/player/PlayerContainer";
+import SourceSelectorGrid from "@/components/player/SourceSelectorGrid";
+import { useSourceFallback } from "@/hooks/useSourceFallback";
 
 function WatchInner() {
   const sp = useSearchParams();
   const type = (sp.get("type") || "movie") as "movie" | "tv";
   const id = sp.get("id") || "";
-  const s = parseInt(sp.get("s") || "1");
-  const e = parseInt(sp.get("e") || "1");
+  const s = parseInt(sp.get("s") || "1", 10) || 1;
+  const e = parseInt(sp.get("e") || "1", 10) || 1;
   const { save } = useHistory();
   const { lang } = useLang();
   const d = t(lang);
 
   const [title, setTitle] = useState(`#${id}`);
-  const [embedId, setEmbedId] = useState(id); // ID efectivo para el player (tras resolver IMDb→TMDB si toca)
-  const [resolving, setResolving] = useState(false);
-  const [noTmdb, setNoTmdb] = useState(false);
-  const [list, setList] = useState<Provider[]>([]);
-  const [userProvider, setUserProvider] = useState<string | null>(null);
-  const [listError, setListError] = useState(false);
+  const [sources, setSources] = useState<Source[]>([]);
+  const [recommendedSourceId, setRecommendedSourceId] = useState<string>("");
+  const [userSourceId, setUserSourceId] = useState<string | null>(null);
+  const [version, setVersion] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [locked, setLocked] = useState(false);
-  const [loadingList, setLoadingList] = useState(true);
-  const [loadingSrc, setLoadingSrc] = useState(false);
-  const [srcError, setSrcError] = useState(false);
-  const [listVersion, setListVersion] = useState("");
   const spTheaters = sp.get("theaters") === "1" || sp.get("in_theaters") === "1";
   const [inTheaters, setInTheaters] = useState(spTheaters);
   const frameBox = useRef<HTMLDivElement>(null);
 
   // Cada vez que cambia el título, temporada o episodio, se restablece la selección manual
   useEffect(() => {
-    setUserProvider(null);
+    setUserSourceId(null);
   }, [id, type, s, e, lang]);
 
   const goFullscreen = () => {
@@ -58,136 +48,80 @@ function WatchInner() {
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
   };
 
-  // Carga lista de servidores desde Supabase
-  const loadList = () => {
-    setListError(false);
+  // Carga y resolución centralizada de fuentes desde /api/resolve
+  const loadSources = useCallback(() => {
+    if (!id) return;
+    setError(false);
     setLocked(false);
-    setLoadingList(true);
-    setSrcError(false);
+    setLoading(true);
+
     ensureSession()
-      .then((ok) => {
+      .then(async (ok) => {
         if (!ok) {
           setLocked(true);
-          setLoadingList(false);
-          return null;
+          setLoading(false);
+          return;
         }
-        return fetchProviders();
-      })
-      .then((res) => {
-        if (!res) return;
-        const { list: rawList, version } = res;
-        const sorted = sortProvidersByLang(rawList, lang);
-        setList(sorted);
-        setListVersion(version);
-        setLoadingList(false);
+
+        const res = await fetch(
+          `/api/resolve?type=${type}&id=${encodeURIComponent(id)}&s=${s}&e=${e}&lang=${encodeURIComponent(lang)}`,
+          { cache: "no-store" }
+        );
+
+        if (res.status === 401) {
+          setLocked(true);
+          setLoading(false);
+          return;
+        }
+
+        if (!res.ok) {
+          setError(true);
+          setLoading(false);
+          return;
+        }
+
+        const data: ResolveResponse = await res.json();
+        if (data && Array.isArray(data.sources)) {
+          setSources(data.sources);
+          setRecommendedSourceId(data.recommendedSourceId || data.sources[0]?.id || "");
+          setVersion(data.version || "");
+        } else {
+          setError(true);
+        }
+        setLoading(false);
       })
       .catch((err) => {
-        if (String((err as Error)?.message) === "locked") setLocked(true);
-        else setListError(true);
-        setLoadingList(false);
-      });
-  };
-  useEffect(loadList, [lang]);
-
-  const recommended = findBestProvider(list, lang);
-  const p = (userProvider && list.find((x) => x.id === userProvider)) || recommended || list[0];
-  const [src, setSrc] = useState("");
-
-  // Alternar al siguiente servidor en caso de fallo o preferencia
-  const cycleNextProvider = () => {
-    if (!list || list.length <= 1) return;
-    const nonBeta = list.filter((x) => !x.is_beta);
-    const pool = nonBeta.length > 0 ? nonBeta : list;
-    const idx = pool.findIndex((x) => x.id === p?.id);
-    const nextP = pool[(idx + 1) % pool.length];
-    if (nextP) setUserProvider(nextP.id);
-  };
-
-  // URL final construida en SERVIDOR (/api/embed-url)
-  useEffect(() => {
-    if (!p || locked) {
-      setSrc("");
-      setLoadingSrc(false);
-      return;
-    }
-    const eid = embedId || id;
-    setLoadingSrc(true);
-    setSrcError(false);
-    let cancelled = false;
-
-    fetch(`/api/embed-url?provider=${p.id}&type=${type}&id=${encodeURIComponent(eid)}&s=${s}&e=${e}`, {
-      cache: "no-store",
-    })
-      .then(async (r) => {
-        if (cancelled) return;
-        if (r.status === 401) {
-          const ok = await ensureSession();
-          if (cancelled) return;
-          if (ok) {
-            const r2 = await fetch(
-              `/api/embed-url?provider=${p.id}&type=${type}&id=${encodeURIComponent(eid)}&s=${s}&e=${e}`,
-              { cache: "no-store" }
-            );
-            if (cancelled) return;
-            if (r2.ok) {
-              const j2 = await r2.json();
-              if (j2.url) {
-                setSrc(j2.url);
-                setLoadingSrc(false);
-                return;
-              }
-            }
-          }
-          clearProvidersCache();
+        if (String((err as Error)?.message) === "locked") {
           setLocked(true);
-          setSrc("");
-          setLoadingSrc(false);
-          return;
+        } else {
+          setError(true);
         }
-        if (!r.ok) {
-          setSrc("");
-          setSrcError(true);
-          setLoadingSrc(false);
-          return;
-        }
-        const j = await r.json();
-        if (!j.url) {
-          setSrc("");
-          setSrcError(true);
-          setLoadingSrc(false);
-          return;
-        }
-        setSrc(j.url);
-        setLoadingSrc(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSrc("");
-          setSrcError(true);
-          setLoadingSrc(false);
-        }
+        setLoading(false);
       });
+  }, [id, type, s, e, lang]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [p, embedId, type, id, s, e, locked]);
-
-  // Si el proveedor exige TMDB y el id es IMDb, resolver vía Cinemeta
   useEffect(() => {
-    setNoTmdb(false);
-    if (!p) return;
-    if (p.needsTmdb && id.startsWith("tt")) {
-      setResolving(true);
-      resolveTmdbId(type, id).then((tmdb) => {
-        if (tmdb) setEmbedId(tmdb);
-        else setNoTmdb(true);
-        setResolving(false);
-      });
-    } else {
-      setEmbedId(id);
-    }
-  }, [p, type, id]);
+    loadSources();
+  }, [loadSources]);
+
+  // Hook de fallback inteligente
+  const {
+    activeSource,
+    fallbackNotice,
+    cycleNext,
+    handleSourceError,
+    handleSourceLoad,
+  } = useSourceFallback({
+    sources,
+    userSourceId,
+    recommendedSourceId,
+    lang,
+  });
+
+  const handleCycleNext = () => {
+    const next = cycleNext();
+    if (next) setUserSourceId(next.id);
+  };
 
   // Metadatos (título, historial y detección en cines)
   useEffect(() => {
@@ -208,7 +142,15 @@ function WatchInner() {
             : `https://image.tmdb.org/t/p/w500${m.poster_path}`
           : m.poster || "";
         if (t) setTitle(t);
-        save({ type, id, title: t || `#${id}`, poster: posterUrl, rating: m.vote_average ?? 0, season: s, episode: e });
+        save({
+          type,
+          id,
+          title: t || `#${id}`,
+          poster: posterUrl,
+          rating: m.vote_average ?? 0,
+          season: s,
+          episode: e,
+        });
 
         if (type === "movie") {
           const isCine = isMovieInTheaters({
@@ -262,72 +204,29 @@ function WatchInner() {
         </h1>
       </div>
 
-      {/* 2. Contenedor de Video 16:9 con marco cinemático y sombra ambiental */}
-      <div
+      {/* Aviso de conmutación automática de servidor (si se activa fallback) */}
+      {fallbackNotice && (
+        <div className="mb-3 p-3 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs sm:text-sm flex items-center gap-2 animate-fade-in shadow-lg">
+          <span className="text-lg">🔄</span>
+          <span className="font-medium">{fallbackNotice}</span>
+        </div>
+      )}
+
+      {/* 2. Contenedor Maestro de Video */}
+      <PlayerContainer
         ref={frameBox}
-        className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden border border-white/15 bg-black shadow-[0_12px_40px_rgba(0,0,0,0.85)] ring-1 ring-white/5"
-      >
-        {locked ? (
-          <div className="aspect-video flex flex-col items-center justify-center gap-3 p-4 overflow-y-auto">
-            <AccessGate onOk={loadList} />
-          </div>
-        ) : listError ? (
-          <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
-            <p className="text-sm sm:text-base text-red-300 font-medium">{d.list_error}</p>
-            <button
-              onClick={loadList}
-              className="px-5 py-2.5 rounded-xl bg-[#008CFF] hover:bg-[#0077dd] text-sm font-bold active:scale-95 transition shadow-lg"
-            >
-              {d.reintentar}
-            </button>
-          </div>
-        ) : (loadingList || resolving || loadingSrc) && !srcError ? (
-          <PlayerSkeleton />
-        ) : noTmdb ? (
-          <div className="aspect-video flex flex-col items-center justify-center gap-4 p-6 text-center">
-            <p className="text-sm sm:text-base text-amber-300 font-medium">
-              {p?.name} {d.no_tmdb}
-            </p>
-            {list.length > 1 && (
-              <button
-                onClick={cycleNextProvider}
-                className="px-5 py-2.5 rounded-xl bg-[#008CFF] hover:bg-[#0077dd] text-sm font-bold active:scale-95 transition shadow-lg inline-flex items-center gap-2"
-              >
-                <span>🔄</span>
-                <span>{lang === "pt" ? "Testar outro servidor" : "Probar otro servidor"}</span>
-              </button>
-            )}
-          </div>
-        ) : !src || srcError ? (
-          <div className="aspect-video flex flex-col items-center justify-center gap-4 p-6 text-center">
-            <p className="text-sm sm:text-base text-amber-300 font-medium max-w-md">
-              {lang === "pt"
-                ? "Não foi possível reproduzir neste servidor. Selecione outro servidor abaixo."
-                : "No se pudo reproducir en este servidor. Prueba seleccionando otro de la lista."}
-            </p>
-            {list.length > 1 && (
-              <button
-                onClick={cycleNextProvider}
-                className="px-5 py-2.5 rounded-xl bg-[#008CFF] hover:bg-[#0077dd] text-sm font-bold active:scale-95 transition shadow-lg inline-flex items-center gap-2"
-              >
-                <span>🔄</span>
-                <span>{lang === "pt" ? "Testar outro servidor" : "Probar otro servidor"}</span>
-              </button>
-            )}
-          </div>
-        ) : (
-          <iframe
-            key={src}
-            src={src}
-            autoFocus
-            referrerPolicy="origin"
-            title={title}
-            className="w-full aspect-video bg-black"
-            allowFullScreen
-            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-          />
-        )}
-      </div>
+        source={activeSource}
+        title={title}
+        locked={locked}
+        loading={loading}
+        error={error}
+        hasNoSources={sources.length === 0}
+        onRetry={loadSources}
+        onCycleNext={handleCycleNext}
+        onSourceError={handleSourceError}
+        onSourceLoad={handleSourceLoad}
+        lang={lang}
+      />
 
       {/* 3. Barra de Acciones Rápidas del Reproductor */}
       <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
@@ -341,9 +240,9 @@ function WatchInner() {
             <span>{d.fullscreen}</span>
           </button>
 
-          {list.length > 1 && (
+          {sources.length > 1 && (
             <button
-              onClick={cycleNextProvider}
+              onClick={handleCycleNext}
               className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-semibold text-zinc-300 hover:text-white hover:border-[#008CFF]/60 hover:bg-[#008CFF]/10 active:scale-95 transition inline-flex items-center gap-2 touch-manipulation"
               title="Cambiar al siguiente servidor"
             >
@@ -395,123 +294,17 @@ function WatchInner() {
         </div>
       )}
 
-      {/* 5. Centro de Control de Reproducción y Servidores */}
-      <div className="mt-5 p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-zinc-900/60 border border-white/10 shadow-lg">
-        <div className="flex items-center justify-between gap-3 mb-3.5 flex-wrap pb-3.5 border-b border-white/10">
-          <div>
-            <p className="text-xs text-zinc-400 font-medium">{d.servidor} activo:</p>
-            <p className="text-base sm:text-lg font-black text-white flex items-center gap-2 mt-0.5">
-              <span className="text-[#008CFF]">{p?.name || "…"}</span>
-              {p?.id === recommended?.id && (
-                <span className="text-[10px] bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full text-emerald-300 font-bold inline-flex items-center gap-1">
-                  ⭐ {lang === "pt" ? "Recomendado" : "Recomendado"}
-                </span>
-              )}
-              {p?.is_beta && (
-                <span className="text-[10px] bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-full text-amber-300 font-bold inline-flex items-center gap-1">
-                  🧪 Beta
-                </span>
-              )}
-            </p>
-          </div>
-
-          {p && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl text-zinc-200 inline-flex items-center gap-1.5">
-                <span>🔊 Audio:</span>
-                <b className="text-white">
-                  {(p.languages || [p.lang]).map((a) => `${getProviderLangMeta(a).flag} ${getProviderLangMeta(a).name}`).join(", ")}
-                </b>
-              </span>
-              {p.subtitles && p.subtitles.length > 0 && (
-                <span className="text-xs bg-sky-500/10 border border-sky-500/25 px-2.5 py-1 rounded-xl text-sky-300 inline-flex items-center gap-1.5">
-                  <span>💬 Subs:</span>
-                  <b className="text-sky-200">{p.subtitles.map((sub) => sub.toUpperCase()).join(", ")}</b>
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-
-        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-          {lang === "pt" ? "Outros servidores e idiomas disponíveis:" : "Otros servidores e idiomas disponibles:"}
-        </p>
-
-        {/* Cuadrícula de Servidores */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-          {list.map((x) => {
-            const isSelected = p?.id === x.id;
-            const isRec = x.id === recommended?.id;
-            const audios = x.languages && x.languages.length ? x.languages : [x.lang];
-            const subs = x.subtitles || [];
-            const primaryMeta = getProviderLangMeta(audios[0] || x.lang);
-
-            return (
-              <button
-                key={x.id}
-                onClick={() => setUserProvider(x.id)}
-                className={`text-left p-3 rounded-2xl border transition-all duration-200 active:scale-[0.98] flex flex-col justify-between gap-2.5 touch-manipulation ${
-                  isSelected
-                    ? "bg-[#008CFF]/15 border-[#008CFF] shadow-[0_0_20px_rgba(0,140,255,0.3)] ring-1 ring-[#008CFF]"
-                    : x.is_beta
-                    ? "bg-amber-500/5 border-amber-500/20 hover:border-amber-500/50 hover:bg-amber-500/10 text-zinc-200"
-                    : "bg-white/5 border-white/10 hover:border-white/25 hover:bg-white/10 text-zinc-200"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1 w-full">
-                  <span className={`text-sm font-bold truncate ${isSelected ? "text-white" : "text-zinc-100"}`}>
-                    {x.name}
-                  </span>
-                  {isSelected ? (
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#008CFF] animate-pulse shrink-0" />
-                  ) : isRec ? (
-                    <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded-md shrink-0">
-                      ⭐
-                    </span>
-                  ) : x.is_beta ? (
-                    <span className="text-[9px] font-extrabold text-amber-400 bg-amber-500/20 px-1 py-0.5 rounded-md shrink-0">
-                      BETA
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
-                  <span
-                    className={`px-2 py-0.5 rounded-lg font-semibold inline-flex items-center gap-1 ${
-                      isSelected ? "bg-white/20 text-white" : primaryMeta.color
-                    }`}
-                  >
-                    <span>🔊</span>
-                    <span>{audios.map((a) => getProviderLangMeta(a).badge).join("/")}</span>
-                  </span>
-                  {subs.length > 0 && (
-                    <span
-                      className={`px-2 py-0.5 rounded-lg font-medium inline-flex items-center gap-1 ${
-                        isSelected ? "bg-white/20 text-white" : "bg-sky-500/15 border border-sky-500/30 text-sky-300"
-                      }`}
-                    >
-                      <span>💬</span>
-                      <span>{subs.map((sub) => sub.toUpperCase()).join("/")}</span>
-                    </span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between gap-2 flex-wrap text-xs text-zinc-400">
-          <p className="flex items-center gap-1.5">
-            <span>💡</span>
-            <span>
-              {lang === "pt"
-                ? "Se o vídeo travar ou estiver sem som, selecione qualquer um dos outros servidores acima."
-                : "Si el video se detiene o no tiene audio, selecciona cualquiera de los otros servidores arriba."}
-            </span>
-          </p>
-          {listVersion && <span className="text-zinc-500 text-[11px]">v{listVersion}</span>}
-        </div>
-      </div>
+      {/* 5. Centro de Control de Reproducción y Selector de Servidores */}
+      {sources.length > 0 && (
+        <SourceSelectorGrid
+          sources={sources}
+          activeSource={activeSource}
+          recommendedSourceId={recommendedSourceId}
+          onSelectSource={(source) => setUserSourceId(source.id)}
+          lang={lang}
+          version={version}
+        />
+      )}
 
       {/* 6. Nota amistosa de soporte */}
       <div className="mt-4 p-3.5 rounded-2xl bg-white/5 border border-white/10 text-xs sm:text-sm text-zinc-400 flex items-start gap-2.5">

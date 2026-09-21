@@ -32,7 +32,7 @@ export async function setClientLang(l: Lang) {
 }
 
 export function useLang() {
-  const [lang, setLang] = useState<Lang>("pt");
+  const [lang, setLang] = useState<Lang>(() => getClientLang());
   useEffect(() => {
     const current = getClientLang();
     setLang(current);

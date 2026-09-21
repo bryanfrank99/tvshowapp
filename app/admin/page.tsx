@@ -137,6 +137,33 @@ export default function AdminPage() {
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "expiring" | "full" | "expired">("all");
   const [expandedCodeId, setExpandedCodeId] = useState<string | null>(null);
 
+  // Health check y monitoreo de servidores
+  const [healthData, setHealthData] = useState<Record<string, { status: string; latencyMs: number; error?: string }> | null>(null);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+
+  const runHealthCheck = async () => {
+    setIsCheckingHealth(true);
+    setMsg("Ejecutando diagnóstico de conectividad en servidores...");
+    try {
+      const r = await api("providers/health-check");
+      if (!r.ok) {
+        setMsg("Error ejecutando diagnóstico");
+        return;
+      }
+      const j = await r.json();
+      const map: Record<string, any> = {};
+      for (const res of j.results || []) {
+        map[res.id] = res;
+      }
+      setHealthData(map);
+      setMsg(`Diagnóstico completado: ${j.summary?.healthy || 0} óptimos, ${j.summary?.down || 0} con incidencia.`);
+    } catch {
+      setMsg("Fallo al conectar con el endpoint de diagnóstico");
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  };
+
   // Modales
   const [edit, setEdit] = useState<(Partial<Prov> & { _new?: boolean }) | null>(null);
   const [editLive, setEditLive] = useState<(Partial<Live> & { _new?: boolean }) | null>(null);
@@ -1202,29 +1229,42 @@ export default function AdminPage() {
       {/* PESTAÑA 3: SERVIDORES / PROVEEDORES (Solo Super Admin) */}
       {tab === "prov" && isSuperAdmin && (
         <>
-          <button
-            onClick={() =>
-              setEdit({
-                _new: true,
-                id: "",
-                name: "",
-                movie_tpl: "",
-                tv_tpl: "",
-                needs_tmdb: true,
-                tv_ok: true,
-                active: true,
-                ord: provs.length + 1,
-                is_beta: false,
-              } as any)
-            }
-            className="mb-4 px-4 py-2 rounded-xl bg-[#008CFF] font-bold text-sm text-white shadow-lg shadow-[#008CFF]/20"
-          >
-            + Nuevo Servidor
-          </button>
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <button
+              onClick={() =>
+                setEdit({
+                  _new: true,
+                  name: "",
+                  movie_tpl: "",
+                  tv_tpl: "",
+                  lang: "multi",
+                  languages: ["multi"],
+                  subtitles: [],
+                  needs_tmdb: true,
+                  tv_ok: true,
+                  active: true,
+                  ord: provs.length + 1,
+                  is_beta: false,
+                } as any)
+              }
+              className="px-4 py-2 rounded-xl bg-[#008CFF] font-bold text-sm text-white shadow-lg shadow-[#008CFF]/20"
+            >
+              + Nuevo Servidor
+            </button>
+            <button
+              onClick={runHealthCheck}
+              disabled={isCheckingHealth}
+              className={`${btn} bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 font-semibold flex items-center gap-1.5`}
+            >
+              <span>{isCheckingHealth ? "⏳" : "⚡"}</span>
+              <span>{isCheckingHealth ? "Diagnosticando servidores..." : "Diagnosticar Servidores"}</span>
+            </button>
+          </div>
           <div className="space-y-2">
             {provs.map((p) => {
               const langs = p.languages || (p.lang ? [p.lang] : ["multi"]);
               const subs = p.subtitles || [];
+              const h = healthData?.[p.id];
               return (
                 <div
                   key={p.id}
@@ -1237,6 +1277,29 @@ export default function AdminPage() {
                       ({p.simulated_name || "S-"})
                     </span>
                   </b>
+                  {h && (
+                    h.status === "healthy" ? (
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span>{h.latencyMs}ms</span>
+                      </span>
+                    ) : h.status === "slow" ? (
+                      <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        <span>Lento ({h.latencyMs}ms)</span>
+                      </span>
+                    ) : h.status === "degraded" ? (
+                      <span className="text-[10px] bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                        <span>WAF ({h.latencyMs}ms)</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1" title={h.error}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                        <span>Caído</span>
+                      </span>
+                    )
+                  )}
                   {p.is_beta && (
                     <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-bold">
                       🧪 BETA
