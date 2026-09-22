@@ -72,6 +72,8 @@ const ALLOWED_STREAM_HOSTS = [
   'streambetter.shop',
   'megaembed.com',
   'mgeb.top',
+  'playerflix.ink',
+  'superembed.stream',
   'image.tmdb.org',
   'via.placeholder.com',
   'metahub.space',

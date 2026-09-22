@@ -8,6 +8,8 @@ interface VersionInfo {
   tag: string;
   name: string;
   apkUrl: string;
+  exeUrl?: string;
+  windowsUrl?: string;
   releaseNotes: string;
 }
 
@@ -47,6 +49,7 @@ function formatBytes(bytes: number): string {
 
 export default function AppUpdater() {
   const [isNative, setIsNative] = useState(false);
+  const [platform, setPlatform] = useState<"android" | "windows" | "web">("web");
   const [currentVersion, setCurrentVersion] = useState<string>("");
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -70,13 +73,25 @@ export default function AppUpdater() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const bridge = (window as any).AndroidUpdater;
+    const bridge =
+      (window as any).DesktopUpdater ||
+      (window as any).WindowsUpdater ||
+      (window as any).AndroidUpdater;
+
     if (!bridge) {
-      // No estamos en la app nativa Android, no ejecutar updater
+      // No estamos en una app nativa instalada (Android o Windows), no ejecutar updater
       return;
     }
 
+    const isWin = Boolean(
+      (window as any).DesktopUpdater ||
+      (window as any).WindowsUpdater ||
+      (window as any).electronAPI?.isElectron
+    );
+
     setIsNative(true);
+    setPlatform(isWin ? "windows" : "android");
+
     const installed = bridge.getAppVersion ? bridge.getAppVersion() : "1.0.0";
     setCurrentVersion(installed);
 
@@ -136,13 +151,22 @@ export default function AppUpdater() {
     }
   }, [showModal, updateState]);
 
-  // 4. Iniciar descarga del APK
+  // 4. Iniciar descarga de la actualización (APK en Android / EXE en Windows)
   const startUpdate = () => {
     if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current);
     setCountdown(null);
 
-    const bridge = (window as any).AndroidUpdater;
-    if (!bridge || !versionInfo?.apkUrl) {
+    const bridge =
+      (window as any).DesktopUpdater ||
+      (window as any).WindowsUpdater ||
+      (window as any).AndroidUpdater;
+
+    const downloadUrl =
+      platform === "windows"
+        ? (versionInfo?.exeUrl || versionInfo?.windowsUrl || versionInfo?.apkUrl)
+        : versionInfo?.apkUrl;
+
+    if (!bridge || !downloadUrl) {
       setErrorMessage("No se encontró el enlace de descarga o el puente nativo");
       setUpdateState("error");
       return;
@@ -153,7 +177,7 @@ export default function AppUpdater() {
     setErrorMessage("");
 
     try {
-      bridge.startDownload(versionInfo.apkUrl);
+      bridge.startDownload(downloadUrl);
     } catch (err: any) {
       setErrorMessage(err?.message || "Error al iniciar descarga");
       setUpdateState("error");
@@ -201,9 +225,13 @@ export default function AppUpdater() {
     setShowModal(false);
   };
 
-  // 6. Abrir configuración de fuentes desconocidas si no está concedido
+  // 6. Abrir configuración de fuentes desconocidas si no está concedido (Android)
   const openPermissionSettings = () => {
-    const bridge = (window as any).AndroidUpdater;
+    const bridge =
+      (window as any).DesktopUpdater ||
+      (window as any).WindowsUpdater ||
+      (window as any).AndroidUpdater;
+
     if (bridge?.openInstallSettings) {
       bridge.openInstallSettings();
     }
@@ -211,8 +239,14 @@ export default function AppUpdater() {
 
   // 7. Forzar relanzamiento del instalador si ya terminó
   const launchInstallerAgain = () => {
-    const bridge = (window as any).AndroidUpdater;
-    if (bridge?.installApk) {
+    const bridge =
+      (window as any).DesktopUpdater ||
+      (window as any).WindowsUpdater ||
+      (window as any).AndroidUpdater;
+
+    if (bridge?.installUpdate) {
+      bridge.installUpdate();
+    } else if (bridge?.installApk) {
       bridge.installApk();
     }
   };
@@ -277,10 +311,16 @@ export default function AppUpdater() {
               </div>
             )}
 
-            {!canInstall && (
+            {!canInstall && platform === "android" && (
               <div className="bg-amber-950/40 border border-amber-600/40 rounded-xl p-3 mb-4 text-xs text-amber-300 text-left">
                 <strong>Nota de permisos:</strong> Android solicitará autorizar la instalación de
                 apps para TVShow. Puedes activarlo al abrir el instalador o en ajustes.
+              </div>
+            )}
+
+            {platform === "windows" && (
+              <div className="bg-sky-950/40 border border-sky-600/40 rounded-xl p-3 mb-4 text-xs text-sky-300 text-left">
+                <strong>Actualización de Windows:</strong> Al completar la descarga, se abrirá el asistente de instalación para actualizar TVShow automáticamente.
               </div>
             )}
 
@@ -308,7 +348,9 @@ export default function AppUpdater() {
         {updateState === "downloading" && (
           <div className="w-full mb-6">
             <p className="text-zinc-300 text-sm mb-4">
-              Descargando archivo APK de actualización...
+              {platform === "windows"
+                ? "Descargando instalador de actualización para Windows..."
+                : "Descargando archivo APK de actualización..."}
             </p>
 
             {/* Barra de progreso */}
@@ -338,8 +380,9 @@ export default function AppUpdater() {
             <div className="p-4 bg-emerald-950/40 border border-emerald-500/40 rounded-xl text-emerald-300 text-sm">
               <p className="font-semibold mb-1">¡Descarga completada!</p>
               <p className="text-xs text-emerald-400/90">
-                Se ha abierto el instalador de Android. Confirma la instalación en pantalla para
-                completar la actualización.
+                {platform === "windows"
+                  ? "Se ha iniciado el instalador de TVShow. La aplicación se cerrará en un momento para completar la actualización."
+                  : "Se ha abierto el instalador de Android. Confirma la instalación en pantalla para completar la actualización."}
               </p>
             </div>
 

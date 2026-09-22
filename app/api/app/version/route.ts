@@ -10,6 +10,8 @@ interface VersionCache {
     tag: string;
     name: string;
     apkUrl: string;
+    exeUrl: string;
+    windowsUrl?: string;
     releaseNotes: string;
     publishedAt: string;
   };
@@ -31,8 +33,9 @@ export async function GET(request: Request) {
     });
   }
 
-  const defaultVersion = String((pkg as any).version || "6.1");
-  const fallbackApkUrl = `https://github.com/bryanfrank99/tvshowapp/releases/download/v${defaultVersion}/TVShow-v${defaultVersion}.apk`;
+  const defaultVersion = String((pkg as any).version || "6.16");
+  const fallbackApkUrl = `https://github.com/bryanfrank99/tvshowapp/releases/download/v${defaultVersion}/TVShow-Mobile-v${defaultVersion}.apk`;
+  const fallbackExeUrl = `https://github.com/bryanfrank99/tvshowapp/releases/download/v${defaultVersion}/TVShow-Setup-${defaultVersion}.exe`;
 
   try {
     const res = await fetch("https://api.github.com/repos/bryanfrank99/tvshowapp/releases/latest", {
@@ -51,8 +54,9 @@ export async function GET(request: Request) {
     const tag = release.tag_name || `v${defaultVersion}`;
     const cleanVersion = tag.replace(/^v/i, "");
 
-    // Buscar el APK dentro de los assets publicados
+    // Buscar APK y EXE dentro de los assets publicados
     let apkUrl = fallbackApkUrl;
+    let exeUrl = fallbackExeUrl;
     if (Array.isArray(release.assets)) {
       const apkAsset = release.assets.find(
         (a: any) => typeof a.name === "string" && a.name.toLowerCase().endsWith(".apk")
@@ -60,9 +64,16 @@ export async function GET(request: Request) {
       if (apkAsset?.browser_download_url) {
         apkUrl = apkAsset.browser_download_url;
       }
+
+      const exeAsset = release.assets.find(
+        (a: any) => typeof a.name === "string" && a.name.toLowerCase().endsWith(".exe")
+      );
+      if (exeAsset?.browser_download_url) {
+        exeUrl = exeAsset.browser_download_url;
+      }
     }
 
-    const cleanCode = parseInt(cleanVersion.replace(/[^0-9]/g, ""), 10) || 560;
+    const cleanCode = parseInt(cleanVersion.replace(/[^0-9]/g, ""), 10) || 616;
 
     const data = {
       latestVersion: cleanVersion,
@@ -70,6 +81,8 @@ export async function GET(request: Request) {
       tag,
       name: release.name || `TVShow ${tag}`,
       apkUrl,
+      exeUrl,
+      windowsUrl: exeUrl,
       releaseNotes: release.body || "",
       publishedAt: release.published_at || new Date().toISOString(),
     };
@@ -86,10 +99,12 @@ export async function GET(request: Request) {
   } catch (err: any) {
     const fallbackData = {
       latestVersion: defaultVersion,
-      versionCode: parseInt(defaultVersion.replace(/[^0-9]/g, ""), 10) || 560,
+      versionCode: parseInt(defaultVersion.replace(/[^0-9]/g, ""), 10) || 616,
       tag: `v${defaultVersion}`,
       name: `TVShow v${defaultVersion}`,
       apkUrl: fallbackApkUrl,
+      exeUrl: fallbackExeUrl,
+      windowsUrl: fallbackExeUrl,
       releaseNotes: "",
       publishedAt: new Date().toISOString(),
       fallback: true,

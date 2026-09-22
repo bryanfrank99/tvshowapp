@@ -1,9 +1,27 @@
-const { app, BrowserWindow, shell, session, Menu } = require('electron');
+const { app, BrowserWindow, shell, session, Menu, ipcMain } = require('electron');
 const path = require('path');
 const { initAdBlock, isBlocked, isAllowedHost, isSafeExternalUrl } = require('./adblock');
+const { desktopUpdater } = require('./updater');
 
 // Inicializar base de datos de hosts de anuncios
 initAdBlock();
+
+// Canales IPC para el sistema de actualización automática en Windows
+ipcMain.on('desktop-updater:get-version-sync', (event) => {
+  event.returnValue = desktopUpdater.getAppVersion();
+});
+
+ipcMain.on('desktop-updater:get-status-sync', (event) => {
+  event.returnValue = desktopUpdater.getStatus();
+});
+
+ipcMain.on('desktop-updater:start-download', (event, url) => {
+  desktopUpdater.startDownload(url);
+});
+
+ipcMain.on('desktop-updater:install', () => {
+  desktopUpdater.installUpdate();
+});
 
 // Garantizar instancia única
 const gotTheLock = app.requestSingleInstanceLock();
@@ -75,7 +93,7 @@ function createMainWindow() {
     return callback({ cancel: false });
   });
 
-  // 3. Control de navegaciones directas de la ventana principal
+  // 3. Control de navegaciones directas de la ventana principal (will-navigate)
   mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
     try {
       const parsed = new URL(navigationUrl);
@@ -103,7 +121,48 @@ function createMainWindow() {
     }
   });
 
-  // 4. Atajos de teclado útiles (F11 para Pantalla Completa, Escape para salir)
+  // 4. Interceptor de navegación dentro de iframes (will-frame-navigate)
+  mainWindow.webContents.on('will-frame-navigate', (event) => {
+    const url = event.url;
+    if (isBlocked(url)) {
+      event.preventDefault();
+      console.log('[AdBlock] Navegación de frame bloqueada a host de anuncios:', url);
+      return;
+    }
+    if (!event.isMainFrame) {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          if (isSafeExternalUrl(url)) {
+            event.preventDefault();
+            shell.openExternal(url).catch(() => {});
+          } else if (isBlocked(url)) {
+            event.preventDefault();
+          }
+        }
+      } catch {}
+    }
+  });
+
+  // 5. Neutralizar scripts de popunders y popups en sub-frames al finalizar la carga
+  mainWindow.webContents.on('did-frame-finish-load', (event, isMainFrame, frameProcessId, frameRoutingId) => {
+    if (!isMainFrame) {
+      try {
+        if (typeof mainWindow.webContents.executeJavaScriptInFrame === 'function') {
+          mainWindow.webContents.executeJavaScriptInFrame(
+            [frameProcessId, frameRoutingId],
+            `try {
+              window.open = function() { console.log('[AdBlock] window.open bloqueado dentro de iframe'); return null; };
+              window.alert = function() { return null; };
+              window.confirm = function() { return false; };
+            } catch(e) {}`
+          ).catch(() => {});
+        }
+      } catch {}
+    }
+  });
+
+  // 6. Atajos de teclado útiles (F11 para Pantalla Completa, Escape para salir)
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'F11' && input.type === 'keyDown') {
       mainWindow.setFullScreen(!mainWindow.isFullScreen());
