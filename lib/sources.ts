@@ -21,6 +21,7 @@ export interface Source {
   providerId: string;         // ID del proveedor subyacente (ej: "vidcore")
   providerName: string;       // Nombre para mostrar (ej: "S1", "Vidcore")
   realName?: string;          // Nombre real para admin/diagnóstico
+  ord?: number;               // ID persistente / número de orden en administración (ej: 1, 11)
   type: SourceStreamType;     // Tipo de fuente: iframe, hls, dash, mp4
   url: string;                // URL lista para reproducir o embeber
   quality?: SourceQuality;    // Calidad estimada o detectada

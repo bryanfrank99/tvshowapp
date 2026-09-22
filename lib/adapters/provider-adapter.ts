@@ -76,6 +76,7 @@ export interface ProviderAdapterInput {
   name: string;
   real_name?: string;
   simulated_name?: string;
+  ord?: number;
   lang?: any;
   languages?: any;
   subtitles?: any;
@@ -150,6 +151,7 @@ export function providerToSource(
     providerId: provider.id,
     providerName: provider.simulated_name || provider.name,
     realName: provider.real_name || provider.name,
+    ord: provider.ord,
     type: streamType,
     url: resolvedUrl,
     lang: primaryLang,

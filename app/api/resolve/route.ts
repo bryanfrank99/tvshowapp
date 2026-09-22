@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
     const [provRes, verRes] = await Promise.all([
       sb
         .from("providers")
-        .select("id, name, movie_tpl, tv_tpl, needs_tmdb, tv_ok, entry_key, lang, subtitles, is_beta")
+        .select("id, name, ord, movie_tpl, tv_tpl, needs_tmdb, tv_ok, entry_key, lang, subtitles, is_beta")
         .eq("active", true)
         .order("ord"),
       sb.from("config").select("value").eq("key", "providers_version").maybeSingle(),
@@ -145,10 +145,15 @@ export async function GET(req: NextRequest) {
         ? (effectiveTmdbId || rawId)
         : (effectiveImdbId || rawId);
 
+      const serverOrd = typeof p.ord === "number" ? p.ord : serverIndex++;
+      const canonicalSimulatedName = `S${serverOrd}`;
+
       eligibleProviders.push({
         id: p.id,
-        name: p.name,
+        name: canonicalSimulatedName,
         real_name: p.name,
+        simulated_name: canonicalSimulatedName,
+        ord: serverOrd,
         movie_tpl: p.movie_tpl,
         tv_tpl: p.tv_tpl,
         needs_tmdb: requiresTmdb,
@@ -182,11 +187,8 @@ export async function GET(req: NextRequest) {
     // Ordenar TODAS las fuentes según afinidad lingüística real
     const sorted = sortSourcesByPriority(rawSources, userLang);
 
-    // Asignar nombres secuenciales S1, S2, S3... según el orden óptimo para el usuario
-    const sources = sorted.map((src, idx) => ({
-      ...src,
-      providerName: `S${idx + 1}`,
-    }));
+    // Conservar identificadores canónicos (S{ord}) para coincidir 1:1 con administración
+    const sources = sorted;
 
     const recommendedSourceId = sources[0]?.id || "";
 

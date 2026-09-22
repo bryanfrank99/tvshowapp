@@ -30,7 +30,14 @@ export default function SourceSelectorGrid({
             {lang === "pt" ? "Servidor ativo:" : "Servidor activo:"}
           </p>
           <p className="text-base sm:text-lg font-black text-white flex items-center gap-2 mt-0.5">
-            <span className="text-[#008CFF]">{p?.providerName || "…"}</span>
+            <span className="text-[#008CFF] flex items-center gap-1.5">
+              {p?.ord ? (
+                <span className="text-xs font-mono font-bold bg-[#008CFF]/20 text-[#008CFF] border border-[#008CFF]/30 px-2 py-0.5 rounded-lg">
+                  #{p.ord}
+                </span>
+              ) : null}
+              <span>{p?.providerName || "…"}</span>
+            </span>
             {p?.id === recommendedSourceId && (
               <span className="text-[10px] bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full text-emerald-300 font-bold inline-flex items-center gap-1">
                 ⭐ {lang === "pt" ? "Recomendado" : "Recomendado"}
@@ -102,9 +109,16 @@ export default function SourceSelectorGrid({
               }`}
             >
               <div className="flex items-center justify-between gap-1 w-full">
-                <span className={`text-sm font-bold truncate ${isSelected ? "text-white" : "text-zinc-100"}`}>
-                  {x.providerName}
-                </span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {x.ord ? (
+                    <span className="text-[10px] font-mono font-extrabold text-zinc-400 bg-white/10 px-1.5 py-0.5 rounded shrink-0">
+                      #{x.ord}
+                    </span>
+                  ) : null}
+                  <span className={`text-sm font-bold truncate ${isSelected ? "text-white" : "text-zinc-100"}`}>
+                    {x.providerName}
+                  </span>
+                </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span
                     className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${typeMeta.color}`}

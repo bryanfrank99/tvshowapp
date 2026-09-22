@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const enriched = (p.data || []).map((x: any) => {
     const languages = parseLangs(x.lang, x.id);
     const subtitles = parseSubs(x.subtitles, x.id);
-    const simulated_name = x.active ? `S${activeIndex++}` : "S-";
+    const simulated_name = x.active ? `S${typeof x.ord === "number" ? x.ord : activeIndex++}` : "S-";
     return {
       ...x,
       real_name: x.name,

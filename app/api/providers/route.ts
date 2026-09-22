@@ -12,26 +12,26 @@ export async function GET(req: NextRequest) {
     const sb = supa();
     let provData: any[] = [];
     try {
-      const pRes = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang,subtitles,is_beta").eq("active", true).order("ord");
+      const pRes = await sb.from("providers").select("id,name,ord,needs_tmdb,tv_ok,lang,subtitles,is_beta").eq("active", true).order("ord");
       if (!pRes.error && pRes.data) {
         provData = pRes.data;
       } else {
-        const pRes2 = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang,subtitles").eq("active", true).order("ord");
+        const pRes2 = await sb.from("providers").select("id,name,ord,needs_tmdb,tv_ok,lang,subtitles").eq("active", true).order("ord");
         if (!pRes2.error && pRes2.data) {
           provData = pRes2.data;
         } else {
-          const pRes3 = await sb.from("providers").select("id,name,needs_tmdb,tv_ok,lang").eq("active", true).order("ord");
+          const pRes3 = await sb.from("providers").select("id,name,ord,needs_tmdb,tv_ok,lang").eq("active", true).order("ord");
           if (!pRes3.error && pRes3.data) {
             provData = pRes3.data;
           } else {
-            const base = await sb.from("providers").select("id,name,needs_tmdb,tv_ok").eq("active", true).order("ord");
+            const base = await sb.from("providers").select("id,name,ord,needs_tmdb,tv_ok").eq("active", true).order("ord");
             if (base.data) provData = base.data;
           }
         }
       }
     } catch {
       try {
-        const base = await sb.from("providers").select("id,name,needs_tmdb,tv_ok").eq("active", true).order("ord");
+        const base = await sb.from("providers").select("id,name,ord,needs_tmdb,tv_ok").eq("active", true).order("ord");
         if (base.data) provData = base.data;
       } catch {}
     }
@@ -45,11 +45,13 @@ export async function GET(req: NextRequest) {
       providers: provData.map((x: any, idx: number) => {
         const languages = parseLangs(x.lang, x.id);
         const subtitles = parseSubs(x.subtitles, x.id);
-        const simulatedName = `S${idx + 1}`;
+        const providerOrd = typeof x.ord === "number" ? x.ord : idx + 1;
+        const simulatedName = `S${providerOrd}`;
         return {
           id: x.id,
           name: simulatedName,
           simulated_name: simulatedName,
+          ord: providerOrd,
           lang: languages[0] || "multi",
           languages,
           subtitles,

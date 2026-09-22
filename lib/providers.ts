@@ -111,6 +111,7 @@ export type ProviderDef = {
   name: string;
   real_name?: string;
   simulated_name?: string;
+  ord?: number;
   lang?: string | string[];
   languages?: ProviderLang[];
   subtitles?: string | string[];
@@ -128,6 +129,7 @@ export type Provider = {
   name: string;
   real_name?: string;
   simulated_name?: string;
+  ord?: number;
   lang: ProviderLang;
   languages: ProviderLang[];
   subtitles: string[];
@@ -156,6 +158,7 @@ export function buildProvider(def: ProviderDef, envKey = ""): Provider {
     name: def.name,
     real_name: def.real_name || def.name,
     simulated_name: def.simulated_name,
+    ord: def.ord,
     lang: primaryLang,
     languages,
     subtitles,

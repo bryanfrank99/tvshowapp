@@ -1,9 +1,10 @@
 {
-  "version": "5",
+  "version": "6",
   "providers": [
     {
       "id": "vidcore",
       "name": "VidCore",
+      "ord": 1,
       "needsTmdb": false,
       "tvOk": true,
       "movie": "https://vidcore.io/movie/{id}?autoPlay=true&sub=es",
@@ -12,86 +13,119 @@
     {
       "id": "embos",
       "name": "Embos",
+      "ord": 2,
       "needsTmdb": true,
+      "tvOk": false,
       "movie": "https://embos.top/movie/?mid={id}",
       "tv": "https://embos.top/tv/?mid={id}&s={s}&e={e}"
     },
     {
       "id": "vidapi",
       "name": "VidAPI",
+      "ord": 3,
       "needsTmdb": false,
+      "tvOk": false,
       "movie": "https://vidapi.xyz/embed/movie/{id}",
       "tv": "https://vidapi.xyz/embed/tv/{id}/{s}/{e}"
     },
     {
       "id": "streambetter",
       "name": "StreamBetter",
+      "ord": 4,
       "needsTmdb": true,
+      "tvOk": false,
       "movie": "https://streambetter.shop/filme/{id}",
       "tv": "https://streambetter.shop/serie/{id}/{s}/{e}"
     },
     {
       "id": "vidzy",
       "name": "Vidzy",
+      "ord": 5,
       "needsTmdb": true,
+      "tvOk": false,
       "movie": "https://vidzy.org/movie/{id}?autoplay=1",
       "tv": "https://vidzy.org/serie/{id}/{s}/{e}?autoplay=1&autonext=1"
     },
     {
       "id": "vimeus",
       "name": "Vimeus",
+      "ord": 6,
       "needsTmdb": true,
+      "tvOk": false,
       "movie": "https://vimeus.com/e/movie?{idparam}&view_key={key}&title=tvshow&theme=minimal&loader=v3&overlay=v3&splash=v3",
       "tv": "https://vimeus.com/e/serie?{idparam}&se={s}&ep={e}&view_key={key}&title=tvshow&theme=minimal&loader=v3&overlay=v3&splash=v3"
     },
     {
       "id": "superembed",
       "name": "SuperEmbed",
+      "ord": 7,
       "needsTmdb": false,
+      "tvOk": false,
       "movie": "https://multiembed.mov/?video_id={id}{tmdbflag}",
       "tv": "https://multiembed.mov/?video_id={id}{tmdbflag}&s={s}&e={e}"
     },
     {
       "id": "moviesapi",
       "name": "MoviesAPI",
+      "ord": 8,
       "needsTmdb": false,
+      "tvOk": false,
       "movie": "https://moviesapi.to/movie/{id}",
       "tv": "https://moviesapi.to/tv/{id}/{s}/{e}"
     },
     {
       "id": "cinesrc",
       "name": "CineSrc",
+      "ord": 9,
       "needsTmdb": true,
+      "tvOk": false,
       "movie": "https://cinesrc.st/embed/movie/{id}",
       "tv": "https://cinesrc.st/embed/tv/{id}?s={s}&e={e}"
     },
     {
       "id": "vidzee",
       "name": "VidZee",
+      "ord": 10,
       "needsTmdb": true,
+      "tvOk": false,
       "movie": "https://player.vidzee.wtf/embed/movie/{id}",
       "tv": "https://player.vidzee.wtf/embed/tv/{id}/{s}/{e}"
     },
     {
       "id": "embedmovies",
       "name": "EmbedMovies",
-      "needsTmdb": false,
+      "ord": 11,
+      "needsTmdb": true,
+      "tvOk": true,
       "movie": "https://myembed.biz/filme/{id}",
       "tv": "https://myembed.biz/serie/{id}/{s}/{e}"
     },
     {
       "id": "redeflix",
       "name": "RedeFlix",
+      "ord": 12,
       "needsTmdb": true,
+      "tvOk": false,
       "movie": "https://redeflixapi.store/filme/{id}",
       "tv": "https://redeflixapi.store/serie/{id}/{s}/{e}"
     },
     {
       "id": "pipocacine",
       "name": "PipocaCine",
+      "ord": 13,
       "needsTmdb": true,
+      "tvOk": false,
       "movie": "https://pipocacine.lat/embed/{id}",
       "tv": "https://pipocacine.lat/embed/{id}/{s}/{e}"
+    },
+    {
+      "id": "megaembed",
+      "name": "MegaEmbed",
+      "ord": 14,
+      "needsTmdb": false,
+      "tvOk": true,
+      "movie": "https://megaembed.com/embed/{id}",
+      "tv": "https://megaembed.com/embed/{id}/{s}/{e}"
     }
   ],
   "live": [
@@ -109,4 +143,3 @@
     }
   ]
 }
-
