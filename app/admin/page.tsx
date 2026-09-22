@@ -516,21 +516,6 @@ export default function AdminPage() {
     }
   };
 
-  const renewCode = async (codeId: string, daysToRenew: 30 | 90 | 360) => {
-    const r = await api("codes", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: codeId, renew: true, days: daysToRenew }),
-    });
-    const j = await r.json();
-    if (r.ok) {
-      setNewCode({ code: j.code, ref_code: j.ref_code });
-      setMsg(`Renovado: Nuevo código ${j.code} (+${daysToRenew} días)`);
-      load();
-    } else {
-      setMsg(j.message || "Error renovando código");
-    }
-  };
 
   const resetSessions = async (codeId: string, codeLabel: string) => {
     if (
@@ -1286,44 +1271,33 @@ export default function AdminPage() {
                           <span>♾️</span> Permanente
                         </span>
                       ) : (
-                        <>
+                        /* Extensiones de paquetes múltiplos de 30 días */
+                        <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
                           <button
                             type="button"
-                            onClick={() => renewCode(c.id, 30)}
-                            title="Genera un nuevo código con 30 días"
-                            className={`${btn} bg-[#008CFF]/20 border-[#008CFF]/30 text-[#008CFF] hover:bg-[#008CFF]/30 font-medium`}
+                            title="Adicionar 30 días (1 Mes)"
+                            onClick={() => extendCode(c.id, 30)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
                           >
-                            Renovar 30d
+                            +30d
                           </button>
-
-                          {/* Extensiones de paquetes múltiplos de 30 días */}
-                          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
-                            <button
-                              type="button"
-                              title="Extender 30 días (1 Mes)"
-                              onClick={() => extendCode(c.id, 30)}
-                              className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-                            >
-                              +30d
-                            </button>
-                            <button
-                              type="button"
-                              title="Extender 90 días (3 Meses)"
-                              onClick={() => extendCode(c.id, 90)}
-                              className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-                            >
-                              +90d
-                            </button>
-                            <button
-                              type="button"
-                              title="Extender 360 días (1 Año)"
-                              onClick={() => extendCode(c.id, 360)}
-                              className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-                            >
-                              +360d
-                            </button>
-                          </div>
-                        </>
+                          <button
+                            type="button"
+                            title="Adicionar 90 días (3 Meses)"
+                            onClick={() => extendCode(c.id, 90)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                          >
+                            +90d
+                          </button>
+                          <button
+                            type="button"
+                            title="Adicionar 360 días (1 Año)"
+                            onClick={() => extendCode(c.id, 360)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                          >
+                            +360d
+                          </button>
+                        </div>
                       )}
 
                       <button
