@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { supa } from "@/lib/supa";
-import { resetSessionsForCode } from "@/lib/access";
+import { resetSessionsForCode, isLifetimeCode } from "@/lib/access";
 
 export type BillingSettings = {
   pricePerDay: number;
@@ -50,7 +50,7 @@ export type AdminInvoice = {
   period?: BillingPeriod;
 };
 
-// 1. Obtener ajustes financieros de la tabla config con valores por defecto seguros
+// 1. Obtener ajustes financieros de la tabla config con valores por defecto seguros (Paquete 30 días base)
 export async function getBillingSettings(): Promise<BillingSettings> {
   const sb = supa();
   try {
@@ -72,10 +72,10 @@ export async function getBillingSettings(): Promise<BillingSettings> {
     const rawDay = map.get("billing_price_per_day");
 
     let pricePerMonth = rawMonth ? parseFloat(rawMonth) : 10.00;
-    let pricePerDay = rawDay ? parseFloat(rawDay) : (pricePerMonth / 30);
     if (!rawMonth && rawDay) {
-      pricePerMonth = parseFloat((pricePerDay * 30).toFixed(2));
+      pricePerMonth = parseFloat((parseFloat(rawDay) * 30).toFixed(2));
     }
+    const pricePerDay = Number((pricePerMonth / 30).toFixed(4));
 
     const cycleType = (map.get("billing_cycle_type") === "monthly" ? "monthly" : "weekly") as "weekly" | "monthly";
     const closingDay = parseInt(map.get("billing_closing_day") || "0", 10) || 0;
@@ -93,20 +93,13 @@ export async function getBillingSettings(): Promise<BillingSettings> {
   }
 }
 
-// 2. Guardar ajustes financieros
+// 2. Guardar ajustes financieros (Paquete de 30 días)
 export async function updateBillingSettings(settings: Partial<BillingSettings>): Promise<BillingSettings> {
   const sb = supa();
   const current = await getBillingSettings();
 
-  let pricePerMonth = settings.pricePerMonth !== undefined ? Math.max(0.01, settings.pricePerMonth) : current.pricePerMonth;
-  let pricePerDay = settings.pricePerDay !== undefined ? Math.max(0.0001, settings.pricePerDay) : current.pricePerDay;
-
-  // Si se envió pricePerMonth explícitamente y no pricePerDay, sincronizar pricePerDay
-  if (settings.pricePerMonth !== undefined && settings.pricePerDay === undefined) {
-    pricePerDay = Number((pricePerMonth / 30).toFixed(4));
-  } else if (settings.pricePerDay !== undefined && settings.pricePerMonth === undefined) {
-    pricePerMonth = Number((pricePerDay * 30).toFixed(2));
-  }
+  const pricePerMonth = settings.pricePerMonth !== undefined ? Math.max(0.01, settings.pricePerMonth) : current.pricePerMonth;
+  const pricePerDay = Number((pricePerMonth / 30).toFixed(4));
 
   const merged: BillingSettings = {
     pricePerDay,
@@ -208,7 +201,7 @@ export async function getOrCreateCurrentPeriod(): Promise<BillingPeriod | null> 
   }
 }
 
-// 5. Registrar una transacción contable inmutable por venta o renovación
+// 5. Registrar una transacción contable inmutable por venta o renovación (Modelo por Paquetes de 30 Días)
 export async function recordCodeTransaction(params: {
   codeId: string;
   refCode: string;
@@ -216,20 +209,39 @@ export async function recordCodeTransaction(params: {
   adminUsername: string;
   type: "create" | "renew" | "extend";
   days: number;
+  isFree?: boolean;
 }): Promise<boolean> {
   const sb = supa();
   try {
     const settings = await getBillingSettings();
     const currentPeriod = await getOrCreateCurrentPeriod();
 
-    const unitPrice = settings.pricePerDay;
+    const pricePerMonth = settings.pricePerMonth || 10.00;
     let totalAmount = 0;
-    if (params.days === 30 && settings.pricePerMonth) {
-      totalAmount = Number(settings.pricePerMonth.toFixed(2));
-    } else if (params.days % 30 === 0 && settings.pricePerMonth) {
-      totalAmount = Number(((params.days / 30) * settings.pricePerMonth).toFixed(2));
+    let unitPrice = pricePerMonth;
+
+    // 1. Claves sin costo: demos de 7 días (primera clave), claves vitalicias (days = 0) o flag isFree
+    if (params.isFree || (params.type === "create" && params.days === 7) || params.days === 0) {
+      totalAmount = 0.00;
+      unitPrice = 0.00;
+    } else if (params.days === 30) {
+      // Paquete 1 Mes (30 días)
+      totalAmount = Number(pricePerMonth.toFixed(2));
+      unitPrice = pricePerMonth;
+    } else if (params.days === 90) {
+      // Paquete 3 Meses (90 días)
+      totalAmount = Number((pricePerMonth * 3).toFixed(2));
+      unitPrice = pricePerMonth;
+    } else if (params.days === 360) {
+      // Paquete 1 Año (360 días = 12 meses)
+      totalAmount = Number((pricePerMonth * 12).toFixed(2));
+      unitPrice = pricePerMonth;
+    } else if (params.days % 30 === 0) {
+      totalAmount = Number(((params.days / 30) * pricePerMonth).toFixed(2));
+      unitPrice = pricePerMonth;
     } else {
-      totalAmount = Number((params.days * unitPrice).toFixed(2));
+      totalAmount = Number(((params.days / 30) * pricePerMonth).toFixed(2));
+      unitPrice = Number((pricePerMonth / 30).toFixed(4));
     }
 
     const { error } = await sb.from("code_transactions").insert({
@@ -322,17 +334,38 @@ export async function getBillingSummary(adminUser: { id: string; username: strin
       }
       const { data: cData } = await codeQuery.order("created_at", { ascending: false });
       if (cData && cData.length > 0) {
+        const pricePerMonth = settings.pricePerMonth || 10.00;
         transactions = cData.map((c: any) => {
+          if (isLifetimeCode(c.expires_at)) {
+            return {
+              id: c.id,
+              code_id: c.id,
+              ref_code: c.ref_code,
+              admin_id: c.created_by || adminUser.id,
+              admin_username: c.creator_username || "admin",
+              type: "create",
+              days: 0,
+              unit_price: 0,
+              total_amount: 0,
+              created_at: c.created_at,
+            };
+          }
           const start = new Date(c.created_at).getTime();
           const end = new Date(c.expires_at).getTime();
           const days = Math.max(1, Math.round((end - start) / (86400 * 1000)));
           let totalAmount = 0;
-          if (days === 30 && settings.pricePerMonth) {
-            totalAmount = Number(settings.pricePerMonth.toFixed(2));
-          } else if (days % 30 === 0 && settings.pricePerMonth) {
-            totalAmount = Number(((days / 30) * settings.pricePerMonth).toFixed(2));
+          if (days <= 7) {
+            totalAmount = 0.00;
+          } else if (days === 30) {
+            totalAmount = Number(pricePerMonth.toFixed(2));
+          } else if (days === 90) {
+            totalAmount = Number((pricePerMonth * 3).toFixed(2));
+          } else if (days === 360) {
+            totalAmount = Number((pricePerMonth * 12).toFixed(2));
+          } else if (days % 30 === 0) {
+            totalAmount = Number(((days / 30) * pricePerMonth).toFixed(2));
           } else {
-            totalAmount = Number((days * settings.pricePerDay).toFixed(2));
+            totalAmount = Number(((days / 30) * pricePerMonth).toFixed(2));
           }
           return {
             id: c.id,
@@ -342,7 +375,7 @@ export async function getBillingSummary(adminUser: { id: string; username: strin
             admin_username: c.creator_username || "admin",
             type: "create",
             days,
-            unit_price: settings.pricePerDay,
+            unit_price: pricePerMonth,
             total_amount: totalAmount,
             created_at: c.created_at,
           };
@@ -358,12 +391,13 @@ export async function getBillingSummary(adminUser: { id: string; username: strin
     return new Date(t.created_at).getTime() >= currentPeriodStart;
   });
 
-  // Cálculo de deuda del ciclo actual por admin
+  // Cálculo de deuda del ciclo actual por admin (conteo de códigos y paquetes de 30d)
   const currentDebtByAdmin: Record<string, {
     adminId: string;
     username: string;
     name: string;
     codesCount: number;
+    packagesCount: number;
     totalDays: number;
     totalAmount: number;
   }> = {};
@@ -377,12 +411,18 @@ export async function getBillingSummary(adminUser: { id: string; username: strin
         username: tx.admin_username,
         name: match?.name || tx.admin_username,
         codesCount: 0,
+        packagesCount: 0,
         totalDays: 0,
         totalAmount: 0,
       };
     }
     currentDebtByAdmin[usr].codesCount++;
-    currentDebtByAdmin[usr].totalDays += Number(tx.days) || 0;
+    const txDays = Number(tx.days) || 0;
+    currentDebtByAdmin[usr].totalDays += txDays;
+    // Si no es demo gratuita (7d) ni vitalicia (0d), calcular cantidad de paquetes de 30d
+    if (txDays >= 30) {
+      currentDebtByAdmin[usr].packagesCount += Math.round(txDays / 30);
+    }
     currentDebtByAdmin[usr].totalAmount = Number(
       (currentDebtByAdmin[usr].totalAmount + (Number(tx.total_amount) || 0)).toFixed(2)
     );
@@ -404,6 +444,7 @@ export async function getBillingSummary(adminUser: { id: string; username: strin
     username: adminUser.username,
     name: adminUser.username,
     codesCount: 0,
+    packagesCount: 0,
     totalDays: 0,
     totalAmount: 0,
   };

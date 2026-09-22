@@ -22,6 +22,13 @@ export const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 export const newToken = () => randomBytes(32).toString("hex");
 export const newRef = () => `TV-${randomBytes(3).toString("hex").toUpperCase()}-${randomBytes(2).toString("hex").toUpperCase()}`;
 
+// Claves de acceso sin límite de tiempo (Super Admin)
+export const LIFETIME_EXPIRATION_DATE = "2099-12-31T23:59:59.999Z";
+export function isLifetimeCode(dateStr?: string | null): boolean {
+  if (!dateStr) return false;
+  return new Date(dateStr).getFullYear() >= 2099;
+}
+
 // Rate-limit en memoria por IP (por instancia).
 const hits = new Map<string, number[]>();
 export function rateOk(ip: string, limit = 5, windowMs = 60000) {

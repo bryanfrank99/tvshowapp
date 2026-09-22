@@ -108,6 +108,11 @@ function formatRelativeTime(dateStr?: string | null) {
   });
 }
 
+function isLifetime(dateStr?: string | null): boolean {
+  if (!dateStr) return false;
+  return new Date(dateStr).getFullYear() >= 2099;
+}
+
 export default function AdminPage() {
   const [auth, setAuth] = useState(false);
   const [currentAdmin, setCurrentAdmin] = useState<CurrentAdminProfile | null>(null);
@@ -124,11 +129,10 @@ export default function AdminPage() {
   const [adminUsers, setAdminUsers] = useState<AdminUserItem[]>([]);
   const [filterAdmin, setFilterAdmin] = useState<string>("all");
 
-  // Facturación y finanzas (Spec 025)
+  // Facturación y finanzas (Spec 025 - Modelo por Paquetes de 30 Días)
   const [billingData, setBillingData] = useState<any>(null);
   const [isLoadingBilling, setIsLoadingBilling] = useState(false);
   const [pricePerMonthInput, setPricePerMonthInput] = useState("10.00");
-  const [pricePerDayInput, setPricePerDayInput] = useState("0.3333");
   const [cycleTypeInput, setCycleTypeInput] = useState<"weekly" | "monthly">("weekly");
   const [closingDayInput, setClosingDayInput] = useState<number>(0);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -148,7 +152,7 @@ export default function AdminPage() {
   const [live, setLive] = useState<Live[]>([]);
   const [version, setVersion] = useState("");
   const [label, setLabel] = useState("");
-  const [days, setDays] = useState("30");
+  const [isLifetimeInput, setIsLifetimeInput] = useState(false);
   const [newCode, setNewCode] = useState<any>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -251,7 +255,6 @@ export default function AdminPage() {
         setBillingData(b);
         if (b.settings) {
           setPricePerMonthInput(b.settings.pricePerMonth?.toString() || "10.00");
-          setPricePerDayInput(b.settings.pricePerDay?.toString() || "0.3333");
           setCycleTypeInput(b.settings.cycleType);
           setClosingDayInput(b.settings.closingDay);
         }
@@ -279,7 +282,6 @@ export default function AdminPage() {
         setBillingData(j);
         if (j.settings) {
           setPricePerMonthInput(j.settings.pricePerMonth?.toString() || "10.00");
-          setPricePerDayInput(j.settings.pricePerDay?.toString() || "0.3333");
           setCycleTypeInput(j.settings.cycleType);
           setClosingDayInput(j.settings.closingDay);
         }
@@ -296,7 +298,6 @@ export default function AdminPage() {
     setMsg("");
     try {
       const pMonth = parseFloat(pricePerMonthInput) || 10.00;
-      const pDay = parseFloat(pricePerDayInput) || Number((pMonth / 30).toFixed(4));
       const r = await api("billing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -304,7 +305,6 @@ export default function AdminPage() {
           action: "update_settings",
           settings: {
             pricePerMonth: pMonth,
-            pricePerDay: pDay,
             cycleType: cycleTypeInput,
             closingDay: Number(closingDayInput),
           },
@@ -312,7 +312,7 @@ export default function AdminPage() {
       });
       const j = await r.json();
       if (r.ok) {
-        setMsg("Tarifas (30 días y por día) y ciclo de corte actualizados correctamente.");
+        setMsg("Tarifa por paquete de 30 días y ciclo de corte actualizados correctamente.");
         await loadBilling();
       } else {
         setMsg(j.message || "Error guardando ajustes de facturación");
@@ -478,20 +478,57 @@ export default function AdminPage() {
 
   const createCode = async (e: React.FormEvent) => {
     e.preventDefault();
+    const isSuper = currentAdmin?.role === "superadmin";
     const r = await api("codes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label, days: Number(days) || 30 }),
+      body: JSON.stringify({
+        label,
+        isLifetime: isSuper && isLifetimeInput,
+        days: isSuper && isLifetimeInput ? 0 : 7,
+      }),
     });
     const j = await r.json();
     if (r.ok) {
       setNewCode(j);
       setLabel("");
+      setIsLifetimeInput(false);
       setCopiedLink(false);
       setCopiedCode(false);
       load();
     } else {
       setMsg(j.message || "Error generando código");
+    }
+  };
+
+  const extendCode = async (codeId: string, daysToAdd: 30 | 90 | 360) => {
+    const r = await api("codes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: codeId, extendDays: daysToAdd }),
+    });
+    const j = await r.json();
+    if (r.ok) {
+      setMsg(`Plazo extendido por +${daysToAdd} días exitosamente`);
+      load();
+    } else {
+      setMsg(j.message || "Error extendiendo plazo");
+    }
+  };
+
+  const renewCode = async (codeId: string, daysToRenew: 30 | 90 | 360) => {
+    const r = await api("codes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: codeId, renew: true, days: daysToRenew }),
+    });
+    const j = await r.json();
+    if (r.ok) {
+      setNewCode({ code: j.code, ref_code: j.ref_code });
+      setMsg(`Renovado: Nuevo código ${j.code} (+${daysToRenew} días)`);
+      load();
+    } else {
+      setMsg(j.message || "Error renovando código");
     }
   };
 
@@ -667,11 +704,12 @@ export default function AdminPage() {
       if (creator !== filterAdmin.toLowerCase()) return false;
     }
 
-    const exp = new Date(c.expires_at).getTime() <= Date.now();
-    const daysLeft = Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / 86400000);
+    const isCodeLifetime = isLifetime(c.expires_at);
+    const exp = !isCodeLifetime && new Date(c.expires_at).getTime() <= Date.now();
+    const daysLeft = isCodeLifetime ? 99999 : Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / 86400000);
 
     if (filterStatus === "active") return !c.revoked && !exp;
-    if (filterStatus === "expiring") return !c.revoked && !exp && daysLeft <= 7;
+    if (filterStatus === "expiring") return !c.revoked && !exp && !isCodeLifetime && daysLeft <= 7;
     if (filterStatus === "full") return (c.deviceCount || 0) >= (c.maxDevices || 3);
     if (filterStatus === "expired") return c.revoked || exp;
     return true;
@@ -945,28 +983,63 @@ export default function AdminPage() {
           {/* Formulario Crear Código */}
           <form
             onSubmit={createCode}
-            className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-5 flex gap-2.5 flex-wrap items-center"
+            className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-5 space-y-3"
           >
-            <div className="flex-1 min-w-[200px]">
-              <input
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="Etiqueta / Cliente (ej. Familia Pérez, Habitación 2)"
-                className={inp}
-              />
+            <div className="flex gap-2.5 flex-wrap items-center">
+              <div className="flex-1 min-w-[220px]">
+                <input
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  placeholder="Etiqueta / Cliente (ej. Familia Pérez, Habitación 2)"
+                  className={inp}
+                  required
+                />
+              </div>
+
+              {/* Indicador de vigencia para la primera clave */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs">
+                {isSuperAdmin && isLifetimeInput ? (
+                  <span className="text-purple-300 font-bold flex items-center gap-1.5">
+                    <span className="text-sm">♾️</span> Sin límite de tiempo (Vitalicia)
+                  </span>
+                ) : (
+                  <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                    <span className="text-sm">🎁</span> Primera clave: 7 días Gratis
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-xl bg-[#008CFF] hover:bg-[#0070cc] text-white font-bold text-sm transition-all shadow-lg shadow-[#008CFF]/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>+</span>
+                <span>Generar Clave</span>
+              </button>
             </div>
-            <div className="w-24">
-              <input
-                value={days}
-                onChange={(e) => setDays(e.target.value)}
-                placeholder="Días"
-                inputMode="numeric"
-                className={inp}
-              />
-            </div>
-            <button className="px-5 py-2.5 rounded-xl bg-[#008CFF] hover:bg-[#0070cc] text-white font-bold text-sm transition-colors shadow-lg shadow-[#008CFF]/20">
-              + Generar Clave
-            </button>
+
+            {/* Marcador exclusivo para el Administrador General */}
+            {isSuperAdmin && (
+              <div className="pt-2 border-t border-white/5 flex items-center justify-between flex-wrap gap-2">
+                <label className="flex items-center gap-2.5 text-xs text-zinc-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isLifetimeInput}
+                    onChange={(e) => setIsLifetimeInput(e.target.checked)}
+                    className="w-4 h-4 rounded bg-white/10 border-white/20 text-purple-600 focus:ring-purple-500 focus:ring-offset-0 cursor-pointer"
+                  />
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <span className="text-purple-400">♾️</span>
+                    <span>Generar clave sin límite de tiempo (Exclusivo Administrador General)</span>
+                  </span>
+                </label>
+                <span className="text-[11px] text-zinc-500">
+                  {isLifetimeInput
+                    ? "Esta clave nunca caducará y no genera cobros"
+                    : "Primera clave estándar de prueba de 7 días (luego ampliable a 30d, 90d o 360d)"}
+                </span>
+              </div>
+            )}
           </form>
 
           {/* Notificación de nuevo código generado con Copiado Rápido */}
@@ -1100,8 +1173,9 @@ export default function AdminPage() {
           {/* Listado de Códigos */}
           <div className="space-y-3">
             {filteredCodes.map((c) => {
-              const exp = new Date(c.expires_at).getTime() < Date.now();
-              const daysLeft = Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / 86400000);
+              const isCodeLifetime = isLifetime(c.expires_at);
+              const exp = !isCodeLifetime && new Date(c.expires_at).getTime() < Date.now();
+              const daysLeft = isCodeLifetime ? 99999 : Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / 86400000);
               const deviceCount = c.deviceCount || 0;
               const maxDevices = c.maxDevices || 3;
               const isFull = deviceCount >= maxDevices;
@@ -1115,6 +1189,8 @@ export default function AdminPage() {
                       ? "border-amber-500/30 bg-amber-500/5"
                       : exp
                       ? "border-red-500/30 bg-red-500/5"
+                      : isCodeLifetime
+                      ? "border-purple-500/30 bg-purple-500/5 hover:border-purple-500/50"
                       : "border-white/10 bg-white/5 hover:border-white/20"
                   } p-4`}
                 >
@@ -1135,12 +1211,17 @@ export default function AdminPage() {
                             Revocado
                           </span>
                         )}
+                        {isCodeLifetime && !c.revoked && (
+                          <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                            <span>♾️</span> Vitalicia
+                          </span>
+                        )}
                         {exp && !c.revoked && (
                           <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-500/40 px-2 py-0.5 rounded-full">
                             Caducado
                           </span>
                         )}
-                        {!exp && !c.revoked && daysLeft <= 7 && (
+                        {!isCodeLifetime && !exp && !c.revoked && daysLeft <= 7 && (
                           <span className="text-[10px] bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 px-2 py-0.5 rounded-full">
                             Vence en {daysLeft}d
                           </span>
@@ -1151,8 +1232,16 @@ export default function AdminPage() {
                         <span className="font-mono bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-zinc-300">
                           {c.ref_code}
                         </span>
-                        <span>· Expira: {new Date(c.expires_at).toLocaleDateString()}</span>
-                        {!exp && !c.revoked && <span className="text-zinc-500">({daysLeft}d restantes)</span>}
+                        {isCodeLifetime ? (
+                          <span className="text-purple-300 font-semibold flex items-center gap-1">
+                            <span>♾️</span> Sin límite de tiempo (Vitalicia)
+                          </span>
+                        ) : (
+                          <>
+                            <span>· Expira: {new Date(c.expires_at).toLocaleDateString()}</span>
+                            {!exp && !c.revoked && <span className="text-zinc-500">({daysLeft}d restantes)</span>}
+                          </>
+                        )}
                       </div>
 
                       {/* Estado de Dispositivos y Última Conexión */}
@@ -1192,43 +1281,50 @@ export default function AdminPage() {
                         </button>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const r = await api("codes", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ id: c.id, renew: true, days: 30 }),
-                          });
-                          const j = await r.json();
-                          if (r.ok) {
-                            setNewCode({ code: j.code, ref_code: j.ref_code });
-                            setMsg(`Renovado: Nuevo código ${j.code} (30 días)`);
-                            load();
-                          } else setMsg(j.message || "Error renovando código");
-                        }}
-                        className={`${btn} bg-[#008CFF]/20 border-[#008CFF]/30 text-[#008CFF] hover:bg-[#008CFF]/30 font-medium`}
-                      >
-                        Renovar 30d
-                      </button>
+                      {isCodeLifetime ? (
+                        <span className="text-xs text-purple-300/90 bg-purple-500/10 border border-purple-500/20 px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1">
+                          <span>♾️</span> Permanente
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => renewCode(c.id, 30)}
+                            title="Genera un nuevo código con 30 días"
+                            className={`${btn} bg-[#008CFF]/20 border-[#008CFF]/30 text-[#008CFF] hover:bg-[#008CFF]/30 font-medium`}
+                          >
+                            Renovar 30d
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const r = await api("codes", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ id: c.id, extendDays: 30 }),
-                          });
-                          if (r.ok) {
-                            setMsg("Extendido por 30 días adicionales");
-                            load();
-                          } else setMsg("Error extendiendo plazo");
-                        }}
-                        className={btn}
-                      >
-                        +30d
-                      </button>
+                          {/* Extensiones de paquetes múltiplos de 30 días */}
+                          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
+                            <button
+                              type="button"
+                              title="Extender 30 días (1 Mes)"
+                              onClick={() => extendCode(c.id, 30)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                            >
+                              +30d
+                            </button>
+                            <button
+                              type="button"
+                              title="Extender 90 días (3 Meses)"
+                              onClick={() => extendCode(c.id, 90)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                            >
+                              +90d
+                            </button>
+                            <button
+                              type="button"
+                              title="Extender 360 días (1 Año)"
+                              onClick={() => extendCode(c.id, 360)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                            >
+                              +360d
+                            </button>
+                          </div>
+                        </>
+                      )}
 
                       <button
                         type="button"
@@ -1950,18 +2046,14 @@ export default function AdminPage() {
                   <span className="text-xs text-zinc-400">a pagar en el próximo corte</span>
                 </div>
                 <p className="text-xs text-zinc-400">
-                  Has vendido/renovado <strong className="text-white">{billingData?.kpis?.myCurrentBalance?.codesCount || 0}</strong> códigos (<strong className="text-white">{billingData?.kpis?.myCurrentBalance?.totalDays || 0}</strong> días en total) durante este ciclo.
+                  Has vendido/renovado <strong className="text-white">{billingData?.kpis?.myCurrentBalance?.codesCount || 0}</strong> códigos (<strong className="text-white">{billingData?.kpis?.myCurrentBalance?.packagesCount || Math.round((billingData?.kpis?.myCurrentBalance?.totalDays || 0) / 30)}</strong> paquetes de 30d) durante este ciclo.
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-4 text-xs border-t md:border-t-0 md:border-l border-white/10 pt-3 md:pt-0 md:pl-6">
                 <div>
-                  <span className="text-zinc-500 block">Tarifa Plan 30 Días:</span>
+                  <span className="text-zinc-500 block">Tarifa Paquete 30 Días:</span>
                   <strong className="text-emerald-400 font-mono text-sm">${billingData?.settings?.pricePerMonth ?? "10.00"} USD</strong>
-                </div>
-                <div>
-                  <span className="text-zinc-500 block">Tarifa por día:</span>
-                  <strong className="text-white font-mono">${billingData?.settings?.pricePerDay} USD</strong>
                 </div>
                 <div>
                   <span className="text-zinc-500 block">Frecuencia de corte:</span>
@@ -1989,16 +2081,16 @@ export default function AdminPage() {
                     <span>Tarifas y Configuración de Cierre</span>
                   </h3>
                   <p className="text-xs text-zinc-400">
-                    Define el costo por mes (30 días) o por día vendido, y el ciclo de corte programado para la red de administradores.
+                    Define el precio por paquete mensual de 30 días y el ciclo de corte programado para los revendedores.
                   </p>
                 </div>
               </div>
 
-              <form onSubmit={handleSaveBillingSettings} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+              <form onSubmit={handleSaveBillingSettings} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-300 mb-1 flex items-center justify-between">
-                    <span>Precio Mes (30 Días)</span>
-                    <span className="text-[10px] text-emerald-400 font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">Recomendado</span>
+                    <span>Precio Paquete 30 Días ($ USD)</span>
+                    <span className="text-[10px] text-emerald-400 font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">Base</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-mono font-bold">$</span>
@@ -2008,42 +2100,9 @@ export default function AdminPage() {
                       min="0.01"
                       placeholder="10.00"
                       value={pricePerMonthInput}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setPricePerMonthInput(val);
-                        const num = parseFloat(val);
-                        if (!isNaN(num) && num > 0) {
-                          setPricePerDayInput((num / 30).toFixed(4));
-                        }
-                      }}
+                      onChange={(e) => setPricePerMonthInput(e.target.value)}
                       required
                       className={`${inp} pl-7 font-mono font-bold text-white`}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Precio por Día ($ USD)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-mono font-bold">$</span>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0.0001"
-                      placeholder="0.3333"
-                      value={pricePerDayInput}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setPricePerDayInput(val);
-                        const num = parseFloat(val);
-                        if (!isNaN(num) && num > 0) {
-                          setPricePerMonthInput((num * 30).toFixed(2));
-                        }
-                      }}
-                      required
-                      className={`${inp} pl-7 font-mono text-zinc-200`}
                     />
                   </div>
                 </div>
@@ -2097,17 +2156,17 @@ export default function AdminPage() {
                   <button
                     type="submit"
                     disabled={isSavingSettings}
-                    className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs border border-white/10 transition-colors"
+                    className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold text-xs shadow-lg shadow-primary/20 transition-all cursor-pointer disabled:opacity-50"
                   >
-                    {isSavingSettings ? "Guardando..." : "Guardar Ajustes"}
+                    {isSavingSettings ? "Guardando..." : "Guardar Tarifa"}
                   </button>
                 </div>
               </form>
 
               <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200/90 flex items-start gap-2.5">
-                <span className="text-base shrink-0">💡</span>
+                <span className="text-base shrink-0">📦</span>
                 <p>
-                  <strong>Tarificación exacta:</strong> Al fijar el mes en <strong>${pricePerMonthInput || "10.00"} USD</strong>, cualquier código o renovación de 30 días se factura exactamente por <strong>${pricePerMonthInput || "10.00"} USD</strong> sin pérdida por redondeo. La tarifa diaria de <strong>${pricePerDayInput || "0.3333"} USD/día</strong> se usa proporcionalmente para códigos con duración personalizada (ej. 7, 15 o 60 días).
+                  <strong>Modelo de Paquetes de 30 Días:</strong> Toda la facturación opera en múltiplos de 30 días a <strong>${pricePerMonthInput || "10.00"} USD / paquete</strong>. Las extensiones de tiempo aplican: 30d ($10), 90d ($30) y 360d ($120). La primera clave demo de 7 días y las claves vitalicias no generan costo.
                 </p>
               </div>
             </div>
@@ -2139,7 +2198,7 @@ export default function AdminPage() {
                       <tr className="border-b border-white/10 text-zinc-400">
                         <th className="py-2.5 px-3">Administrador</th>
                         <th className="py-2.5 px-3 text-center">Códigos</th>
-                        <th className="py-2.5 px-3 text-center">Días Vendidos</th>
+                        <th className="py-2.5 px-3 text-center">Paquetes (30d)</th>
                         <th className="py-2.5 px-3 text-right">Total Acumulado</th>
                       </tr>
                     </thead>
@@ -2153,7 +2212,9 @@ export default function AdminPage() {
                             )}
                           </td>
                           <td className="py-3 px-3 text-center font-mono">{row.codesCount}</td>
-                          <td className="py-3 px-3 text-center font-mono">{row.totalDays} d</td>
+                          <td className="py-3 px-3 text-center font-mono font-semibold text-emerald-400">
+                            {row.packagesCount ?? Math.round((row.totalDays || 0) / 30)} pkg
+                          </td>
                           <td className="py-3 px-3 text-right font-bold text-[#008CFF] font-mono text-sm">
                             ${row.totalAmount?.toFixed(2)}
                           </td>
@@ -2194,7 +2255,7 @@ export default function AdminPage() {
                       <th className="py-2.5 px-3">Período de Facturación</th>
                       {isSuperAdmin && <th className="py-2.5 px-3">Administrador</th>}
                       <th className="py-2.5 px-3 text-center">Códigos</th>
-                      <th className="py-2.5 px-3 text-center">Días</th>
+                      <th className="py-2.5 px-3 text-center">Paquetes</th>
                       <th className="py-2.5 px-3 text-right">Monto Total</th>
                       <th className="py-2.5 px-3 text-center">Estado</th>
                       {isSuperAdmin && <th className="py-2.5 px-3 text-right">Acciones de Cobro</th>}
@@ -2223,7 +2284,9 @@ export default function AdminPage() {
                           )}
 
                           <td className="py-3 px-3 text-center font-mono">{inv.total_codes}</td>
-                          <td className="py-3 px-3 text-center font-mono">{inv.total_days} d</td>
+                          <td className="py-3 px-3 text-center font-mono font-semibold text-emerald-400">
+                            {Math.round((inv.total_days || 0) / 30)} pkg
+                          </td>
                           <td className="py-3 px-3 text-right font-bold text-white font-mono text-sm">
                             ${Number(inv.total_amount || 0).toFixed(2)}
                           </td>

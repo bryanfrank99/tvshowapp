@@ -8,6 +8,8 @@ import {
   newRef,
   resetSessionsForCode,
   MAX_DEVICES_PER_CODE,
+  LIFETIME_EXPIRATION_DATE,
+  isLifetimeCode,
 } from "@/lib/access";
 import { recordCodeTransaction } from "@/lib/billing";
 import { randomBytes } from "crypto";
@@ -200,15 +202,31 @@ export async function POST(req: NextRequest) {
   if (deny) return deny;
 
   const currentAdmin = await getAdminUser(req);
+  const isSuperAdmin = currentAdmin?.role === "superadmin";
+
   let body: any = {};
   try {
     body = await req.json();
   } catch {}
 
-  const days = Math.max(1, Math.min(3650, Number(body.days) || 30));
+  const isLifetime = isSuperAdmin && (body.isLifetime === true || body.lifetime === true);
+
+  // Regla comercial TVShow:
+  // 1. Clave vitalicia: solo Super Admin, sin límite de tiempo (2099-12-31), days = 0, gratis.
+  // 2. Primera clave normal: 7 días de prueba totalmente GRATIS ($0.00 USD).
+  let days = 7;
+  let expires_at = "";
+
+  if (isLifetime) {
+    expires_at = LIFETIME_EXPIRATION_DATE;
+    days = 0;
+  } else {
+    days = 7;
+    expires_at = new Date(Date.now() + 7 * 86400 * 1000).toISOString();
+  }
+
   const code = newCode();
   const ref_code = newRef();
-  const expires_at = new Date(Date.now() + days * 86400 * 1000).toISOString();
 
   const insertPayload = {
     code_hash: sha(code),
@@ -242,7 +260,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Registrar transacción contable de la venta
+  // Registrar transacción contable de la venta (La primera clave de 7d y la vitalicia son $0.00 USD)
   if (insertedCodeId) {
     try {
       await recordCodeTransaction({
@@ -252,6 +270,7 @@ export async function POST(req: NextRequest) {
         adminUsername: currentAdmin?.username || "admin",
         type: "create",
         days,
+        isFree: true,
       });
     } catch (txErr) {
       console.warn("[Admin Codes] No se pudo registrar la transacción contable:", txErr);
@@ -262,6 +281,7 @@ export async function POST(req: NextRequest) {
     code,
     ref_code,
     expires_at,
+    is_lifetime: isLifetime,
     creator_username: currentAdmin?.username || "admin",
   });
 }
@@ -307,10 +327,23 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (body.renew) {
-    const days = Math.max(1, Math.min(3650, Number(body.days) || 30));
+    const { data: codeData } = await sb.from("access_codes").select("expires_at").eq("id", body.id).maybeSingle();
+    const isCurrentLifetime = codeData ? isLifetimeCode(codeData.expires_at) : false;
+
+    let days = 30;
+    let expires_at = "";
+    if (isCurrentLifetime) {
+      expires_at = LIFETIME_EXPIRATION_DATE;
+      days = 0;
+    } else {
+      const rawDays = Number(body.days) || 30;
+      const allowedPackages = [30, 90, 360];
+      days = allowedPackages.includes(rawDays) ? rawDays : (rawDays >= 360 ? 360 : (rawDays >= 90 ? 90 : 30));
+      expires_at = new Date(Date.now() + days * 86400 * 1000).toISOString();
+    }
+
     const code = newCode();
     const ref_code = newRef();
-    const expires_at = new Date(Date.now() + days * 86400 * 1000).toISOString();
     const { error } = await sb
       .from("access_codes")
       .update({ code_hash: sha(code), ref_code, expires_at, revoked: false, suspended_by_billing: false })
@@ -325,6 +358,7 @@ export async function PATCH(req: NextRequest) {
         adminUsername: currentAdmin?.username || "admin",
         type: "renew",
         days,
+        isFree: isCurrentLifetime,
       });
     } catch {}
 
@@ -332,9 +366,21 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (body.extendDays) {
-    const days = Math.max(1, Math.min(3650, Number(body.extendDays) || 30));
-    const { data } = await sb.from("access_codes").select("expires_at,ref_code").eq("id", body.id).maybeSingle();
-    const base = data?.expires_at ? new Date(data.expires_at).getTime() : Date.now();
+    const { data: codeData } = await sb.from("access_codes").select("expires_at,ref_code").eq("id", body.id).maybeSingle();
+    if (!codeData) return NextResponse.json({ error: "not_found" }, { status: 404 });
+
+    if (isLifetimeCode(codeData.expires_at)) {
+      return NextResponse.json(
+        { error: "lifetime", message: "Esta clave es vitalicia / sin límite de tiempo y no requiere extensión." },
+        { status: 400 }
+      );
+    }
+
+    const rawDays = Number(body.extendDays) || 30;
+    const allowedPackages = [30, 90, 360];
+    const days = allowedPackages.includes(rawDays) ? rawDays : (rawDays >= 360 ? 360 : (rawDays >= 90 ? 90 : 30));
+
+    const base = codeData?.expires_at ? new Date(codeData.expires_at).getTime() : Date.now();
     const expires_at = new Date(Math.max(base, Date.now()) + days * 86400 * 1000).toISOString();
     const { error } = await sb.from("access_codes").update({ expires_at, revoked: false, suspended_by_billing: false }).eq("id", body.id);
     if (error) return NextResponse.json({ error: "db" }, { status: 500 });
@@ -342,7 +388,7 @@ export async function PATCH(req: NextRequest) {
     try {
       await recordCodeTransaction({
         codeId: body.id,
-        refCode: data?.ref_code || "",
+        refCode: codeData?.ref_code || "",
         adminId: currentAdmin?.id,
         adminUsername: currentAdmin?.username || "admin",
         type: "extend",
