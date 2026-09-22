@@ -116,13 +116,32 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Tabs: codes | admins | prov | live
-  const [tab, setTab] = useState<"codes" | "admins" | "prov" | "live">("codes");
+  // Tabs: codes | admins | prov | live | billing
+  const [tab, setTab] = useState<"codes" | "admins" | "prov" | "live" | "billing">("codes");
   const [codes, setCodes] = useState<Code[]>([]);
   const [kpis, setKpis] = useState<KPIs | null>(null);
   const [adminsSummary, setAdminsSummary] = useState<Record<string, { total: number; active: number; expired: number }> | null>(null);
   const [adminUsers, setAdminUsers] = useState<AdminUserItem[]>([]);
   const [filterAdmin, setFilterAdmin] = useState<string>("all");
+
+  // Facturación y finanzas (Spec 025)
+  const [billingData, setBillingData] = useState<any>(null);
+  const [isLoadingBilling, setIsLoadingBilling] = useState(false);
+  const [pricePerDayInput, setPricePerDayInput] = useState("0.10");
+  const [cycleTypeInput, setCycleTypeInput] = useState<"weekly" | "monthly">("weekly");
+  const [closingDayInput, setClosingDayInput] = useState<number>(0);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isClosingPeriod, setIsClosingPeriod] = useState(false);
+  const [suspendModal, setSuspendModal] = useState<{ open: boolean; invoice: any | null; isProcessing: boolean }>({
+    open: false,
+    invoice: null,
+    isProcessing: false,
+  });
+  const [reactivateModal, setReactivateModal] = useState<{ open: boolean; invoice: any | null; isProcessing: boolean }>({
+    open: false,
+    invoice: null,
+    isProcessing: false,
+  });
 
   const [provs, setProvs] = useState<Prov[]>([]);
   const [live, setLive] = useState<Live[]>([]);
@@ -210,6 +229,7 @@ export default function AdminPage() {
 
       const promises: Promise<any>[] = [
         api("codes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        api("billing").then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ];
 
       if (isSuper) {
@@ -218,12 +238,21 @@ export default function AdminPage() {
         promises.push(api("live").then((r) => (r.ok ? r.json() : null)).catch(() => null));
       }
 
-      const [c, u, p, l] = await Promise.all(promises);
+      const [c, b, u, p, l] = await Promise.all(promises);
 
       if (c) {
         setCodes(c.codes || []);
         if (c.kpis) setKpis(c.kpis);
         if (c.adminsSummary) setAdminsSummary(c.adminsSummary);
+      }
+
+      if (b) {
+        setBillingData(b);
+        if (b.settings) {
+          setPricePerDayInput(b.settings.pricePerDay.toString());
+          setCycleTypeInput(b.settings.cycleType);
+          setClosingDayInput(b.settings.closingDay);
+        }
       }
 
       if (isSuper) {
@@ -238,6 +267,156 @@ export default function AdminPage() {
       setAuth(false);
     }
   }, []);
+
+  const loadBilling = useCallback(async () => {
+    setIsLoadingBilling(true);
+    try {
+      const r = await api("billing");
+      if (r.ok) {
+        const j = await r.json();
+        setBillingData(j);
+        if (j.settings) {
+          setPricePerDayInput(j.settings.pricePerDay.toString());
+          setCycleTypeInput(j.settings.cycleType);
+          setClosingDayInput(j.settings.closingDay);
+        }
+      }
+    } catch {}
+    finally {
+      setIsLoadingBilling(false);
+    }
+  }, []);
+
+  const handleSaveBillingSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSettings(true);
+    setMsg("");
+    try {
+      const r = await api("billing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_settings",
+          settings: {
+            pricePerDay: parseFloat(pricePerDayInput) || 0.10,
+            cycleType: cycleTypeInput,
+            closingDay: Number(closingDayInput),
+          },
+        }),
+      });
+      const j = await r.json();
+      if (r.ok) {
+        setMsg("Tarifas y ciclo de corte actualizados correctamente.");
+        await loadBilling();
+      } else {
+        setMsg(j.message || "Error guardando ajustes de facturación");
+      }
+    } catch {
+      setMsg("Error de conexión al guardar configuración");
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleExecutePeriodClose = async () => {
+    if (!confirm("¿Deseas cerrar el período actual y generar las liquidaciones de cobro para todos los administradores?")) return;
+    setIsClosingPeriod(true);
+    setMsg("Ejecutando cierre de período...");
+    try {
+      const r = await api("billing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "close_period" }),
+      });
+      const j = await r.json();
+      if (r.ok) {
+        setMsg(`¡Cierre de período completado con éxito! Se generaron ${j.invoicesCount} liquidaciones.`);
+        await loadBilling();
+        await load();
+      } else {
+        setMsg(j.message || "Error al ejecutar cierre de período");
+      }
+    } catch {
+      setMsg("Error de conexión al ejecutar cierre");
+    } finally {
+      setIsClosingPeriod(false);
+    }
+  };
+
+  const handleConfirmSuspend = async () => {
+    if (!suspendModal.invoice) return;
+    setSuspendModal((prev) => ({ ...prev, isProcessing: true }));
+    try {
+      const r = await api("billing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "suspend_codes",
+          invoiceId: suspendModal.invoice.id,
+        }),
+      });
+      const j = await r.json();
+      if (r.ok) {
+        setMsg(`Se suspendieron ${j.suspendedCount} códigos de @${suspendModal.invoice.admin_username} y se expulsaron sus sesiones activas.`);
+        setSuspendModal({ open: false, invoice: null, isProcessing: false });
+        await loadBilling();
+        await load();
+      } else {
+        setMsg(j.message || "Error suspendiendo códigos");
+        setSuspendModal((prev) => ({ ...prev, isProcessing: false }));
+      }
+    } catch {
+      setMsg("Error de conexión al suspender códigos");
+      setSuspendModal((prev) => ({ ...prev, isProcessing: false }));
+    }
+  };
+
+  const handleConfirmReactivate = async () => {
+    if (!reactivateModal.invoice) return;
+    setReactivateModal((prev) => ({ ...prev, isProcessing: true }));
+    try {
+      const r = await api("billing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "mark_paid",
+          invoiceId: reactivateModal.invoice.id,
+        }),
+      });
+      const j = await r.json();
+      if (r.ok) {
+        setMsg(`¡Liquidación marcada como pagada! Se reactivaron ${j.reactivatedCount || 0} códigos vigentes.`);
+        setReactivateModal({ open: false, invoice: null, isProcessing: false });
+        await loadBilling();
+        await load();
+      } else {
+        setMsg(j.message || "Error al reactivar códigos");
+        setReactivateModal((prev) => ({ ...prev, isProcessing: false }));
+      }
+    } catch {
+      setMsg("Error de conexión al reactivar códigos");
+      setReactivateModal((prev) => ({ ...prev, isProcessing: false }));
+    }
+  };
+
+  const handleDirectMarkPaid = async (invoiceId: string, username: string) => {
+    if (!confirm(`¿Marcar la liquidación de @${username} como pagada?`)) return;
+    try {
+      const r = await api("billing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_paid", invoiceId }),
+      });
+      if (r.ok) {
+        setMsg(`Liquidación de @${username} marcada como pagada.`);
+        await loadBilling();
+      } else {
+        setMsg("Error al registrar pago");
+      }
+    } catch {
+      setMsg("Error de conexión al marcar pago");
+    }
+  };
 
   const [health, setHealth] = useState<string>("");
   useEffect(() => {
@@ -671,6 +850,31 @@ export default function AdminPage() {
             </button>
           </>
         )}
+
+        <button
+          onClick={() => {
+            setTab("billing");
+            setMsg("");
+            loadBilling();
+          }}
+          className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-colors flex items-center gap-1.5 ${
+            tab === "billing"
+              ? "bg-[#008CFF] border-[#008CFF] text-white"
+              : "border-white/15 text-zinc-400 hover:border-white/30"
+          }`}
+        >
+          <span>{isSuperAdmin ? "💰 Finanzas & Cobros" : "💰 Mis Finanzas"}</span>
+          {isSuperAdmin && billingData?.kpis?.pendingDebtTotal > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 text-[10px]">
+              ${billingData.kpis.pendingDebtTotal}
+            </span>
+          )}
+          {!isSuperAdmin && billingData?.kpis?.myCurrentBalance?.totalAmount > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 text-[10px]">
+              ${billingData.kpis.myCurrentBalance.totalAmount}
+            </span>
+          )}
+        </button>
       </div>
 
       {msg && (
@@ -1652,6 +1856,538 @@ export default function AdminPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* TAB: FINANZAS Y CONTROL DE VENTAS (Spec 025) */}
+      {tab === "billing" && (
+        <div className="space-y-6">
+          {/* Cabecera de la sección */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <span>💰</span>
+                <span>{isSuperAdmin ? "Control de Ventas y Liquidaciones" : "Mi Estado de Cuenta y Finanzas"}</span>
+              </h2>
+              <p className="text-xs text-zinc-400 mt-1">
+                {isSuperAdmin
+                  ? "Supervisión financiera de revendedores, configuración de tarifas por día, cierres de corte y gestión de morosidad."
+                  : "Auditoría de códigos generados, saldo acumulado del ciclo actual y fechas de corte."}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={loadBilling}
+                disabled={isLoadingBilling}
+                className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-300 transition-colors flex items-center gap-1.5"
+              >
+                <span>🔄</span>
+                <span>{isLoadingBilling ? "Actualizando..." : "Refrescar"}</span>
+              </button>
+
+              {isSuperAdmin && (
+                <button
+                  onClick={handleExecutePeriodClose}
+                  disabled={isClosingPeriod}
+                  className="px-4 py-2 rounded-xl bg-[#008CFF] hover:bg-[#0077db] text-white text-xs font-bold transition-all shadow-lg shadow-[#008CFF]/20 flex items-center gap-1.5"
+                >
+                  <span>⚡</span>
+                  <span>{isClosingPeriod ? "Cerrando..." : "Ejecutar Cierre de Período"}</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* KPI CARDS */}
+          {isSuperAdmin ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-4 rounded-2xl bg-[#0e0f17] border border-white/5 space-y-1">
+                <span className="text-[11px] text-zinc-400 uppercase font-semibold">Ventas Ciclo Abierto</span>
+                <p className="text-2xl font-black text-white">
+                  ${billingData?.kpis?.currentCycleTotal?.toFixed(2) || "0.00"}
+                </p>
+                <span className="text-[10px] text-zinc-500">En curso para próximo corte</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#0e0f17] border border-white/5 space-y-1">
+                <span className="text-[11px] text-zinc-400 uppercase font-semibold">Deuda Pendiente Cobro</span>
+                <p className={`text-2xl font-black ${(billingData?.kpis?.pendingDebtTotal || 0) > 0 ? "text-amber-400" : "text-zinc-300"}`}>
+                  ${billingData?.kpis?.pendingDebtTotal?.toFixed(2) || "0.00"}
+                </p>
+                <span className="text-[10px] text-zinc-500">Liquidaciones cerradas sin pagar</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#0e0f17] border border-white/5 space-y-1">
+                <span className="text-[11px] text-zinc-400 uppercase font-semibold">Total Cobrado</span>
+                <p className="text-2xl font-black text-emerald-400">
+                  ${billingData?.kpis?.paidTotal?.toFixed(2) || "0.00"}
+                </p>
+                <span className="text-[10px] text-zinc-500">Liquidaciones cobradas con éxito</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#0e0f17] border border-white/5 space-y-1">
+                <span className="text-[11px] text-zinc-400 uppercase font-semibold">Cortes por Morosidad</span>
+                <p className={`text-2xl font-black ${(billingData?.kpis?.suspendedAdminsCount || 0) > 0 ? "text-red-400" : "text-zinc-300"}`}>
+                  {billingData?.kpis?.suspendedAdminsCount || 0}
+                </p>
+                <span className="text-[10px] text-zinc-500">Períodos suspendidos</span>
+              </div>
+            </div>
+          ) : (
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-950/40 via-[#0e0f17] to-[#0e0f17] border border-blue-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <span className="text-xs uppercase font-bold text-blue-400 tracking-wider">Estado de Cuenta Actual</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-black text-white">
+                    ${billingData?.kpis?.myCurrentBalance?.totalAmount?.toFixed(2) || "0.00"}
+                  </span>
+                  <span className="text-xs text-zinc-400">a pagar en el próximo corte</span>
+                </div>
+                <p className="text-xs text-zinc-400">
+                  Has vendido/renovado <strong className="text-white">{billingData?.kpis?.myCurrentBalance?.codesCount || 0}</strong> códigos (<strong className="text-white">{billingData?.kpis?.myCurrentBalance?.totalDays || 0}</strong> días en total) durante este ciclo.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-4 text-xs border-t md:border-t-0 md:border-l border-white/10 pt-3 md:pt-0 md:pl-6">
+                <div>
+                  <span className="text-zinc-500 block">Tarifa por día:</span>
+                  <strong className="text-white font-mono">${billingData?.settings?.pricePerDay} USD</strong>
+                </div>
+                <div>
+                  <span className="text-zinc-500 block">Frecuencia de corte:</span>
+                  <strong className="text-white capitalize">{billingData?.settings?.cycleType === "weekly" ? "Semanal" : "Mensual"}</strong>
+                </div>
+                <div>
+                  <span className="text-zinc-500 block">Día de cierre:</span>
+                  <strong className="text-white">
+                    {billingData?.settings?.cycleType === "weekly"
+                      ? ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"][billingData?.settings?.closingDay || 0]
+                      : `Día ${billingData?.settings?.closingDay || 28}`}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* AJUSTES FINANCIEROS (SUPER ADMIN) */}
+          {isSuperAdmin && (
+            <div className="p-5 rounded-2xl bg-[#0e0f17] border border-white/10 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>⚙️</span>
+                    <span>Tarifas y Configuración de Cierre</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Define el costo por día vendido y el ciclo de corte programado para la red de revendedores.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveBillingSettings} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    Precio por Día ($ USD)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.001"
+                    value={pricePerDayInput}
+                    onChange={(e) => setPricePerDayInput(e.target.value)}
+                    required
+                    className={inp}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    Ciclo de Cierre
+                  </label>
+                  <select
+                    value={cycleTypeInput}
+                    onChange={(e) => setCycleTypeInput(e.target.value as any)}
+                    className={inp}
+                  >
+                    <option value="weekly" className="bg-[#0e0f17]">Semanal</option>
+                    <option value="monthly" className="bg-[#0e0f17]">Mensual</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    Día de Corte
+                  </label>
+                  {cycleTypeInput === "weekly" ? (
+                    <select
+                      value={closingDayInput}
+                      onChange={(e) => setClosingDayInput(Number(e.target.value))}
+                      className={inp}
+                    >
+                      <option value={0} className="bg-[#0e0f17]">Domingo (23:59 UTC)</option>
+                      <option value={1} className="bg-[#0e0f17]">Lunes (23:59 UTC)</option>
+                      <option value={2} className="bg-[#0e0f17]">Martes (23:59 UTC)</option>
+                      <option value={3} className="bg-[#0e0f17]">Miércoles (23:59 UTC)</option>
+                      <option value={4} className="bg-[#0e0f17]">Jueves (23:59 UTC)</option>
+                      <option value={5} className="bg-[#0e0f17]">Viernes (23:59 UTC)</option>
+                      <option value={6} className="bg-[#0e0f17]">Sábado (23:59 UTC)</option>
+                    </select>
+                  ) : (
+                    <select
+                      value={closingDayInput}
+                      onChange={(e) => setClosingDayInput(Number(e.target.value))}
+                      className={inp}
+                    >
+                      <option value={1} className="bg-[#0e0f17]">Día 1 de cada mes</option>
+                      <option value={15} className="bg-[#0e0f17]">Día 15 de cada mes</option>
+                      <option value={28} className="bg-[#0e0f17]">Día 28 / Fin de mes</option>
+                    </select>
+                  )}
+                </div>
+
+                <div>
+                  <button
+                    type="submit"
+                    disabled={isSavingSettings}
+                    className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs border border-white/10 transition-colors"
+                  >
+                    {isSavingSettings ? "Guardando..." : "Guardar Ajustes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* DESGLOSE EN TIEMPO REAL DEL CICLO ABIERTO (SUPER ADMIN) */}
+          {isSuperAdmin && (
+            <div className="p-5 rounded-2xl bg-[#0e0f17] border border-white/10 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>📊</span>
+                    <span>Balance Acumulado del Ciclo en Curso (No Cerrado)</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Ventas y renovaciones registradas desde el último corte. Este monto se liquidará al ejecutar el próximo cierre.
+                  </p>
+                </div>
+              </div>
+
+              {(!billingData?.currentDebtByAdmin || billingData.currentDebtByAdmin.length === 0) ? (
+                <div className="text-center py-6 text-xs text-zinc-500">
+                  No hay ventas ni renovaciones registradas en el período en curso todavía.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-white/10 text-zinc-400">
+                        <th className="py-2.5 px-3">Administrador</th>
+                        <th className="py-2.5 px-3 text-center">Códigos</th>
+                        <th className="py-2.5 px-3 text-center">Días Vendidos</th>
+                        <th className="py-2.5 px-3 text-right">Total Acumulado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {billingData.currentDebtByAdmin.map((row: any) => (
+                        <tr key={row.username} className="hover:bg-white/[0.02]">
+                          <td className="py-3 px-3">
+                            <span className="font-bold text-white">@{row.username}</span>
+                            {row.name && row.name !== row.username && (
+                              <span className="text-zinc-500 block text-[11px]">{row.name}</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-center font-mono">{row.codesCount}</td>
+                          <td className="py-3 px-3 text-center font-mono">{row.totalDays} d</td>
+                          <td className="py-3 px-3 text-right font-bold text-[#008CFF] font-mono text-sm">
+                            ${row.totalAmount?.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* HISTORIAL DE LIQUIDACIONES / FACTURAS POR PERÍODO */}
+          <div className="p-5 rounded-2xl bg-[#0e0f17] border border-white/10 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>📑</span>
+                  <span>{isSuperAdmin ? "Liquidaciones de Cierres de Facturación" : "Mis Liquidaciones y Pagos"}</span>
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  {isSuperAdmin
+                    ? "Historial de períodos cerrados. Puedes registrar pagos, o suspender/reactivar masivamente los códigos ante impago."
+                    : "Historial de tus períodos liquidados por el Administrador General y comprobantes de estado."}
+                </p>
+              </div>
+            </div>
+
+            {(!billingData?.invoices || billingData.invoices.length === 0) ? (
+              <div className="text-center py-8 text-xs text-zinc-500">
+                Aún no se han ejecutado cierres de período. Las liquidaciones aparecerán aquí tras el primer corte programado.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-white/10 text-zinc-400">
+                      <th className="py-2.5 px-3">Período de Facturación</th>
+                      {isSuperAdmin && <th className="py-2.5 px-3">Administrador</th>}
+                      <th className="py-2.5 px-3 text-center">Códigos</th>
+                      <th className="py-2.5 px-3 text-center">Días</th>
+                      <th className="py-2.5 px-3 text-right">Monto Total</th>
+                      <th className="py-2.5 px-3 text-center">Estado</th>
+                      {isSuperAdmin && <th className="py-2.5 px-3 text-right">Acciones de Cobro</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {billingData.invoices.map((inv: any) => {
+                      const period = inv.billing_periods;
+                      const periodText = period
+                        ? `${new Date(period.start_date).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })} - ${new Date(period.end_date).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}`
+                        : new Date(inv.created_at).toLocaleDateString("es-ES");
+
+                      return (
+                        <tr key={inv.id} className="hover:bg-white/[0.02]">
+                          <td className="py-3 px-3">
+                            <span className="font-semibold text-white">{periodText}</span>
+                            {inv.notes && (
+                              <span className="text-[10px] text-zinc-500 block">{inv.notes}</span>
+                            )}
+                          </td>
+
+                          {isSuperAdmin && (
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-white">@{inv.admin_username}</span>
+                            </td>
+                          )}
+
+                          <td className="py-3 px-3 text-center font-mono">{inv.total_codes}</td>
+                          <td className="py-3 px-3 text-center font-mono">{inv.total_days} d</td>
+                          <td className="py-3 px-3 text-right font-bold text-white font-mono text-sm">
+                            ${Number(inv.total_amount || 0).toFixed(2)}
+                          </td>
+
+                          <td className="py-3 px-3 text-center">
+                            {inv.is_suspended ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                                🛑 Suspendido por Morosidad
+                              </span>
+                            ) : inv.status === "paid" ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                ✓ Pagado
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                ⏳ Pendiente de Pago
+                              </span>
+                            )}
+                          </td>
+
+                          {isSuperAdmin && (
+                            <td className="py-3 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {inv.status === "pending" && !inv.is_suspended && (
+                                  <>
+                                    <button
+                                      onClick={() => handleDirectMarkPaid(inv.id, inv.admin_username)}
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold transition-colors"
+                                    >
+                                      ✓ Marcar Pagado
+                                    </button>
+
+                                    <button
+                                      onClick={() => setSuspendModal({ open: true, invoice: inv, isProcessing: false })}
+                                      className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 text-[11px] font-semibold transition-colors"
+                                    >
+                                      🛑 Suspender Códigos
+                                    </button>
+                                  </>
+                                )}
+
+                                {inv.is_suspended && (
+                                  <button
+                                    onClick={() => setReactivateModal({ open: true, invoice: inv, isProcessing: false })}
+                                    className="px-2.5 py-1 rounded-lg bg-[#008CFF]/20 hover:bg-[#008CFF]/30 text-[#008CFF] border border-[#008CFF]/30 text-[11px] font-semibold transition-colors flex items-center gap-1"
+                                  >
+                                    <span>🔄</span>
+                                    <span>Reactivar & Registrar Pago</span>
+                                  </button>
+                                )}
+
+                                {inv.status === "paid" && (
+                                  <span className="text-[11px] text-zinc-500">
+                                    {inv.paid_at ? `Cobrado el ${new Date(inv.paid_at).toLocaleDateString()}` : "Liquidado"}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* TRANSACCIONES RECIENTES DE CÓDIGOS */}
+          <div className="p-5 rounded-2xl bg-[#0e0f17] border border-white/10 space-y-4">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <span>🧾</span>
+              <span>{isSuperAdmin ? "Libro Contable de Ventas Recientes" : "Mis Ventas y Renovaciones Recientes"}</span>
+            </h3>
+
+            {(!billingData?.recentTransactions || billingData.recentTransactions.length === 0) ? (
+              <div className="text-center py-6 text-xs text-zinc-500">
+                No hay transacciones registradas todavía.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-white/10 text-zinc-400">
+                      <th className="py-2.5 px-3">Fecha</th>
+                      <th className="py-2.5 px-3">Clave Ref</th>
+                      {isSuperAdmin && <th className="py-2.5 px-3">Admin</th>}
+                      <th className="py-2.5 px-3 text-center">Tipo</th>
+                      <th className="py-2.5 px-3 text-center">Días</th>
+                      <th className="py-2.5 px-3 text-right">Costo Calculado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 font-mono text-[11px]">
+                    {billingData.recentTransactions.map((tx: any) => (
+                      <tr key={tx.id} className="hover:bg-white/[0.02]">
+                        <td className="py-2.5 px-3 text-zinc-400 font-sans">
+                          {new Date(tx.created_at).toLocaleString("es-ES", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="py-2.5 px-3 text-white font-bold">{tx.ref_code}</td>
+                        {isSuperAdmin && <td className="py-2.5 px-3 text-zinc-300 font-sans">@{tx.admin_username}</td>}
+                        <td className="py-2.5 px-3 text-center font-sans">
+                          {tx.type === "create" ? (
+                            <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 text-[10px]">Creación</span>
+                          ) : tx.type === "renew" ? (
+                            <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px]">Renovación</span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">Extensión</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">{tx.days} d</td>
+                        <td className="py-2.5 px-3 text-right text-emerald-400 font-bold">
+                          ${Number(tx.total_amount || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRMAR SUSPENSIÓN POR MOROSIDAD (CORTE DE SEÑAL) */}
+      {suspendModal.open && suspendModal.invoice && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0e0f17] border border-red-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-400">
+              <span className="text-2xl">🛑</span>
+              <h3 className="text-base font-bold text-white">
+                ¿Suspender códigos por falta de pago?
+              </h3>
+            </div>
+
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              Estás a punto de suspender masivamente los códigos generados o renovados por el administrador{" "}
+              <strong className="text-white">@{suspendModal.invoice.admin_username}</strong> correspondientes a esta liquidación (
+              <strong className="text-amber-300">${Number(suspendModal.invoice.total_amount || 0).toFixed(2)} USD</strong>).
+            </p>
+
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300 space-y-1">
+              <strong className="block font-bold">⚠️ Consecuencias inmediatas:</strong>
+              <ul className="list-disc list-inside space-y-0.5 text-[11px] text-red-200/80">
+                <li>Los códigos del período quedarán revocados en el sistema.</li>
+                <li>Se expulsarán todas las sesiones activas en dispositivos clientes.</li>
+                <li>Los usuarios finales verán el candado de acceso y no podrán reproducir.</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleConfirmSuspend}
+                disabled={suspendModal.isProcessing}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-lg shadow-red-600/20"
+              >
+                {suspendModal.isProcessing ? "Desactivando códigos..." : "Sí, Desactivar Códigos Ahora"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSuspendModal({ open: false, invoice: null, isProcessing: false })}
+                className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-zinc-400 hover:text-white"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REACTIVAR CÓDIGOS Y MARCAR PAGADO */}
+      {reactivateModal.open && reactivateModal.invoice && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0e0f17] border border-emerald-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-emerald-400">
+              <span className="text-2xl">🔄</span>
+              <h3 className="text-base font-bold text-white">
+                Reactivar códigos y registrar pago
+              </h3>
+            </div>
+
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              El administrador <strong className="text-white">@{reactivateModal.invoice.admin_username}</strong> ha cumplido con el pago de{" "}
+              <strong className="text-emerald-300">${Number(reactivateModal.invoice.total_amount || 0).toFixed(2)} USD</strong>.
+            </p>
+
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 space-y-1">
+              <strong className="block font-bold">✓ Acciones automáticas:</strong>
+              <ul className="list-disc list-inside space-y-0.5 text-[11px] text-emerald-200/80">
+                <li>Se reactivarán los códigos suspendidos que sigan dentro de su fecha de expiración.</li>
+                <li>La liquidación quedará archivada en estado Pagado.</li>
+                <li>Los clientes podrán volver a ingresar sin necesidad de crear claves nuevas.</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleConfirmReactivate}
+                disabled={reactivateModal.isProcessing}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-lg shadow-emerald-600/20"
+              >
+                {reactivateModal.isProcessing ? "Reactivando..." : "Reactivar y Marcar Pagado"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setReactivateModal({ open: false, invoice: null, isProcessing: false })}
+                className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-zinc-400 hover:text-white"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL: NUEVO ADMINISTRADOR */}

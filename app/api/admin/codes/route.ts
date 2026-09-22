@@ -9,6 +9,7 @@ import {
   resetSessionsForCode,
   MAX_DEVICES_PER_CODE,
 } from "@/lib/access";
+import { recordCodeTransaction } from "@/lib/billing";
 import { randomBytes } from "crypto";
 
 const newCode = () => randomBytes(4).toString("hex").toUpperCase(); // 8 chars
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data, error } = await sb
       .from("access_codes")
-      .select("id,label,ref_code,expires_at,revoked,created_at,created_by,creator_username")
+      .select("id,label,ref_code,expires_at,revoked,created_at,created_by,creator_username,suspended_by_billing")
       .order("created_at", { ascending: false });
 
     if (!error && data) {
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
   } catch {
     const { data: baseData, error: baseErr } = await sb
       .from("access_codes")
-      .select("id,label,ref_code,expires_at,revoked,created_at")
+      .select("id,label,ref_code,expires_at,revoked,created_at,created_by,creator_username")
       .order("created_at", { ascending: false });
 
     if (baseErr) return NextResponse.json({ error: "db" }, { status: 500 });
@@ -220,21 +221,40 @@ export async function POST(req: NextRequest) {
 
   const sb = supa();
 
+  let insertedCodeId: string | null = null;
   try {
-    const { error } = await sb.from("access_codes").insert(insertPayload);
+    const { data: insData, error } = await sb.from("access_codes").insert(insertPayload).select("id").maybeSingle();
     if (error) throw error;
+    if (insData) insertedCodeId = insData.id;
   } catch (err: any) {
     // Fallback si la tabla aún no tiene las columnas created_by/creator_username
     try {
-      const { error: baseError } = await sb.from("access_codes").insert({
+      const { data: insData, error: baseError } = await sb.from("access_codes").insert({
         code_hash: sha(code),
         ref_code,
         label: String(body.label || ""),
         expires_at,
-      });
+      }).select("id").maybeSingle();
       if (baseError) throw baseError;
+      if (insData) insertedCodeId = insData.id;
     } catch (fallbackErr: any) {
       return NextResponse.json({ error: "db", message: fallbackErr.message }, { status: 500 });
+    }
+  }
+
+  // Registrar transacción contable de la venta
+  if (insertedCodeId) {
+    try {
+      await recordCodeTransaction({
+        codeId: insertedCodeId,
+        refCode: ref_code,
+        adminId: currentAdmin?.id,
+        adminUsername: currentAdmin?.username || "admin",
+        type: "create",
+        days,
+      });
+    } catch (txErr) {
+      console.warn("[Admin Codes] No se pudo registrar la transacción contable:", txErr);
     }
   }
 
@@ -293,19 +313,43 @@ export async function PATCH(req: NextRequest) {
     const expires_at = new Date(Date.now() + days * 86400 * 1000).toISOString();
     const { error } = await sb
       .from("access_codes")
-      .update({ code_hash: sha(code), ref_code, expires_at, revoked: false })
+      .update({ code_hash: sha(code), ref_code, expires_at, revoked: false, suspended_by_billing: false })
       .eq("id", body.id);
     if (error) return NextResponse.json({ error: "db" }, { status: 500 });
+
+    try {
+      await recordCodeTransaction({
+        codeId: body.id,
+        refCode: ref_code,
+        adminId: currentAdmin?.id,
+        adminUsername: currentAdmin?.username || "admin",
+        type: "renew",
+        days,
+      });
+    } catch {}
+
     return NextResponse.json({ code, ref_code, expires_at });
   }
 
   if (body.extendDays) {
     const days = Math.max(1, Math.min(3650, Number(body.extendDays) || 30));
-    const { data } = await sb.from("access_codes").select("expires_at").eq("id", body.id).maybeSingle();
+    const { data } = await sb.from("access_codes").select("expires_at,ref_code").eq("id", body.id).maybeSingle();
     const base = data?.expires_at ? new Date(data.expires_at).getTime() : Date.now();
     const expires_at = new Date(Math.max(base, Date.now()) + days * 86400 * 1000).toISOString();
-    const { error } = await sb.from("access_codes").update({ expires_at, revoked: false }).eq("id", body.id);
+    const { error } = await sb.from("access_codes").update({ expires_at, revoked: false, suspended_by_billing: false }).eq("id", body.id);
     if (error) return NextResponse.json({ error: "db" }, { status: 500 });
+
+    try {
+      await recordCodeTransaction({
+        codeId: body.id,
+        refCode: data?.ref_code || "",
+        adminId: currentAdmin?.id,
+        adminUsername: currentAdmin?.username || "admin",
+        type: "extend",
+        days,
+      });
+    } catch {}
+
     return NextResponse.json({ ok: true, expires_at });
   }
 
