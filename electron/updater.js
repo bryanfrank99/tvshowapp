@@ -20,14 +20,14 @@ class DesktopUpdater {
     try {
       const v = app.getVersion();
       const parts = String(v).split('.');
-      return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : (v || '6.17');
+      return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : (v || '7.0');
     } catch {
       try {
         const pkg = require('../package.json');
         const parts = String(pkg.version).split('.');
-        return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : '6.17';
+        return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : '7.0';
       } catch {
-        return '6.17';
+        return '7.0';
       }
     }
   }

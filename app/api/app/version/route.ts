@@ -25,12 +25,12 @@ let cache: VersionCache | null = null;
 function parseVersionCode(ver: string): number {
   try {
     const parts = ver.split(".");
-    const major = parts.length > 0 ? parseInt(parts[0].replace(/[^0-9]/g, ""), 10) || 6 : 6;
+    const major = parts.length > 0 ? parseInt(parts[0].replace(/[^0-9]/g, ""), 10) || 7 : 7;
     const minor = parts.length > 1 ? parseInt(parts[1].replace(/[^0-9]/g, ""), 10) || 0 : 0;
     const patch = parts.length > 2 ? parseInt(parts[2].replace(/[^0-9]/g, ""), 10) || 0 : 0;
     return major * 10000 + minor * 100 + patch;
   } catch {
-    return 61700;
+    return 70000;
   }
 }
 
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const rawVer = String((pkg as any).version || "6.17.0");
+  const rawVer = String((pkg as any).version || "7.0.0");
   const parts = rawVer.split(".");
   const defaultVersion = parts.length >= 2 ? `${parts[0]}.${parts[1]}` : rawVer;
   const fallbackApkUrl = `https://github.com/bryanfrank99/tvshowapp/releases/download/v${defaultVersion}/TVShow-Mobile-v${defaultVersion}.apk`;

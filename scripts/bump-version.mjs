@@ -10,8 +10,8 @@ if (process.env.SKIP_VERSION) process.exit(0);
 const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 const parts = String(pkg.version).split(".").map(Number);
-const maj = Number.isInteger(parts[0]) ? parts[0] : 6;
-let minor = Number.isInteger(parts[1]) ? parts[1] : 17;
+const maj = Number.isInteger(parts[0]) ? parts[0] : 7;
+let minor = Number.isInteger(parts[1]) ? parts[1] : 0;
 
 if (process.env.BUMP_VERSION) {
   minor += 1;
