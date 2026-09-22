@@ -4,9 +4,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 const desktopUpdater = {
   getAppVersion: () => {
     try {
-      return ipcRenderer.sendSync('desktop-updater:get-version-sync') || '6.16';
+      return ipcRenderer.sendSync('desktop-updater:get-version-sync') || '6.17';
     } catch {
-      return '6.16';
+      return '6.17';
     }
   },
   getPlatform: () => 'windows',
@@ -45,6 +45,6 @@ contextBridge.exposeInMainWorld('WindowsUpdater', desktopUpdater);
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   platform: process.platform,
-  version: process.env.npm_package_version || '6.16',
+  version: process.env.npm_package_version || '6.17',
   updater: desktopUpdater
 });

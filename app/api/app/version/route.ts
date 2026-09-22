@@ -10,6 +10,8 @@ interface VersionCache {
     tag: string;
     name: string;
     apkUrl: string;
+    apkMobileUrl?: string;
+    apkTvUrl?: string;
     exeUrl: string;
     windowsUrl?: string;
     releaseNotes: string;
@@ -19,6 +21,18 @@ interface VersionCache {
 }
 
 let cache: VersionCache | null = null;
+
+function parseVersionCode(ver: string): number {
+  try {
+    const parts = ver.split(".");
+    const major = parts.length > 0 ? parseInt(parts[0].replace(/[^0-9]/g, ""), 10) || 6 : 6;
+    const minor = parts.length > 1 ? parseInt(parts[1].replace(/[^0-9]/g, ""), 10) || 0 : 0;
+    const patch = parts.length > 2 ? parseInt(parts[2].replace(/[^0-9]/g, ""), 10) || 0 : 0;
+    return major * 10000 + minor * 100 + patch;
+  } catch {
+    return 61700;
+  }
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -33,8 +47,11 @@ export async function GET(request: Request) {
     });
   }
 
-  const defaultVersion = String((pkg as any).version || "6.16");
+  const rawVer = String((pkg as any).version || "6.17.0");
+  const parts = rawVer.split(".");
+  const defaultVersion = parts.length >= 2 ? `${parts[0]}.${parts[1]}` : rawVer;
   const fallbackApkUrl = `https://github.com/bryanfrank99/tvshowapp/releases/download/v${defaultVersion}/TVShow-Mobile-v${defaultVersion}.apk`;
+  const fallbackTvApkUrl = `https://github.com/bryanfrank99/tvshowapp/releases/download/v${defaultVersion}/TVShow-TV-v${defaultVersion}.apk`;
   const fallbackExeUrl = `https://github.com/bryanfrank99/tvshowapp/releases/download/v${defaultVersion}/TVShow-Setup-${defaultVersion}.exe`;
 
   try {
@@ -54,16 +71,29 @@ export async function GET(request: Request) {
     const tag = release.tag_name || `v${defaultVersion}`;
     const cleanVersion = tag.replace(/^v/i, "");
 
-    // Buscar APK y EXE dentro de los assets publicados
+    // Buscar APK (Mobile/TV) y EXE dentro de los assets publicados
     let apkUrl = fallbackApkUrl;
+    let apkMobileUrl = fallbackApkUrl;
+    let apkTvUrl = fallbackTvApkUrl;
     let exeUrl = fallbackExeUrl;
     if (Array.isArray(release.assets)) {
-      const apkAsset = release.assets.find(
+      const mobileAsset = release.assets.find(
+        (a: any) => typeof a.name === "string" && a.name.toLowerCase().includes("mobile") && a.name.toLowerCase().endsWith(".apk")
+      );
+      const tvAsset = release.assets.find(
+        (a: any) => typeof a.name === "string" && a.name.toLowerCase().includes("tv") && a.name.toLowerCase().endsWith(".apk")
+      );
+      const anyApkAsset = release.assets.find(
         (a: any) => typeof a.name === "string" && a.name.toLowerCase().endsWith(".apk")
       );
-      if (apkAsset?.browser_download_url) {
-        apkUrl = apkAsset.browser_download_url;
+
+      if (mobileAsset?.browser_download_url) {
+        apkMobileUrl = mobileAsset.browser_download_url;
       }
+      if (tvAsset?.browser_download_url) {
+        apkTvUrl = tvAsset.browser_download_url;
+      }
+      apkUrl = (mobileAsset || anyApkAsset)?.browser_download_url || fallbackApkUrl;
 
       const exeAsset = release.assets.find(
         (a: any) => typeof a.name === "string" && a.name.toLowerCase().endsWith(".exe")
@@ -73,7 +103,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const cleanCode = parseInt(cleanVersion.replace(/[^0-9]/g, ""), 10) || 616;
+    const cleanCode = parseVersionCode(cleanVersion);
 
     const data = {
       latestVersion: cleanVersion,
@@ -81,6 +111,8 @@ export async function GET(request: Request) {
       tag,
       name: release.name || `TVShow ${tag}`,
       apkUrl,
+      apkMobileUrl,
+      apkTvUrl,
       exeUrl,
       windowsUrl: exeUrl,
       releaseNotes: release.body || "",
@@ -99,10 +131,12 @@ export async function GET(request: Request) {
   } catch (err: any) {
     const fallbackData = {
       latestVersion: defaultVersion,
-      versionCode: parseInt(defaultVersion.replace(/[^0-9]/g, ""), 10) || 616,
+      versionCode: parseVersionCode(defaultVersion),
       tag: `v${defaultVersion}`,
       name: `TVShow v${defaultVersion}`,
       apkUrl: fallbackApkUrl,
+      apkMobileUrl: fallbackApkUrl,
+      apkTvUrl: fallbackTvApkUrl,
       exeUrl: fallbackExeUrl,
       windowsUrl: fallbackExeUrl,
       releaseNotes: "",

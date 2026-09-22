@@ -18,13 +18,16 @@ class DesktopUpdater {
 
   getAppVersion() {
     try {
-      return app.getVersion();
+      const v = app.getVersion();
+      const parts = String(v).split('.');
+      return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : (v || '6.17');
     } catch {
       try {
         const pkg = require('../package.json');
-        return pkg.version || '6.16';
+        const parts = String(pkg.version).split('.');
+        return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : '6.17';
       } catch {
-        return '6.16';
+        return '6.17';
       }
     }
   }

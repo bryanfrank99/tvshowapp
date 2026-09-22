@@ -13,8 +13,10 @@ const gitCmd = existsSync("C:\\Program Files\\Git\\cmd\\git.exe")
 
 try {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  const version = pkg.version;
-  const tag = `v${version}`;
+  const parts = String(pkg.version).split(".").map(Number);
+  const maj = Number.isInteger(parts[0]) ? parts[0] : 6;
+  const minor = Number.isInteger(parts[1]) ? parts[1] : 17;
+  const tag = `v${maj}.${minor}`;
 
   console.log(`\n========================================`);
   console.log(`🚀 INICIANDO PUBLICACIÓN DE RELEASE: ${tag}`);
