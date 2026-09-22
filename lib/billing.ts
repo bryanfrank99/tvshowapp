@@ -4,6 +4,7 @@ import { resetSessionsForCode } from "@/lib/access";
 
 export type BillingSettings = {
   pricePerDay: number;
+  pricePerMonth: number;
   cycleType: "weekly" | "monthly";
   closingDay: number; // 0 = Domingo, 1 = Lunes... o día del mes (1-31)
   currency: string;
@@ -58,6 +59,7 @@ export async function getBillingSettings(): Promise<BillingSettings> {
       .select("key, value")
       .in("key", [
         "billing_price_per_day",
+        "billing_price_per_month",
         "billing_cycle_type",
         "billing_closing_day",
         "billing_currency",
@@ -66,15 +68,24 @@ export async function getBillingSettings(): Promise<BillingSettings> {
     const map = new Map<string, string>();
     (data || []).forEach((row) => map.set(row.key, row.value));
 
-    const pricePerDay = parseFloat(map.get("billing_price_per_day") || "0.10") || 0.10;
+    const rawMonth = map.get("billing_price_per_month");
+    const rawDay = map.get("billing_price_per_day");
+
+    let pricePerMonth = rawMonth ? parseFloat(rawMonth) : 10.00;
+    let pricePerDay = rawDay ? parseFloat(rawDay) : (pricePerMonth / 30);
+    if (!rawMonth && rawDay) {
+      pricePerMonth = parseFloat((pricePerDay * 30).toFixed(2));
+    }
+
     const cycleType = (map.get("billing_cycle_type") === "monthly" ? "monthly" : "weekly") as "weekly" | "monthly";
     const closingDay = parseInt(map.get("billing_closing_day") || "0", 10) || 0;
     const currency = map.get("billing_currency") || "$";
 
-    return { pricePerDay, cycleType, closingDay, currency };
+    return { pricePerDay, pricePerMonth, cycleType, closingDay, currency };
   } catch {
     return {
-      pricePerDay: 0.10,
+      pricePerDay: 0.3333,
+      pricePerMonth: 10.00,
       cycleType: "weekly",
       closingDay: 0,
       currency: "$",
@@ -86,8 +97,20 @@ export async function getBillingSettings(): Promise<BillingSettings> {
 export async function updateBillingSettings(settings: Partial<BillingSettings>): Promise<BillingSettings> {
   const sb = supa();
   const current = await getBillingSettings();
+
+  let pricePerMonth = settings.pricePerMonth !== undefined ? Math.max(0.01, settings.pricePerMonth) : current.pricePerMonth;
+  let pricePerDay = settings.pricePerDay !== undefined ? Math.max(0.0001, settings.pricePerDay) : current.pricePerDay;
+
+  // Si se envió pricePerMonth explícitamente y no pricePerDay, sincronizar pricePerDay
+  if (settings.pricePerMonth !== undefined && settings.pricePerDay === undefined) {
+    pricePerDay = Number((pricePerMonth / 30).toFixed(4));
+  } else if (settings.pricePerDay !== undefined && settings.pricePerMonth === undefined) {
+    pricePerMonth = Number((pricePerDay * 30).toFixed(2));
+  }
+
   const merged: BillingSettings = {
-    pricePerDay: settings.pricePerDay !== undefined ? Math.max(0.0001, settings.pricePerDay) : current.pricePerDay,
+    pricePerDay,
+    pricePerMonth,
     cycleType: settings.cycleType || current.cycleType,
     closingDay: settings.closingDay !== undefined ? settings.closingDay : current.closingDay,
     currency: settings.currency || current.currency,
@@ -95,6 +118,7 @@ export async function updateBillingSettings(settings: Partial<BillingSettings>):
 
   const rows = [
     { key: "billing_price_per_day", value: merged.pricePerDay.toString() },
+    { key: "billing_price_per_month", value: merged.pricePerMonth.toString() },
     { key: "billing_cycle_type", value: merged.cycleType },
     { key: "billing_closing_day", value: merged.closingDay.toString() },
     { key: "billing_currency", value: merged.currency },
@@ -199,7 +223,14 @@ export async function recordCodeTransaction(params: {
     const currentPeriod = await getOrCreateCurrentPeriod();
 
     const unitPrice = settings.pricePerDay;
-    const totalAmount = Number((params.days * unitPrice).toFixed(2));
+    let totalAmount = 0;
+    if (params.days === 30 && settings.pricePerMonth) {
+      totalAmount = Number(settings.pricePerMonth.toFixed(2));
+    } else if (params.days % 30 === 0 && settings.pricePerMonth) {
+      totalAmount = Number(((params.days / 30) * settings.pricePerMonth).toFixed(2));
+    } else {
+      totalAmount = Number((params.days * unitPrice).toFixed(2));
+    }
 
     const { error } = await sb.from("code_transactions").insert({
       code_id: params.codeId,
@@ -295,7 +326,14 @@ export async function getBillingSummary(adminUser: { id: string; username: strin
           const start = new Date(c.created_at).getTime();
           const end = new Date(c.expires_at).getTime();
           const days = Math.max(1, Math.round((end - start) / (86400 * 1000)));
-          const totalAmount = Number((days * settings.pricePerDay).toFixed(2));
+          let totalAmount = 0;
+          if (days === 30 && settings.pricePerMonth) {
+            totalAmount = Number(settings.pricePerMonth.toFixed(2));
+          } else if (days % 30 === 0 && settings.pricePerMonth) {
+            totalAmount = Number(((days / 30) * settings.pricePerMonth).toFixed(2));
+          } else {
+            totalAmount = Number((days * settings.pricePerDay).toFixed(2));
+          }
           return {
             id: c.id,
             code_id: c.id,

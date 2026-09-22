@@ -127,7 +127,8 @@ export default function AdminPage() {
   // Facturación y finanzas (Spec 025)
   const [billingData, setBillingData] = useState<any>(null);
   const [isLoadingBilling, setIsLoadingBilling] = useState(false);
-  const [pricePerDayInput, setPricePerDayInput] = useState("0.10");
+  const [pricePerMonthInput, setPricePerMonthInput] = useState("10.00");
+  const [pricePerDayInput, setPricePerDayInput] = useState("0.3333");
   const [cycleTypeInput, setCycleTypeInput] = useState<"weekly" | "monthly">("weekly");
   const [closingDayInput, setClosingDayInput] = useState<number>(0);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -249,7 +250,8 @@ export default function AdminPage() {
       if (b) {
         setBillingData(b);
         if (b.settings) {
-          setPricePerDayInput(b.settings.pricePerDay.toString());
+          setPricePerMonthInput(b.settings.pricePerMonth?.toString() || "10.00");
+          setPricePerDayInput(b.settings.pricePerDay?.toString() || "0.3333");
           setCycleTypeInput(b.settings.cycleType);
           setClosingDayInput(b.settings.closingDay);
         }
@@ -276,7 +278,8 @@ export default function AdminPage() {
         const j = await r.json();
         setBillingData(j);
         if (j.settings) {
-          setPricePerDayInput(j.settings.pricePerDay.toString());
+          setPricePerMonthInput(j.settings.pricePerMonth?.toString() || "10.00");
+          setPricePerDayInput(j.settings.pricePerDay?.toString() || "0.3333");
           setCycleTypeInput(j.settings.cycleType);
           setClosingDayInput(j.settings.closingDay);
         }
@@ -292,13 +295,16 @@ export default function AdminPage() {
     setIsSavingSettings(true);
     setMsg("");
     try {
+      const pMonth = parseFloat(pricePerMonthInput) || 10.00;
+      const pDay = parseFloat(pricePerDayInput) || Number((pMonth / 30).toFixed(4));
       const r = await api("billing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "update_settings",
           settings: {
-            pricePerDay: parseFloat(pricePerDayInput) || 0.10,
+            pricePerMonth: pMonth,
+            pricePerDay: pDay,
             cycleType: cycleTypeInput,
             closingDay: Number(closingDayInput),
           },
@@ -306,7 +312,7 @@ export default function AdminPage() {
       });
       const j = await r.json();
       if (r.ok) {
-        setMsg("Tarifas y ciclo de corte actualizados correctamente.");
+        setMsg("Tarifas (30 días y por día) y ciclo de corte actualizados correctamente.");
         await loadBilling();
       } else {
         setMsg(j.message || "Error guardando ajustes de facturación");
@@ -1950,6 +1956,10 @@ export default function AdminPage() {
 
               <div className="flex flex-wrap gap-4 text-xs border-t md:border-t-0 md:border-l border-white/10 pt-3 md:pt-0 md:pl-6">
                 <div>
+                  <span className="text-zinc-500 block">Tarifa Plan 30 Días:</span>
+                  <strong className="text-emerald-400 font-mono text-sm">${billingData?.settings?.pricePerMonth ?? "10.00"} USD</strong>
+                </div>
+                <div>
                   <span className="text-zinc-500 block">Tarifa por día:</span>
                   <strong className="text-white font-mono">${billingData?.settings?.pricePerDay} USD</strong>
                 </div>
@@ -1979,25 +1989,63 @@ export default function AdminPage() {
                     <span>Tarifas y Configuración de Cierre</span>
                   </h3>
                   <p className="text-xs text-zinc-400">
-                    Define el costo por día vendido y el ciclo de corte programado para la red de revendedores.
+                    Define el costo por mes (30 días) o por día vendido, y el ciclo de corte programado para la red de administradores.
                   </p>
                 </div>
               </div>
 
-              <form onSubmit={handleSaveBillingSettings} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+              <form onSubmit={handleSaveBillingSettings} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1 flex items-center justify-between">
+                    <span>Precio Mes (30 Días)</span>
+                    <span className="text-[10px] text-emerald-400 font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">Recomendado</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-mono font-bold">$</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.01"
+                      placeholder="10.00"
+                      value={pricePerMonthInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPricePerMonthInput(val);
+                        const num = parseFloat(val);
+                        if (!isNaN(num) && num > 0) {
+                          setPricePerDayInput((num / 30).toFixed(4));
+                        }
+                      }}
+                      required
+                      className={`${inp} pl-7 font-mono font-bold text-white`}
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-zinc-300 mb-1">
                     Precio por Día ($ USD)
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.001"
-                    value={pricePerDayInput}
-                    onChange={(e) => setPricePerDayInput(e.target.value)}
-                    required
-                    className={inp}
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-mono font-bold">$</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.0001"
+                      placeholder="0.3333"
+                      value={pricePerDayInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPricePerDayInput(val);
+                        const num = parseFloat(val);
+                        if (!isNaN(num) && num > 0) {
+                          setPricePerMonthInput((num * 30).toFixed(2));
+                        }
+                      }}
+                      required
+                      className={`${inp} pl-7 font-mono text-zinc-200`}
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -2055,6 +2103,13 @@ export default function AdminPage() {
                   </button>
                 </div>
               </form>
+
+              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200/90 flex items-start gap-2.5">
+                <span className="text-base shrink-0">💡</span>
+                <p>
+                  <strong>Tarificación exacta:</strong> Al fijar el mes en <strong>${pricePerMonthInput || "10.00"} USD</strong>, cualquier código o renovación de 30 días se factura exactamente por <strong>${pricePerMonthInput || "10.00"} USD</strong> sin pérdida por redondeo. La tarifa diaria de <strong>${pricePerDayInput || "0.3333"} USD/día</strong> se usa proporcionalmente para códigos con duración personalizada (ej. 7, 15 o 60 días).
+                </p>
+              </div>
             </div>
           )}
 
