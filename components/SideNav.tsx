@@ -62,7 +62,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
 
   return (
     <>
-      <aside className="w-16 shrink-0 relative z-40">
+      <aside className="hidden md:flex [.tv_&]:flex w-16 shrink-0 relative z-40">
         <nav
           ref={navRef}
           aria-label="Principal"

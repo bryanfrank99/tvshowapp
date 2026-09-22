@@ -53,6 +53,36 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    buildFeatures {
+        buildConfig = true
+    }
+
+    flavorDimensions "device"
+    productFlavors {
+        mobile {
+            dimension "device"
+            applicationId "com.tvshow.mobile"
+            resValue "string", "app_name", "TVShow"
+            buildConfigField "String", "UA_TAG", "\"TVShowMobile\""
+            buildConfigField "String", "APP_MODE", "\"mobile\""
+            manifestPlaceholders = [
+                screenOrientation: "user",
+                appName: "TVShow"
+            ]
+        }
+        tv {
+            dimension "device"
+            applicationId "com.tvshow.tv"
+            resValue "string", "app_name", "TVShow TV"
+            buildConfigField "String", "UA_TAG", "\"TVShowTV\""
+            buildConfigField "String", "APP_MODE", "\"tv\""
+            manifestPlaceholders = [
+                screenOrientation: "sensorLandscape",
+                appName: "TVShow TV"
+            ]
+        }
+    }
+
     buildTypes {
         debug {
             signingConfig signingConfigs.debug

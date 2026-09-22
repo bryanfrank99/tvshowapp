@@ -1,6 +1,7 @@
 "use client";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useLang } from "@/hooks/useLang";
 import Clock from "@/components/Clock";
 import { t } from "@/lib/dict";
@@ -27,6 +28,10 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-30 bg-[#0b0b10]/95 border-b border-white/10">
       <div className="w-full max-w-[1840px] mx-auto px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4">
+        {/* Logo solo en móvil cuando el SideNav está oculto */}
+        <Link href="/" className="flex md:hidden [.tv_&]:!hidden items-center shrink-0 mr-2">
+          <Image src="/TVSHOW.png" alt="TVSHOW" width={90} height={24} className="h-5 sm:h-6 w-auto object-contain" priority />
+        </Link>
         <nav aria-label="Ruta" className="flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm min-w-0 flex-1 overflow-hidden">
           <Link href="/" className="text-zinc-500 hover:text-white shrink-0">{d.nav_home.charAt(0) + d.nav_home.slice(1).toLowerCase()}</Link>
           {crumb && (

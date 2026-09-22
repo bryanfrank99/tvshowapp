@@ -13,19 +13,25 @@ public class MainActivity extends BridgeActivity {
         AdBlock.initIfNeeded(this);
         try {
             WebView webView = getBridge().getWebView();
-            // Marca UA para que la web active el modo TV (sin barra móvil).
+            // Inyecta UA_TAG dinámico según el flavor (TVShowTV o TVShowMobile)
             String ua = webView.getSettings().getUserAgentString();
-            if (ua != null && !ua.contains("TVShowTV")) {
-                webView.getSettings().setUserAgentString(ua + " TVShowTV");
+            String tag = BuildConfig.UA_TAG;
+            if (ua != null && tag != null && !ua.contains(tag)) {
+                webView.getSettings().setUserAgentString(ua + " " + tag);
             }
-            // Normaliza escala: ignora el tamaño de fuente del sistema TV
-            // y ajusta el viewport para pantallas grandes.
-            webView.getSettings().setTextZoom(100);
-            webView.getSettings().setUseWideViewPort(true);
-            webView.getSettings().setLoadWithOverviewMode(true);
-            webView.setFocusable(true);
-            webView.setFocusableInTouchMode(true);
-            webView.requestFocus();
+
+            // Normaliza escala y controles según el dispositivo
+            if ("tv".equals(BuildConfig.APP_MODE)) {
+                webView.getSettings().setTextZoom(100);
+                webView.getSettings().setUseWideViewPort(true);
+                webView.getSettings().setLoadWithOverviewMode(true);
+                webView.setFocusable(true);
+                webView.setFocusableInTouchMode(true);
+                webView.requestFocus();
+            } else {
+                webView.getSettings().setUseWideViewPort(true);
+                webView.getSettings().setLoadWithOverviewMode(true);
+            }
             webView.setWebViewClient(new AdBlockWebViewClient(getBridge()));
             webView.setWebChromeClient(new AdBlockWebChromeClient(getBridge()));
             webView.addJavascriptInterface(new AppUpdaterBridge(this), "AndroidUpdater");

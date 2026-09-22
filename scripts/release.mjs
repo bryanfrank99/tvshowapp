@@ -47,10 +47,13 @@ try {
 
   console.log(`\n============================================================`);
   console.log(`🎉 ¡TAG ${tag} ENVIADO EXITOSAMENTE A GITHUB!`);
-  console.log(`GitHub Actions ha comenzado a compilar el APK en la nube.`);
+  console.log(`GitHub Actions ha comenzado a compilar los 3 binarios en la nube:`);
+  console.log(`  1. 📱 TVShow Mobile (APK para Smartphones/Tablets)`);
+  console.log(`  2. 📺 TVShow TV (APK para Android TV / Google TV)`);
+  console.log(`  3. 💻 TVShow Windows (Instalador .exe para PC)`);
   console.log(`\nPuedes monitorear el progreso del build en:`);
   console.log(`👉 https://github.com/bryanfrank99/tvshowapp/actions`);
-  console.log(`\nTu nuevo Release y el APK estarán disponibles en:`);
+  console.log(`\nTu nuevo Release y los 3 instaladores estarán disponibles en:`);
   console.log(`👉 https://github.com/bryanfrank99/tvshowapp/releases`);
   console.log(`============================================================\n`);
 } catch (err) {

@@ -6,8 +6,11 @@ import { useEffect, useState } from "react";
 export function isTVUA(): boolean {
   if (typeof navigator === "undefined") return false;
   try {
-    if (new URLSearchParams(window.location.search).get("tv") === "1") return true;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") === "mobile") return false;
+    if (params.get("tv") === "1" || params.get("mode") === "tv") return true;
   } catch {}
+  if (/TVShowMobile/i.test(navigator.userAgent)) return false;
   return /TVShowTV|Android TV|Smart[ -]?TV|GoogleTV| TV;|Leanback/i.test(navigator.userAgent);
 }
 

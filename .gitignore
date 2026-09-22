@@ -29,3 +29,8 @@ ios/
 
 # typescript build cache
 *.tsbuildinfo
+
+# electron build output
+dist/
+release/
+
