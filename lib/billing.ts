@@ -220,8 +220,8 @@ export async function recordCodeTransaction(params: {
     let totalAmount = 0;
     let unitPrice = pricePerMonth;
 
-    // 1. Claves sin costo: demos de 7 días (primera clave), claves vitalicias (days = 0) o flag isFree
-    if (params.isFree || (params.type === "create" && params.days === 7) || params.days === 0) {
+    // 1. Claves sin costo: demos de 3 días (o 7 días retrocompatibles) (primera clave), claves vitalicias (days = 0) o flag isFree
+    if (params.isFree || (params.type === "create" && (params.days === 3 || params.days === 7)) || params.days === 0) {
       totalAmount = 0.00;
       unitPrice = 0.00;
     } else if (params.days === 30) {

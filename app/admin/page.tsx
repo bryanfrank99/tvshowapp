@@ -485,7 +485,7 @@ export default function AdminPage() {
       body: JSON.stringify({
         label,
         isLifetime: isSuper && isLifetimeInput,
-        days: isSuper && isLifetimeInput ? 0 : 7,
+        days: isSuper && isLifetimeInput ? 0 : 3,
       }),
     });
     const j = await r.json();
@@ -1004,7 +1004,7 @@ export default function AdminPage() {
                   </span>
                 ) : (
                   <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                    <span className="text-sm">🎁</span> Primera clave: 7 días Gratis
+                    <span className="text-sm">🎁</span> Primera clave: 3 días Gratis
                   </span>
                 )}
               </div>
@@ -1036,7 +1036,7 @@ export default function AdminPage() {
                 <span className="text-[11px] text-zinc-500">
                   {isLifetimeInput
                     ? "Esta clave nunca caducará y no genera cobros"
-                    : "Primera clave estándar de prueba de 7 días (luego ampliable a 30d, 90d o 360d)"}
+                    : "Primera clave estándar de prueba de 3 días (luego ampliable a 30d, 90d o 360d)"}
                 </span>
               </div>
             )}
@@ -2166,7 +2166,7 @@ export default function AdminPage() {
               <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200/90 flex items-start gap-2.5">
                 <span className="text-base shrink-0">📦</span>
                 <p>
-                  <strong>Modelo de Paquetes de 30 Días:</strong> Toda la facturación opera en múltiplos de 30 días a <strong>${pricePerMonthInput || "10.00"} USD / paquete</strong>. Las extensiones de tiempo aplican: 30d ($10), 90d ($30) y 360d ($120). La primera clave demo de 7 días y las claves vitalicias no generan costo.
+                  <strong>Modelo de Paquetes de 30 Días:</strong> Toda la facturación opera en múltiplos de 30 días a <strong>${pricePerMonthInput || "10.00"} USD / paquete</strong>. Las extensiones de tiempo aplican: 30d ($10), 90d ($30) y 360d ($120). La primera clave demo de 3 días y las claves vitalicias no generan costo.
                 </p>
               </div>
             </div>

@@ -213,16 +213,16 @@ export async function POST(req: NextRequest) {
 
   // Regla comercial TVShow:
   // 1. Clave vitalicia: solo Super Admin, sin límite de tiempo (2099-12-31), days = 0, gratis.
-  // 2. Primera clave normal: 7 días de prueba totalmente GRATIS ($0.00 USD).
-  let days = 7;
+  // 2. Primera clave normal: 3 días de prueba totalmente GRATIS ($0.00 USD).
+  let days = 3;
   let expires_at = "";
 
   if (isLifetime) {
     expires_at = LIFETIME_EXPIRATION_DATE;
     days = 0;
   } else {
-    days = 7;
-    expires_at = new Date(Date.now() + 7 * 86400 * 1000).toISOString();
+    days = 3;
+    expires_at = new Date(Date.now() + 3 * 86400 * 1000).toISOString();
   }
 
   const code = newCode();
@@ -260,7 +260,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Registrar transacción contable de la venta (La primera clave de 7d y la vitalicia son $0.00 USD)
+  // Registrar transacción contable de la venta (La primera clave de 3d y la vitalicia son $0.00 USD)
   if (insertedCodeId) {
     try {
       await recordCodeTransaction({
