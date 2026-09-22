@@ -81,7 +81,7 @@ export async function GET(request: Request) {
         (a: any) => typeof a.name === "string" && a.name.toLowerCase().includes("mobile") && a.name.toLowerCase().endsWith(".apk")
       );
       const tvAsset = release.assets.find(
-        (a: any) => typeof a.name === "string" && a.name.toLowerCase().includes("tv") && a.name.toLowerCase().endsWith(".apk")
+        (a: any) => typeof a.name === "string" && (a.name.includes("-TV-") || a.name.toLowerCase().includes("tvshow-tv")) && a.name.toLowerCase().endsWith(".apk")
       );
       const anyApkAsset = release.assets.find(
         (a: any) => typeof a.name === "string" && a.name.toLowerCase().endsWith(".apk")
