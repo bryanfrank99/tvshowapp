@@ -140,13 +140,10 @@ export async function GET(req: NextRequest) {
 
     for (const p of providersData) {
       const requiresTmdb = !!p.needs_tmdb;
-      // Si el proveedor exige TMDB pero el título no pudo resolverse a TMDB, se descarta para no mostrar error al usuario
-      if (requiresTmdb && !effectiveTmdbId) {
-        continue;
-      }
-
-      // Elegir el ID apropiado para este servidor
-      const targetId = requiresTmdb ? (effectiveTmdbId as string) : (effectiveImdbId || rawId);
+      // Mantener todos los proveedores disponibles; si falta TMDB ID, usar el ID original como fallback
+      const targetId = requiresTmdb
+        ? (effectiveTmdbId || rawId)
+        : (effectiveImdbId || rawId);
 
       eligibleProviders.push({
         id: p.id,

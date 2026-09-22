@@ -116,15 +116,11 @@ export function providerToSource(
   const e = ctx.episode || 1;
   const tvOk = provider.tv_ok !== undefined ? !!provider.tv_ok : !!provider.tvOk;
 
-  // Si es serie y el proveedor no tiene soporte de TV, descartar
-  if (isTv && !tvOk) {
-    return null;
-  }
-
   const rawTpl = isTv
     ? provider.tv_tpl || provider.tv
     : provider.movie_tpl || provider.movie;
 
+  // Si no tiene plantilla configurada para este tipo de contenido, descartar
   if (!rawTpl || typeof rawTpl !== "string" || !rawTpl.trim()) {
     return null;
   }
