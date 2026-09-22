@@ -1,10 +1,40 @@
 const { app, BrowserWindow, shell, session, Menu, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { initAdBlock, isBlocked, isAllowedHost, isSafeExternalUrl } = require('./adblock');
 const { desktopUpdater } = require('./updater');
 
 // Inicializar base de datos de hosts de anuncios
 initAdBlock();
+
+// Habilitar características de extensiones Manifest V3 en Chromium
+app.commandLine.appendSwitch('enable-features', 'ExtensionManifestV3,ExtensionServiceWorker');
+
+// Carga automática de extensiones Chromium por defecto (uBlock Origin Lite)
+async function loadDefaultExtensions() {
+  try {
+    let extPath;
+    if (app.isPackaged) {
+      extPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'extensions', 'ubol');
+    } else {
+      extPath = path.join(__dirname, 'extensions', 'ubol');
+    }
+
+    if (fs.existsSync(extPath)) {
+      const loader = session.defaultSession.extensions
+        ? session.defaultSession.extensions.loadExtension.bind(session.defaultSession.extensions)
+        : session.defaultSession.loadExtension.bind(session.defaultSession);
+      const ext = await loader(extPath, {
+        allowFileAccess: true
+      });
+      console.log(`[Extension] Cargada con éxito: ${ext.name} (v${ext.version})`);
+    } else {
+      console.warn('[Extension] No se encontró el directorio de uBlock Origin Lite:', extPath);
+    }
+  } catch (err) {
+    console.error('[Extension] Error cargando uBlock Origin Lite:', err);
+  }
+}
 
 // Canales IPC para el sistema de actualización automática en Windows
 ipcMain.on('desktop-updater:get-version-sync', (event) => {
@@ -37,7 +67,10 @@ if (!gotTheLock) {
     }
   });
 
-  app.whenReady().then(createMainWindow);
+  app.whenReady().then(async () => {
+    await loadDefaultExtensions();
+    createMainWindow();
+  });
 }
 
 function createMainWindow() {
