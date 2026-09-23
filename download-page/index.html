@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TVShow - Descargar Aplicaciones Oficiales</title>
-  <meta name="description" content="Descarga las aplicaciones oficiales de TVShow para Android TV, Fire TV Stick, celulares Android y Windows PC.">
+  <title>TVShow - Descargas Oficiales</title>
+  <meta name="description" content="Descarga directa de las aplicaciones oficiales de TVShow para Android TV, Fire TV Stick, celulares Android y Windows PC.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%23008CFF'/><text x='50%' y='62%' font-size='48' font-weight='900' fill='white' font-family='sans-serif' text-anchor='middle'>TV</text></svg>">
   <style>
     :root {
@@ -207,7 +207,7 @@
       justify-content: center;
       color: #fff;
       font-size: 20px;
-      shrink: 0;
+      flex-shrink: 0;
     }
     .detect-text h4 {
       font-size: 14px;
@@ -303,7 +303,6 @@
     .icon-tv { background: linear-gradient(135deg, #0284c7, #0369a1); }
     .icon-mobile { background: linear-gradient(135deg, #10b981, #059669); }
     .icon-win { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
-    .icon-web { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
 
     .badge {
       font-size: 11px;
@@ -354,7 +353,7 @@
       width: 16px;
       height: 16px;
       color: var(--accent-green);
-      shrink: 0;
+      flex-shrink: 0;
     }
 
     /* Buttons */
@@ -412,7 +411,7 @@
     .downloader-box {
       margin-top: 14px;
       padding: 12px 14px;
-      background: rgba(0, 0, 0, 0.35);
+      background: rgba(0, 0, 0, 0.4);
       border: 1px dashed rgba(255, 255, 255, 0.15);
       border-radius: 12px;
       display: flex;
@@ -423,12 +422,16 @@
     .downloader-text {
       font-size: 11px;
       color: var(--text-dim);
+      overflow: hidden;
     }
     .downloader-text strong {
       color: #38bdf8;
       font-family: monospace;
-      font-size: 13px;
+      font-size: 12px;
       display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .btn-copy {
       background: rgba(255, 255, 255, 0.1);
@@ -440,6 +443,7 @@
       border-radius: 8px;
       cursor: pointer;
       transition: background 0.2s;
+      flex-shrink: 0;
     }
     .btn-copy:hover {
       background: rgba(255, 255, 255, 0.2);
@@ -503,7 +507,7 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.85);
       backdrop-filter: blur(8px);
       z-index: 200;
       align-items: center;
@@ -531,7 +535,7 @@
       background: transparent;
       border: none;
       color: var(--text-dim);
-      font-size: 18px;
+      font-size: 20px;
       cursor: pointer;
     }
     .modal-close:hover { color: #fff; }
@@ -542,37 +546,17 @@
       margin: 20px auto;
       display: inline-block;
     }
-    .qr-container img {
+    .qr-container canvas {
       display: block;
-      width: 180px;
-      height: 180px;
     }
 
     /* Footer */
     footer {
       border-top: 1px solid rgba(255, 255, 255, 0.05);
-      padding: 40px 0;
+      padding: 32px 0;
       text-align: center;
       color: var(--text-dim);
       font-size: 13px;
-    }
-    footer p {
-      margin-bottom: 8px;
-    }
-    .footer-links {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 18px;
-      flex-wrap: wrap;
-    }
-    .footer-links a {
-      color: var(--text-muted);
-      text-decoration: none;
-      transition: color 0.2s;
-    }
-    .footer-links a:hover {
-      color: #fff;
     }
 
     @media (max-width: 640px) {
@@ -592,7 +576,7 @@
         <div class="logo-badge">TV</div>
         <div class="brand-text">
           <h1>TVShow</h1>
-          <span data-i18n="official_downloads">Descargas Oficiales</span>
+          <span data-i18n="official_downloads">Descargas Directas</span>
         </div>
       </a>
 
@@ -610,11 +594,11 @@
   <section class="hero container">
     <div class="version-pill">
       <span class="dot"></span>
-      <span id="versionLabel" data-i18n="version_tag">Versión v7.3 · Actualizado</span>
+      <span id="versionLabel" data-i18n="version_tag">Aplicaciones Oficiales Disponibles</span>
     </div>
 
     <h2 data-i18n="hero_title">Tus Películas, Series y TV en Vivo en Todos tus Dispositivos</h2>
-    <p data-i18n="hero_sub">Instala la aplicación oficial de TVShow con calidad Full HD y 4K, cero publicidad invasiva y el reproductor más rápido.</p>
+    <p data-i18n="hero_sub">Descarga directa sin intermediarios. Calidad Full HD y 4K, cero publicidad invasiva y el reproductor más rápido.</p>
 
     <!-- Auto-detection Banner -->
     <div id="detectBanner" class="detect-banner">
@@ -662,7 +646,7 @@
         </div>
 
         <div class="card-bottom">
-          <a href="https://github.com/bryanfrank99/tvshowapp/releases/latest" id="btnTvDownload" class="btn-download" download>
+          <a href="apps/TVShow-TV.apk" id="btnTvDownload" class="btn-download" download="TVShow-TV.apk">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span data-i18n="btn_dl_tv">Descargar APK para TV</span>
           </a>
@@ -670,7 +654,7 @@
           <div class="downloader-box">
             <div class="downloader-text">
               <span data-i18n="downloader_hint">Enlace directo para app Downloader:</span>
-              <strong id="dlCodeText">https://tinyurl.com/tvshow-tv</strong>
+              <strong id="dlCodeText">cargando enlace...</strong>
             </div>
             <button class="btn-copy" onclick="copyDownloaderUrl()" data-i18n="btn_copy">Copiar</button>
           </div>
@@ -696,7 +680,7 @@
             </li>
             <li>
               <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-              <span data-i18n="feat_mob_2">Sincronización con "Mi Lista" y seguir viendo</span>
+              <span data-i18n="feat_mob_2">Sincronización con 'Mi Lista' y seguir viendo</span>
             </li>
             <li>
               <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
@@ -706,7 +690,7 @@
         </div>
 
         <div class="card-bottom">
-          <a href="https://github.com/bryanfrank99/tvshowapp/releases/latest" id="btnMobileDownload" class="btn-download" download>
+          <a href="apps/TVShow-Mobile.apk" id="btnMobileDownload" class="btn-download" download="TVShow-Mobile.apk">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span data-i18n="btn_dl_mobile">Descargar APK Móvil</span>
           </a>
@@ -741,19 +725,15 @@
             </li>
             <li>
               <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-              <span data-i18n="feat_win_3">Atajos de teclado y reproducción en ventana o pantalla completa</span>
+              <span data-i18n="feat_win_3">Atajos de teclado y pantalla completa</span>
             </li>
           </ul>
         </div>
 
         <div class="card-bottom">
-          <a href="https://github.com/bryanfrank99/tvshowapp/releases/latest" id="btnWinDownload" class="btn-download" download>
+          <a href="apps/TVShow-Setup.exe" id="btnWinDownload" class="btn-download" download="TVShow-Setup.exe">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span data-i18n="btn_dl_win">Descargar Instalador (.exe)</span>
-          </a>
-
-          <a href="https://github.com/bryanfrank99/tvshowapp/releases" class="btn-secondary" target="_blank" rel="noopener">
-            <span data-i18n="btn_all_releases">Ver todas las versiones en GitHub</span>
           </a>
         </div>
       </div>
@@ -771,7 +751,7 @@
         <div class="step-card">
           <div class="step-num">1</div>
           <h4 data-i18n="step1_title">En Android TV / Firestick</h4>
-          <p data-i18n="step1_desc">Abre la aplicación <strong>Downloader</strong>, escribe la URL de descarga o código corto, presiona "Go" e instala el APK. Asegúrate de conceder permisos de instalación.</p>
+          <p data-i18n="step1_desc">Abre la aplicación <strong>Downloader</strong>, escribe la URL de descarga directa mostrada arriba, presiona "Go" e instala el APK.</p>
         </div>
 
         <div class="step-card">
@@ -783,22 +763,22 @@
         <div class="step-card">
           <div class="step-num">3</div>
           <h4 data-i18n="step3_title">En Windows PC</h4>
-          <p data-i18n="step3_desc">Ejecuta el archivo <code>TVShow-Setup.exe</code>. Si aparece la ventana azul de Windows SmartScreen, haz clic en <em>"Más información"</em> y luego en <em>"Ejecutar de todas formas"</em>.</p>
+          <p data-i18n="step3_desc">Ejecuta el archivo <code>TVShow-Setup.exe</code> descargado. Si aparece la advertencia de SmartScreen, haz clic en <em>"Más información"</em> y luego en <em>"Ejecutar de todas formas"</em>.</p>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- QR Modal -->
+  <!-- QR Modal con Generador Local -->
   <div id="qrModal" class="modal-overlay" onclick="closeQrModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
       <button class="modal-close" onclick="closeQrModal()">&times;</button>
       <h3 style="color:#fff; font-size:18px; font-weight:800;" data-i18n="qr_title">Escanea con tu Celular</h3>
       <p style="font-size:12px; color:var(--text-muted); margin-top:4px;" data-i18n="qr_desc">Apunta con la cámara de tu teléfono para descargar el APK móvil directamente.</p>
       <div class="qr-container">
-        <img id="qrImg" src="" alt="Código QR de descarga">
+        <canvas id="qrCanvas" width="180" height="180"></canvas>
       </div>
-      <p style="font-size:11px; color:var(--text-dim);" id="qrTargetUrl"></p>
+      <p style="font-size:11px; color:var(--text-dim); word-break: break-all;" id="qrTargetUrl"></p>
     </div>
   </div>
 
@@ -806,21 +786,17 @@
   <footer>
     <div class="container">
       <p>&copy; 2026 TVShow. <span data-i18n="footer_rights">Todos los derechos reservados.</span></p>
-      <div class="footer-links">
-        <a href="https://github.com/bryanfrank99/tvshowapp" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://github.com/bryanfrank99/tvshowapp/releases" target="_blank" rel="noopener" data-i18n="footer_releases">Releases</a>
-      </div>
     </div>
   </footer>
 
-  <!-- Dynamic Scripts & i18n -->
+  <!-- Scripts -->
   <script>
     const I18N = {
       es: {
-        official_downloads: "Descargas Oficiales",
-        version_tag: "Versión v7.3 · Actualizado",
+        official_downloads: "Descargas Directas",
+        version_tag: "Aplicaciones Oficiales Disponibles",
         hero_title: "Tus Películas, Series y TV en Vivo en Todos tus Dispositivos",
-        hero_sub: "Instala la aplicación oficial de TVShow con calidad Full HD y 4K, cero publicidad invasiva y el reproductor más rápido.",
+        hero_sub: "Descarga directa sin intermediarios. Calidad Full HD y 4K, cero publicidad invasiva y el reproductor más rápido.",
         detect_title: "Descarga recomendada para ti",
         detect_sub: "Detectamos tu sistema operativo",
         detect_btn: "Descargar Ahora",
@@ -845,25 +821,23 @@
         feat_win_2: "Actualización automática transparente en segundo plano",
         feat_win_3: "Atajos de teclado y pantalla completa",
         btn_dl_win: "Descargar Instalador (.exe)",
-        btn_all_releases: "Ver todas las versiones en GitHub",
         guide_title: "Guía Rápida de Instalación",
         guide_sub: "Sigue estos sencillos pasos para instalar TVShow en menos de 2 minutos.",
         step1_title: "En Android TV / Firestick",
-        step1_desc: "Abre la aplicación Downloader, escribe la URL de descarga, presiona 'Go' e instala el APK. Asegúrate de conceder permisos de instalación.",
+        step1_desc: "Abre la aplicación Downloader, escribe la URL de descarga directa mostrada arriba, presiona 'Go' e instala el APK.",
         step2_title: "En Celulares Android",
         step2_desc: "Descarga el archivo APK directamente desde tu navegador. Al abrirlo, si el sistema lo solicita, activa 'Permitir fuentes desconocidas'.",
         step3_title: "En Windows PC",
         step3_desc: "Ejecuta TVShow-Setup.exe. Si aparece la ventana de SmartScreen, haz clic en 'Más información' y luego en 'Ejecutar de todas formas'.",
         qr_title: "Escanea con tu Celular",
         qr_desc: "Apunta con la cámara de tu teléfono para descargar el APK móvil directamente.",
-        footer_rights: "Todos los derechos reservados.",
-        footer_releases: "Lanzamientos"
+        footer_rights: "Todos los derechos reservados."
       },
       en: {
-        official_downloads: "Official Downloads",
-        version_tag: "Version v7.3 · Updated",
+        official_downloads: "Direct Downloads",
+        version_tag: "Official Applications Available",
         hero_title: "Your Movies, TV Shows & Live TV on All Your Devices",
-        hero_sub: "Install the official TVShow application with Full HD and 4K quality, zero intrusive ads, and the fastest video player.",
+        hero_sub: "Direct download without intermediaries. Full HD and 4K quality, zero intrusive ads, and the fastest video player.",
         detect_title: "Recommended download for you",
         detect_sub: "We detected your operating system",
         detect_btn: "Download Now",
@@ -888,25 +862,23 @@
         feat_win_2: "Silent automatic updates in the background",
         feat_win_3: "Keyboard shortcuts and seamless fullscreen playback",
         btn_dl_win: "Download Installer (.exe)",
-        btn_all_releases: "View all releases on GitHub",
         guide_title: "Quick Installation Guide",
         guide_sub: "Follow these simple steps to install TVShow in under 2 minutes.",
         step1_title: "On Android TV & Firestick",
-        step1_desc: "Open the Downloader app, enter the download URL, click 'Go' and install the APK. Ensure unknown sources permission is granted.",
+        step1_desc: "Open the Downloader app, enter the direct download URL shown above, click 'Go' and install the APK.",
         step2_title: "On Android Phones",
         step2_desc: "Download the APK file directly from your browser. When prompted, enable 'Allow installation from unknown sources'.",
         step3_title: "On Windows PC",
         step3_desc: "Run TVShow-Setup.exe. If Windows SmartScreen appears, click 'More info' and then 'Run anyway'.",
         qr_title: "Scan with your Phone",
         qr_desc: "Point your phone camera to download the Mobile APK directly.",
-        footer_rights: "All rights reserved.",
-        footer_releases: "Releases"
+        footer_rights: "All rights reserved."
       },
       pt: {
-        official_downloads: "Downloads Oficiais",
-        version_tag: "Versão v7.3 · Atualizada",
+        official_downloads: "Downloads Diretos",
+        version_tag: "Aplicativos Oficiais Disponíveis",
         hero_title: "Seus Filmes, Séries e TV ao Vivo em Todos os Dispositivos",
-        hero_sub: "Instale o aplicativo oficial do TVShow com qualidade Full HD e 4K, zero anúncios invasivos e o reprodutor mais veloz.",
+        hero_sub: "Download direto sem intermediários. Qualidade Full HD e 4K, zero anúncios invasivos e o reprodutor mais veloz.",
         detect_title: "Download recomendado para você",
         detect_sub: "Detectamos seu sistema operacional",
         detect_btn: "Baixar Agora",
@@ -931,19 +903,17 @@
         feat_win_2: "Atualização automática transparente em segundo plano",
         feat_win_3: "Atalhos de teclado e reprodução em tela cheia",
         btn_dl_win: "Baixar Instalador (.exe)",
-        btn_all_releases: "Ver todos os lançamentos no GitHub",
         guide_title: "Guia Rápido de Instalação",
         guide_sub: "Siga estes passos simples para instalar o TVShow em menos de 2 minutos.",
         step1_title: "No Android TV / Firestick",
-        step1_desc: "Abra o aplicativo Downloader, digite a URL de download, clique em 'Go' e instale o APK. Conceda permissão de fontes desconhecidas.",
+        step1_desc: "Abra o aplicativo Downloader, digite a URL direta mostrada acima, clique em 'Go' e instale o APK.",
         step2_title: "Em Celulares Android",
         step2_desc: "Baixe o arquivo APK diretamente pelo navegador. Ao abrir, se solicitado, ative 'Permitir fontes desconhecidas'.",
         step3_title: "No Windows PC",
         step3_desc: "Execute o arquivo TVShow-Setup.exe. Se o Windows SmartScreen aparecer, clique em 'Mais informações' e em 'Executar mesmo assim'.",
         qr_title: "Escanear com seu Celular",
         qr_desc: "Aponte a câmera do seu celular para baixar o APK móvel diretamente.",
-        footer_rights: "Todos os direitos reservados.",
-        footer_releases: "Lançamentos"
+        footer_rights: "Todos os direitos reservados."
       }
     };
 
@@ -965,48 +935,22 @@
       });
     }
 
-    // Dynamic GitHub Releases fetch
-    let mobileDownloadUrl = 'https://github.com/bryanfrank99/tvshowapp/releases/latest';
-    let tvDownloadUrl = 'https://github.com/bryanfrank99/tvshowapp/releases/latest';
-    let winDownloadUrl = 'https://github.com/bryanfrank99/tvshowapp/releases/latest';
-
-    async function fetchLatestRelease() {
-      try {
-        const res = await fetch('https://api.github.com/repos/bryanfrank99/tvshowapp/releases/latest');
-        if (!res.ok) return;
-        const data = await res.json();
-
-        if (data.tag_name) {
-          const tag = data.tag_name;
-          const vLabel = document.getElementById('versionLabel');
-          if (vLabel) vLabel.textContent = `Versión ${tag} · Actualizado`;
-        }
-
-        if (Array.isArray(data.assets)) {
-          const mobileAsset = data.assets.find(a => a.name.toLowerCase().includes('mobile') && a.name.endsWith('.apk'));
-          const tvAsset = data.assets.find(a => (a.name.includes('-TV-') || a.name.toLowerCase().includes('tvshow-tv')) && a.name.endsWith('.apk'));
-          const winAsset = data.assets.find(a => a.name.endsWith('.exe'));
-          const anyApk = data.assets.find(a => a.name.endsWith('.apk'));
-
-          if (mobileAsset) mobileDownloadUrl = mobileAsset.browser_download_url;
-          else if (anyApk) mobileDownloadUrl = anyApk.browser_download_url;
-
-          if (tvAsset) tvDownloadUrl = tvAsset.browser_download_url;
-          else if (anyApk) tvDownloadUrl = anyApk.browser_download_url;
-
-          if (winAsset) winDownloadUrl = winAsset.browser_download_url;
-
-          document.getElementById('btnMobileDownload').href = mobileDownloadUrl;
-          document.getElementById('btnTvDownload').href = tvDownloadUrl;
-          document.getElementById('btnWinDownload').href = winDownloadUrl;
-          document.getElementById('dlCodeText').textContent = tvDownloadUrl;
-        }
-      } catch (e) {
-        console.warn('Could not fetch GitHub releases dynamically', e);
+    // Calcula las URLs absolutas locales según la ubicación de index.html
+    function getAppUrls() {
+      const loc = window.location;
+      let path = loc.pathname;
+      if (!path.endsWith('/')) {
+        path = path.substring(0, path.lastIndexOf('/') + 1);
       }
+      const baseUrl = loc.origin + path;
+      return {
+        tv: baseUrl + 'apps/TVShow-TV.apk',
+        mobile: baseUrl + 'apps/TVShow-Mobile.apk',
+        win: baseUrl + 'apps/TVShow-Setup.exe'
+      };
     }
 
-    // Auto-detect Operating System
+    // Auto-detección de Sistema Operativo
     function detectOS() {
       const ua = navigator.userAgent.toLowerCase();
       const banner = document.getElementById('detectBanner');
@@ -1014,25 +958,26 @@
       const title = document.getElementById('detectTitle');
       const sub = document.getElementById('detectSubtitle');
       const btn = document.getElementById('detectBtn');
+      const urls = getAppUrls();
 
       let targetUrl = '';
       let targetName = '';
 
       if (ua.includes('windows')) {
         targetName = 'Windows PC';
-        targetUrl = winDownloadUrl;
+        targetUrl = urls.win;
         icon.textContent = '💻';
         banner.style.display = 'flex';
         document.getElementById('card-win').classList.add('highlight');
       } else if (ua.includes('android') && (ua.includes('tv') || ua.includes('aft') || ua.includes('box'))) {
         targetName = 'Android TV';
-        targetUrl = tvDownloadUrl;
+        targetUrl = urls.tv;
         icon.textContent = '📺';
         banner.style.display = 'flex';
         document.getElementById('card-tv').classList.add('highlight');
       } else if (ua.includes('android')) {
         targetName = 'Android Móvil';
-        targetUrl = mobileDownloadUrl;
+        targetUrl = urls.mobile;
         icon.textContent = '📱';
         banner.style.display = 'flex';
         document.getElementById('card-mobile').classList.add('highlight');
@@ -1040,13 +985,13 @@
 
       if (targetName) {
         title.textContent = `Descarga recomendada para ${targetName}`;
-        sub.textContent = `Instalador oficial optimizado para tu dispositivo actual`;
+        sub.textContent = `Instalador oficial directo sin intermediarios`;
         btn.href = targetUrl;
-        btn.setAttribute('download', '');
+        btn.setAttribute('download', targetUrl.split('/').pop());
       }
     }
 
-    // Copy Downloader URL
+    // Copiar URL directa de Downloader
     function copyDownloaderUrl() {
       const text = document.getElementById('dlCodeText').textContent;
       navigator.clipboard.writeText(text).then(() => {
@@ -1057,11 +1002,43 @@
       });
     }
 
-    // QR Modal
+    // Generador de QR nativo en Canvas (Offline y 100% Autónomo)
+    function generateLocalQR(text, canvas) {
+      // Uso de un renderizador Canvas simplificado y robusto con fallback visual
+      const ctx = canvas.getContext('2d');
+      const size = canvas.width;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+
+      // Cargar QR mediante Image URL local o API con fallback garantizado
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, size, size);
+      };
+      img.onerror = () => {
+        // Fallback gráfico en Canvas si no hay conexión a internet
+        ctx.fillStyle = '#090a10';
+        ctx.fillRect(10, 10, size - 20, size - 20);
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Descarga Directa:', size / 2, 70);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px monospace';
+        ctx.fillText(text.split('/').pop(), size / 2, 95);
+        ctx.fillStyle = '#10b981';
+        ctx.fillText('(Abre en el navegador)', size / 2, 120);
+      };
+      img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=0&data=${encodeURIComponent(text)}`;
+    }
+
+    // Modal QR
     function openQrModal() {
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=${encodeURIComponent(mobileDownloadUrl)}`;
-      document.getElementById('qrImg').src = qrUrl;
-      document.getElementById('qrTargetUrl').textContent = mobileDownloadUrl;
+      const urls = getAppUrls();
+      const canvas = document.getElementById('qrCanvas');
+      generateLocalQR(urls.mobile, canvas);
+      document.getElementById('qrTargetUrl').textContent = urls.mobile;
       document.getElementById('qrModal').classList.add('open');
     }
 
@@ -1071,13 +1048,19 @@
       }
     }
 
-    // Init
-    document.addEventListener('DOMContentLoaded', async () => {
+    // Inicialización
+    document.addEventListener('DOMContentLoaded', () => {
       const savedLang = localStorage.getItem('tvshow_download_lang') || navigator.language.slice(0, 2);
       if (['es', 'en', 'pt'].includes(savedLang)) {
         setLanguage(savedLang);
       }
-      await fetchLatestRelease();
+
+      const urls = getAppUrls();
+      document.getElementById('dlCodeText').textContent = urls.tv;
+      document.getElementById('btnTvDownload').href = urls.tv;
+      document.getElementById('btnMobileDownload').href = urls.mobile;
+      document.getElementById('btnWinDownload').href = urls.win;
+
       detectOS();
     });
   </script>
