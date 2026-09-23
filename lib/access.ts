@@ -73,6 +73,10 @@ export function parseDeviceHint(ua = ""): string {
   return "Navegador Web";
 }
 
+// Banderas en memoria para evitar round-trips fallidos a tablas o columnas inexistentes en Supabase
+let hasDeviceBindingsTable: boolean | null = null;
+let hasSessionDeviceIdColumn: boolean | null = null;
+
 // Control anti-reúso de dispositivos: comprueba si el equipo ya tiene claves inactivas o vencidas
 export async function checkDeviceEligibility(
   deviceId: string,
@@ -91,42 +95,50 @@ export async function checkDeviceEligibility(
   const sb = supa();
 
   try {
-    // 1. Consultar historial en device_bindings
-    const { data: bindings, error: bindErr } = await sb
-      .from("device_bindings")
-      .select("code_id, access_codes!inner(id, label, ref_code, expires_at, revoked, suspended_by_billing)")
-      .eq("device_id", cleanDevId);
+    // 1. Consultar en device_bindings SOLO si la tabla existe o aún no se ha verificado
+    if (hasDeviceBindingsTable !== false) {
+      const { data: bindings, error: bindErr } = await sb
+        .from("device_bindings")
+        .select("code_id, access_codes!inner(id, label, ref_code, expires_at, revoked, suspended_by_billing)")
+        .eq("device_id", cleanDevId);
 
-    if (!bindErr && bindings && bindings.length > 0) {
-      for (const item of bindings) {
-        const boundCode: any = item.access_codes;
-        if (!boundCode) continue;
+      if (bindErr && (bindErr.code === "PGRST205" || bindErr.code === "42P01")) {
+        hasDeviceBindingsTable = false;
+      } else if (!bindErr) {
+        hasDeviceBindingsTable = true;
+        if (bindings && bindings.length > 0) {
+          for (const item of bindings) {
+            const boundCode: any = item.access_codes;
+            if (!boundCode || boundCode.id === targetCodeId) continue;
 
-        // Si es la misma clave, se permite la reactivación/renovación
-        if (boundCode.id === targetCodeId) continue;
+            const isRevoked = boundCode.revoked === true || boundCode.suspended_by_billing === true;
+            const isExpired = new Date(boundCode.expires_at).getTime() <= Date.now();
 
-        // Si es una clave diferente, verificar si está inactiva o vencida
-        const isRevoked = boundCode.revoked === true || boundCode.suspended_by_billing === true;
-        const isExpired = new Date(boundCode.expires_at).getTime() <= Date.now();
-
-        if (isRevoked || isExpired) {
-          return {
-            eligible: false,
-            reason: "device_blocked_inactive",
-            boundRef: boundCode.ref_code,
-            boundLabel: boundCode.label,
-          };
+            if (isRevoked || isExpired) {
+              return {
+                eligible: false,
+                reason: "device_blocked_inactive",
+                boundRef: boundCode.ref_code,
+                boundLabel: boundCode.label,
+              };
+            }
+          }
         }
       }
     }
 
-    // 2. Comprobación persistente en tabla config (dev_bind:<id>)
+    // 2. Comprobación directa y optimizada en tabla config (dev_bind:<id>)
     const configKey = `dev_bind:${cleanDevId}`;
     const { data: configRow } = await sb.from("config").select("value").eq("key", configKey).maybeSingle();
     if (configRow && configRow.value) {
       try {
         const parsed = JSON.parse(configRow.value);
-        if (parsed.codeId && parsed.codeId !== targetCodeId) {
+        if (parsed.codeId) {
+          // Si es la misma clave, se permite de inmediato sin consulta adicional
+          if (parsed.codeId === targetCodeId) {
+            return { eligible: true };
+          }
+
           const { data: boundCode } = await sb
             .from("access_codes")
             .select("id, label, ref_code, expires_at, revoked, suspended_by_billing")
@@ -150,27 +162,29 @@ export async function checkDeviceEligibility(
       } catch {}
     }
 
-    // 3. Comprobación de respaldo en tabla sessions
-    const { data: sessBindings, error: sessErr } = await sb
-      .from("sessions")
-      .select("code_id, access_codes!inner(id, label, ref_code, expires_at, revoked, suspended_by_billing)")
-      .eq("device_id", cleanDevId);
+    // 3. Comprobación en sessions SOLO si la columna device_id existe
+    if (hasSessionDeviceIdColumn === true) {
+      const { data: sessBindings } = await sb
+        .from("sessions")
+        .select("code_id, access_codes!inner(id, label, ref_code, expires_at, revoked, suspended_by_billing)")
+        .eq("device_id", cleanDevId);
 
-    if (!sessErr && sessBindings && sessBindings.length > 0) {
-      for (const item of sessBindings) {
-        const boundCode: any = item.access_codes;
-        if (!boundCode || boundCode.id === targetCodeId) continue;
+      if (sessBindings && sessBindings.length > 0) {
+        for (const item of sessBindings) {
+          const boundCode: any = item.access_codes;
+          if (!boundCode || boundCode.id === targetCodeId) continue;
 
-        const isRevoked = boundCode.revoked === true || boundCode.suspended_by_billing === true;
-        const isExpired = new Date(boundCode.expires_at).getTime() <= Date.now();
+          const isRevoked = boundCode.revoked === true || boundCode.suspended_by_billing === true;
+          const isExpired = new Date(boundCode.expires_at).getTime() <= Date.now();
 
-        if (isRevoked || isExpired) {
-          return {
-            eligible: false,
-            reason: "device_blocked_inactive",
-            boundRef: boundCode.ref_code,
-            boundLabel: boundCode.label,
-          };
+          if (isRevoked || isExpired) {
+            return {
+              eligible: false,
+              reason: "device_blocked_inactive",
+              boundRef: boundCode.ref_code,
+              boundLabel: boundCode.label,
+            };
+          }
         }
       }
     }
@@ -192,21 +206,30 @@ export async function bindDeviceToCode(
   const sb = supa();
   const now = new Date().toISOString();
 
-  // 1. Guardar en device_bindings si la tabla existe
-  try {
-    await sb.from("device_bindings").upsert(
-      {
-        device_id: cleanDevId,
-        code_id: codeId,
-        device_hint: deviceHint,
-        ip: ip,
-        last_seen_at: now,
-      },
-      { onConflict: "device_id,code_id" }
-    );
-  } catch {}
+  // 1. Guardar en device_bindings SOLO si la tabla existe o aún no se ha comprobado
+  if (hasDeviceBindingsTable !== false) {
+    try {
+      const { error } = await sb.from("device_bindings").upsert(
+        {
+          device_id: cleanDevId,
+          code_id: codeId,
+          device_hint: deviceHint,
+          ip: ip,
+          last_seen_at: now,
+        },
+        { onConflict: "device_id,code_id" }
+      );
+      if (error && (error.code === "PGRST205" || error.code === "42P01")) {
+        hasDeviceBindingsTable = false;
+      } else if (!error) {
+        hasDeviceBindingsTable = true;
+      }
+    } catch {
+      hasDeviceBindingsTable = false;
+    }
+  }
 
-  // 2. Persistencia garantizada en tabla config (dev_bind:<id>)
+  // 2. Persistencia garantizada e inmediata en tabla config (dev_bind:<id>)
   try {
     const configKey = `dev_bind:${cleanDevId}`;
     const configVal = JSON.stringify({
@@ -239,34 +262,36 @@ export async function createSession(codeId: string, deviceHint = "Navegador Web"
   const tokenHash = sha(token);
   const now = new Date().toISOString();
 
+  const sessionPayload: any = {
+    token_hash: tokenHash,
+    code_id: codeId,
+    device_hint: deviceHint,
+    last_seen_at: now,
+    created_at: now,
+  };
+
+  if (hasSessionDeviceIdColumn === true) {
+    sessionPayload.device_id = deviceId || null;
+  } else if (hasSessionDeviceIdColumn === null && deviceId) {
+    sessionPayload.device_id = deviceId;
+  }
+
   try {
-    const { error } = await sb.from("sessions").insert({
-      token_hash: tokenHash,
-      code_id: codeId,
-      device_hint: deviceHint,
-      device_id: deviceId || null,
-      last_seen_at: now,
-      created_at: now,
-    });
-    if (error) throw error;
-  } catch {
-    // Fallback si la columna device_id aún no existe
-    try {
-      const { error: fError } = await sb.from("sessions").insert({
-        token_hash: tokenHash,
-        code_id: codeId,
-        device_hint: deviceHint,
-        last_seen_at: now,
-        created_at: now,
-      });
-      if (fError) throw fError;
-    } catch {
-      const { error: baseError } = await sb.from("sessions").insert({
-        token_hash: tokenHash,
-        code_id: codeId,
-      });
-      if (baseError) return null;
+    const { error } = await sb.from("sessions").insert(sessionPayload);
+    if (error) {
+      if (error.code === "PGRST204" || error.message?.includes("device_id")) {
+        hasSessionDeviceIdColumn = false;
+        delete sessionPayload.device_id;
+        const { error: retryError } = await sb.from("sessions").insert(sessionPayload);
+        if (retryError) return null;
+      } else {
+        return null;
+      }
+    } else {
+      if (sessionPayload.device_id) hasSessionDeviceIdColumn = true;
     }
+  } catch {
+    return null;
   }
 
   sessionCache.set(tokenHash, { codeId, expiresAt: Date.now() + SESSION_CACHE_TTL });
@@ -342,24 +367,44 @@ export async function resetSessionsForCode(codeId: string) {
         lastTouched.delete(hash);
       }
     }
-    const { error } = await sb.from("sessions").delete().eq("code_id", codeId);
-    try {
-      await sb.from("device_bindings").delete().eq("code_id", codeId);
-    } catch {}
-    try {
-      const { data: configs } = await sb.from("config").select("key, value").like("key", "dev_bind:%");
-      if (configs) {
-        for (const c of configs) {
+
+    const tasks: Promise<any>[] = [
+      sb.from("sessions").delete().eq("code_id", codeId)
+    ];
+
+    if (hasDeviceBindingsTable !== false) {
+      tasks.push(
+        (async () => {
           try {
-            const parsed = JSON.parse(c.value);
-            if (parsed.codeId === codeId) {
-              await sb.from("config").delete().eq("key", c.key);
-            }
+            await sb.from("device_bindings").delete().eq("code_id", codeId);
           } catch {}
+        })()
+      );
+    }
+
+    const cleanConfigTask = (async () => {
+      try {
+        const { data: configs } = await sb.from("config").select("key, value").like("key", "dev_bind:%");
+        if (configs && configs.length > 0) {
+          const keysToDelete: string[] = [];
+          for (const c of configs) {
+            try {
+              const parsed = JSON.parse(c.value);
+              if (parsed.codeId === codeId) {
+                keysToDelete.push(c.key);
+              }
+            } catch {}
+          }
+          if (keysToDelete.length > 0) {
+            await sb.from("config").delete().in("key", keysToDelete);
+          }
         }
-      }
-    } catch {}
-    return !error;
+      } catch {}
+    })();
+    tasks.push(cleanConfigTask);
+
+    const [sessRes] = await Promise.all(tasks);
+    return !sessRes?.error;
   } catch {
     return false;
   }
