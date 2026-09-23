@@ -1,4 +1,5 @@
 "use client";
+import { getOrCreateDeviceId } from "@/lib/device-id";
 
 const CODE_KEY = "tvshow_code";
 const REF_KEY = "tvshow_ref_code";
@@ -22,17 +23,19 @@ export function ensureSession(): Promise<boolean> {
       if (r.status !== 401) return false;
       const code = getStoredCode();
       if (!code) return false;
+      const deviceId = getOrCreateDeviceId();
       const pr = await fetch("/api/access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code, deviceId }),
       });
       if (!pr.ok) {
-        // Revoked/expired → limpiar para que gate muestre mensaje correcto
+        // Revoked/expired/device_blocked → limpiar para que gate muestre mensaje correcto
         try {
           const j = await pr.json();
-          if (j.error === "revoked" || j.error === "expired") {
-            try { if (j.ref_code) localStorage.setItem(REF_KEY, j.ref_code); } catch {}
+          if (j.error === "revoked" || j.error === "expired" || j.error === "device_blocked_inactive") {
+            const ref = j.bound_ref || j.ref_code;
+            try { if (ref) localStorage.setItem(REF_KEY, ref); } catch {}
             clearStoredCode();
             // No borrar ref_code: el gate lo muestra
           }

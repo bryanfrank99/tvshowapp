@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 import { clearProvidersCache } from "@/lib/providers";
+import { getOrCreateDeviceId } from "@/lib/device-id";
 
 // Generar o recuperar ID de referencia único y persistente para el dispositivo (ej: TV-E1CC15-E3BC)
 function getOrCreateRefCode(): string {
@@ -69,14 +70,22 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
     setLoading(true);
     setErr("");
     try {
+      const deviceId = getOrCreateDeviceId();
       const r = await fetch("/api/access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: c.trim() }),
+        body: JSON.stringify({ code: c.trim(), deviceId }),
       });
       const j = await r.json();
       if (!r.ok || !j.ok) {
-        if (j.error === "max_devices") {
+        if (j.error === "device_blocked_inactive") {
+          const boundRef = j.bound_ref || j.ref_code || "";
+          if (boundRef) {
+            try { localStorage.setItem("tvshow_ref_code", boundRef); } catch {}
+            setStoredRef(boundRef);
+          }
+          setErr(d.gate_device_blocked(boundRef));
+        } else if (j.error === "max_devices") {
           if (j.ref_code) {
             try { localStorage.setItem("tvshow_ref_code", j.ref_code); } catch {}
             setStoredRef(j.ref_code);

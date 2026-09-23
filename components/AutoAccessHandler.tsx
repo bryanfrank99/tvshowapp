@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useLang } from "@/hooks/useLang";
 import { clearProvidersCache } from "@/lib/providers";
+import { getOrCreateDeviceId } from "@/lib/device-id";
 
 export default function AutoAccessHandler() {
   const { lang } = useLang();
@@ -27,10 +28,11 @@ export default function AutoAccessHandler() {
 
     (async () => {
       try {
+        const deviceId = getOrCreateDeviceId();
         const res = await fetch("/api/access", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: cleanCode }),
+          body: JSON.stringify({ code: cleanCode, deviceId }),
         });
         const data = await res.json();
 
@@ -77,7 +79,24 @@ export default function AutoAccessHandler() {
               ? "Invalid access key."
               : "Clave de acceso inválida.";
 
-          if (data.error === "max_devices") {
+          if (data.error === "device_blocked_inactive") {
+            const boundRef = data.bound_ref || data.ref_code || "";
+            if (boundRef) {
+              try { localStorage.setItem("tvshow_ref_code", boundRef); } catch {}
+            }
+            title =
+              lang === "pt"
+                ? "Aparelho Bloqueado"
+                : lang === "en"
+                ? "Device Blocked"
+                : "Dispositivo Bloqueado";
+            message =
+              lang === "pt"
+                ? `Este aparelho já está vinculado a uma chave inativa ou expirada${boundRef ? ` (Ref: ${boundRef})` : ""}. Renove sua assinatura original ou contate o administrador.`
+                : lang === "en"
+                ? `This device is already linked to an inactive or expired key${boundRef ? ` (Ref: ${boundRef})` : ""}. Please renew your subscription or contact support.`
+                : `Este dispositivo ya está vinculado a una clave inactiva o vencida${boundRef ? ` (Ref: ${boundRef})` : ""}. Renueva tu suscripción original o contacta al administrador.`;
+          } else if (data.error === "max_devices") {
             title =
               lang === "pt"
                 ? "Limite Excedido"
