@@ -102,6 +102,13 @@ function WatchInner() {
 
   useEffect(() => {
     loadSources();
+    const onSessionUpdated = () => {
+      loadSources();
+    };
+    window.addEventListener("tvshow_session_updated", onSessionUpdated);
+    return () => {
+      window.removeEventListener("tvshow_session_updated", onSessionUpdated);
+    };
   }, [loadSources]);
 
   // Hook de fallback inteligente

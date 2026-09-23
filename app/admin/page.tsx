@@ -596,7 +596,18 @@ export default function AdminPage() {
   };
 
   const copyDirectLink = (codeStr: string) => {
-    const url = `${window.location.origin}/?code=${codeStr}`;
+    if (typeof window === "undefined") return;
+    let base = window.location.origin;
+    const adminIdx = window.location.pathname.indexOf("/admin");
+    if (adminIdx > 0) {
+      base += window.location.pathname.substring(0, adminIdx);
+    }
+    const currentParams = new URLSearchParams(window.location.search);
+    const iParam = currentParams.get("i");
+    const params = new URLSearchParams();
+    if (iParam) params.set("i", iParam);
+    params.set("code", String(codeStr).trim());
+    const url = `${base}/?${params.toString()}`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 3000);
@@ -1069,11 +1080,11 @@ export default function AdminPage() {
               <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs shrink-0">
                 {isSuperAdmin && isLifetimeInput ? (
                   <span className="text-purple-300 font-bold flex items-center gap-1.5">
-                    <span className="text-sm">♾️</span> {d.code_lifetime_badge}
+                    {d.code_lifetime_badge}
                   </span>
                 ) : (
                   <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                    <span className="text-sm">🎁</span> {d.code_trial_badge}
+                    {d.code_trial_badge}
                   </span>
                 )}
               </div>

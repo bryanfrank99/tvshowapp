@@ -5,6 +5,7 @@ import TvNav from "@/components/TvNav";
 import SideNav from "@/components/SideNav";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import AppUpdater from "@/components/AppUpdater";
+import AutoAccessHandler from "@/components/AutoAccessHandler";
 import { displayVersion } from "@/lib/version";
 import { getLang } from "@/lib/tmdb";
 import { t } from "@/lib/dict";
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang={getLang()}>
       <body className="bg-[#0b0b10] text-zinc-100 min-h-screen">
         <AppUpdater />
+        <AutoAccessHandler />
         <div className="flex min-h-screen w-full">
           <TvNav />
           <SideNav labels={{ nav_home: d.nav_home, nav_movies: d.nav_movies, nav_series: d.nav_series, nav_kids: d.nav_kids, nav_search: d.nav_search, nav_live: d.nav_live, nav_list: d.nav_list }} />

@@ -43,18 +43,36 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
       const ref = getOrCreateRefCode();
       setStoredRef(ref);
     } catch {}
-  }, []);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!code.trim() || loading) return;
+    const onSessionUpdated = () => {
+      onOk();
+    };
+    window.addEventListener("tvshow_session_updated", onSessionUpdated);
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlCode = params.get("code");
+      if (urlCode && urlCode.trim()) {
+        const clean = urlCode.trim();
+        setCode(clean);
+        submitCode(clean);
+      }
+    } catch {}
+
+    return () => {
+      window.removeEventListener("tvshow_session_updated", onSessionUpdated);
+    };
+  }, [onOk]);
+
+  const submitCode = async (c: string) => {
+    if (!c.trim() || loading) return;
     setLoading(true);
     setErr("");
     try {
       const r = await fetch("/api/access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim() }),
+        body: JSON.stringify({ code: c.trim() }),
       });
       const j = await r.json();
       if (!r.ok || !j.ok) {
@@ -74,7 +92,7 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
       } else {
         try {
           if (j.ref_code) localStorage.setItem("tvshow_ref_code", j.ref_code);
-          localStorage.setItem("tvshow_code", code.trim());
+          localStorage.setItem("tvshow_code", c.trim());
         } catch {}
         if (j.ref_code) setStoredRef(j.ref_code);
         clearProvidersCache();
@@ -85,6 +103,11 @@ export default function AccessGate({ onOk }: { onOk: () => void }) {
       setErr(d.gate_invalid);
     }
     setLoading(false);
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitCode(code);
   };
 
   return (
