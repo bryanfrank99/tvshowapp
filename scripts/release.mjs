@@ -27,7 +27,10 @@ try {
   if (status) {
     console.log("Hay cambios sin commitear. Creando commit de preparación...");
     execSync(`${gitCmd} add -A`, { cwd: root });
-    execSync(`${gitCmd} commit -m "chore: preparar release ${tag}"`, { cwd: root });
+    execSync(`${gitCmd} commit -m "chore: preparar release ${tag}"`, {
+      cwd: root,
+      env: { ...process.env, SKIP_VERSION: "1" }
+    });
   }
 
   // 2. Subir commits pendientes a main
