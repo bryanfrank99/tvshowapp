@@ -14,18 +14,41 @@ for (const f of [".env.local", ".env"]) {
   }
 }
 
-function fillTemplate(tpl, id, s = 1, e = 1, key = "") {
+function fillTemplate(tpl, id, s = 1, e = 1, key = "", userLang = "es") {
   if (!tpl) return "";
   const idparam = id.startsWith("tt") ? `imdb=${id}` : `tmdb=${id}`;
   const tmdbflag = id.startsWith("tt") ? "" : "&tmdb=1";
 
-  return tpl
+  const cleanLang = (userLang || "es").toLowerCase().trim();
+  let localeCode = "en";
+  if (cleanLang === "es" || cleanLang === "castellano" || cleanLang === "español") {
+    localeCode = "es-ES";
+  } else if (cleanLang === "lat" || cleanLang === "latino") {
+    localeCode = "es-419";
+  } else if (cleanLang === "pt" || cleanLang === "portugues" || cleanLang === "português") {
+    localeCode = "pt-BR";
+  } else if (["en", "fr", "de", "it", "ru", "ja", "ko", "zh-CN", "zh-TW", "fil", "hi", "ar", "nl"].includes(cleanLang)) {
+    localeCode = cleanLang;
+  } else {
+    localeCode = "en";
+  }
+
+  let result = tpl
     .split("{id}").join(id)
     .split("{s}").join(String(s))
     .split("{e}").join(String(e))
     .split("{key}").join(key)
     .split("{idparam}").join(idparam)
-    .split("{tmdbflag}").join(tmdbflag);
+    .split("{tmdbflag}").join(tmdbflag)
+    .split("{lang}").join(localeCode)
+    .split("{language}").join(localeCode)
+    .split("{locale}").join(localeCode);
+
+  if (result.includes("stellar.rip/en/") && (cleanLang.startsWith("es") || cleanLang.startsWith("pt") || cleanLang === "lat")) {
+    result = result.replace("stellar.rip/en/", `stellar.rip/${localeCode}/`);
+  }
+
+  return result;
 }
 
 const BROWSER_HEADERS = {

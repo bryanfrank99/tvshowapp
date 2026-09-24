@@ -62,14 +62,45 @@ export default function SourceSelectorGrid({
 
         {p && (
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl text-zinc-200 inline-flex items-center gap-1.5">
-              <span>🔊 Audio:</span>
-              <b className="text-white">
-                {(p.languages || [p.lang])
-                  .map((a) => `${getProviderLangMeta(a).flag} ${getProviderLangMeta(a).name}`)
-                  .join(", ")}
-              </b>
-            </span>
+            {p.providerId === "stellar" || p.url.includes("stellar.rip") ? (
+              <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2 py-1 rounded-xl">
+                <span className="text-xs text-zinc-400 font-medium mr-1">🔊 Audio:</span>
+                {[
+                  { code: "es-ES", label: "Español", flag: "🇪🇸", langKey: "es" as const },
+                  { code: "pt-BR", label: "Português", flag: "🇧🇷", langKey: "pt" as const },
+                  { code: "en", label: "English", flag: "🇺🇸", langKey: "en" as const },
+                ].map((item) => {
+                  const isActive = p.url.includes(`/${item.code}/`);
+                  return (
+                    <button
+                      key={item.code}
+                      onClick={() => {
+                        const newUrl = p.url.replace(/\/(en|es-ES|es-419|pt-BR)\//, `/${item.code}/`);
+                        onSelectSource({ ...p, url: newUrl, lang: item.langKey });
+                      }}
+                      className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                        isActive
+                          ? "bg-[#008CFF] text-white shadow-sm ring-1 ring-white/20"
+                          : "bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white"
+                      }`}
+                      title={lang === "pt" ? `Mudar áudio para ${item.label}` : `Cambiar audio a ${item.label}`}
+                    >
+                      <span>{item.flag}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <span className="text-xs bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl text-zinc-200 inline-flex items-center gap-1.5">
+                <span>🔊 Audio:</span>
+                <b className="text-white">
+                  {(p.languages || [p.lang])
+                    .map((a) => `${getProviderLangMeta(a).flag} ${getProviderLangMeta(a).name}`)
+                    .join(", ")}
+                </b>
+              </span>
+            )}
             {p.subtitles && p.subtitles.length > 0 && (
               <span className="text-xs bg-sky-500/10 border border-sky-500/25 px-2.5 py-1 rounded-xl text-sky-300 inline-flex items-center gap-1.5">
                 <span>💬 Subs:</span>

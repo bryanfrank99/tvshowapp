@@ -39,7 +39,7 @@ export const DEFAULT_PROVIDER_LANGS: Record<string, ProviderLang[]> = {
   vidzee: ["en"],
   megaembed: ["pt", "en"],
   filmu: ["multi", "es", "lat", "pt", "en"],
-  stellar: ["multi", "en", "es", "pt"],
+  stellar: ["es", "pt", "en", "multi"],
 };
 
 export const DEFAULT_PROVIDER_SUBS: Record<string, string[]> = {
@@ -145,10 +145,40 @@ export type Provider = {
   sandbox: string;
 };
 
-function fill(tpl: string, id: string, s: number, e: number, key: string) {
+function fill(tpl: string, id: string, s: number, e: number, key: string, userLang = "es") {
   const idparam = id.startsWith("tt") ? `imdb=${id}` : `tmdb=${id}`;
   const tmdbflag = id.startsWith("tt") ? "" : "&tmdb=1";
-  return tpl.split("{id}").join(id).split("{s}").join(String(s)).split("{e}").join(String(e)).split("{key}").join(key).split("{idparam}").join(idparam).split("{tmdbflag}").join(tmdbflag);
+
+  const cleanLang = (userLang || "es").toLowerCase().trim();
+  let localeCode = "en";
+  if (cleanLang === "es" || cleanLang === "castellano" || cleanLang === "español") {
+    localeCode = "es-ES";
+  } else if (cleanLang === "lat" || cleanLang === "latino") {
+    localeCode = "es-419";
+  } else if (cleanLang === "pt" || cleanLang === "portugues" || cleanLang === "português") {
+    localeCode = "pt-BR";
+  } else if (["en", "fr", "de", "it", "ru", "ja", "ko", "zh-CN", "zh-TW", "fil", "hi", "ar", "nl"].includes(cleanLang)) {
+    localeCode = cleanLang;
+  } else {
+    localeCode = "en";
+  }
+
+  let result = tpl
+    .split("{id}").join(id)
+    .split("{s}").join(String(s))
+    .split("{e}").join(String(e))
+    .split("{key}").join(key)
+    .split("{idparam}").join(idparam)
+    .split("{tmdbflag}").join(tmdbflag)
+    .split("{lang}").join(localeCode)
+    .split("{language}").join(localeCode)
+    .split("{locale}").join(localeCode);
+
+  if (result.includes("stellar.rip/en/") && (cleanLang.startsWith("es") || cleanLang.startsWith("pt") || cleanLang === "lat")) {
+    result = result.replace("stellar.rip/en/", `stellar.rip/${localeCode}/`);
+  }
+
+  return result;
 }
 
 export function buildProvider(def: ProviderDef, envKey = ""): Provider {

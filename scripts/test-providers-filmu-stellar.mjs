@@ -75,11 +75,13 @@ async function run() {
   assert.equal(filmuMovieUrl, "https://embed.filmu.in/movie/550");
   assert.equal(filmuTvUrl, "https://embed.filmu.in/tv/1399/1/1");
 
-  const stellarMovieUrl = fillTemplate(dbStellar.movie_tpl, tmdbMovieId, 1, 1);
-  const stellarTvUrl = fillTemplate(dbStellar.tv_tpl, tmdbTvId, season, episode);
-  assert.equal(stellarMovieUrl, "https://stellar.rip/en/watch/embed/movie/550?autoPlay=true");
-  assert.equal(stellarTvUrl, "https://stellar.rip/en/watch/embed/tv/1399-1-1?autoPlay=true&nextButton=true&autoNext=true");
-  console.log("  ✅ URLs interpoladas correctamente para películas y series");
+  const stellarMovieUrlEs = fillTemplate(dbStellar.movie_tpl, tmdbMovieId, 1, 1, "", "es");
+  const stellarTvUrlPt = fillTemplate(dbStellar.tv_tpl, tmdbTvId, season, episode, "", "pt");
+  const stellarMovieUrlEn = fillTemplate(dbStellar.movie_tpl, tmdbMovieId, 1, 1, "", "en");
+  assert.equal(stellarMovieUrlEs, "https://stellar.rip/es-ES/watch/embed/movie/550?autoPlay=true");
+  assert.equal(stellarTvUrlPt, "https://stellar.rip/pt-BR/watch/embed/tv/1399-1-1?autoPlay=true&nextButton=true&autoNext=true");
+  assert.equal(stellarMovieUrlEn, "https://stellar.rip/en/watch/embed/movie/550?autoPlay=true");
+  console.log("  ✅ URLs interpoladas correctamente para películas y series con idiomas dinámicos (ES, PT, EN)");
 
   // 5. Conversión a objeto Source
   console.log("\n5. Verificando adaptación a modelo Source...");
@@ -94,8 +96,7 @@ async function run() {
       tvOk: true,
       ord: 15,
     },
-    { type: "movie", id: tmdbMovieId },
-    "es"
+    { type: "movie", id: tmdbMovieId, userLang: "es" }
   );
   assert.ok(sFilmu, "providerToSource falló para FilmU");
   assert.equal(sFilmu.type, "iframe");
@@ -111,14 +112,15 @@ async function run() {
       needsTmdb: true,
       tvOk: true,
       ord: 16,
+      languages: ["es", "pt", "en"],
     },
-    { type: "tv", id: tmdbTvId, season: 2, episode: 4 },
-    "es"
+    { type: "tv", id: tmdbTvId, season: 2, episode: 4, userLang: "es" }
   );
   assert.ok(sStellar, "providerToSource falló para Stellar");
   assert.equal(sStellar.type, "iframe");
-  assert.equal(sStellar.url, "https://stellar.rip/en/watch/embed/tv/1399-2-4?autoPlay=true&nextButton=true&autoNext=true");
-  console.log("  ✅ Adaptación a Source unificado 100% compatible");
+  assert.equal(sStellar.url, "https://stellar.rip/es-ES/watch/embed/tv/1399-2-4?autoPlay=true&nextButton=true&autoNext=true");
+  assert.equal(sStellar.lang, "es");
+  console.log("  ✅ Adaptación a Source unificado 100% compatible con localización dinámica");
 
   console.log("\n==================================================");
   console.log("🎉 PRUEBAS DE FILMU Y STELLAR EXITOSAS");

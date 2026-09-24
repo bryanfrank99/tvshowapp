@@ -21,25 +21,52 @@ import {
  * - {key}: Llave de acceso de la API / servidor
  * - {idparam}: Parámetro condicional "imdb=tt... | tmdb=..."
  * - {tmdbflag}: Parámetro condicional "&tmdb=1" para servidores que lo requieren
+ * - {lang} / {language} / {locale}: Código de idioma o locale regional (e.g. es-ES, pt-BR, en para Stellar)
  */
 export function fillTemplate(
   tpl: string,
   id: string,
   s: number = 1,
   e: number = 1,
-  key: string = ""
+  key: string = "",
+  userLang: string = "es"
 ): string {
   if (!tpl) return "";
   const idparam = id.startsWith("tt") ? `imdb=${id}` : `tmdb=${id}`;
   const tmdbflag = id.startsWith("tt") ? "" : "&tmdb=1";
 
-  return tpl
+  // Mapeo inteligente de locale regional para servidores que lo soportan (e.g. Stellar)
+  const cleanLang = (userLang || "es").toLowerCase().trim();
+  let localeCode = "en";
+  if (cleanLang === "es" || cleanLang === "castellano" || cleanLang === "español") {
+    localeCode = "es-ES";
+  } else if (cleanLang === "lat" || cleanLang === "latino") {
+    localeCode = "es-419";
+  } else if (cleanLang === "pt" || cleanLang === "portugues" || cleanLang === "português") {
+    localeCode = "pt-BR";
+  } else if (["en", "fr", "de", "it", "ru", "ja", "ko", "zh-CN", "zh-TW", "fil", "hi", "ar", "nl"].includes(cleanLang)) {
+    localeCode = cleanLang;
+  } else {
+    localeCode = "en";
+  }
+
+  let result = tpl
     .split("{id}").join(id)
     .split("{s}").join(String(s))
     .split("{e}").join(String(e))
     .split("{key}").join(key)
     .split("{idparam}").join(idparam)
-    .split("{tmdbflag}").join(tmdbflag);
+    .split("{tmdbflag}").join(tmdbflag)
+    .split("{lang}").join(localeCode)
+    .split("{language}").join(localeCode)
+    .split("{locale}").join(localeCode);
+
+  // Auto-adaptación si la URL fija de stellar.rip no tiene placeholder {lang}
+  if (result.includes("stellar.rip/en/") && (cleanLang.startsWith("es") || cleanLang.startsWith("pt") || cleanLang === "lat")) {
+    result = result.replace("stellar.rip/en/", `stellar.rip/${localeCode}/`);
+  }
+
+  return result;
 }
 
 /**
@@ -127,14 +154,17 @@ export function providerToSource(
   }
 
   const key = provider.entry_key || provider.key || ctx.envKey || "";
-  const resolvedUrl = fillTemplate(rawTpl, ctx.id, s, e, key);
+  const resolvedUrl = fillTemplate(rawTpl, ctx.id, s, e, key, ctx.userLang || "es");
 
   if (!resolvedUrl) {
     return null;
   }
 
   const languages = parseLangs(provider.languages || provider.lang, provider.id);
-  const primaryLang = languages[0] || "multi";
+  const cleanUserLang = (ctx.userLang || "es").toLowerCase().trim();
+  const primaryLang = languages.includes(cleanUserLang as any)
+    ? (cleanUserLang as ProviderLang)
+    : languages[0] || "multi";
   const subtitles = formatSubtitles(provider.subtitles, provider.id);
   const isBeta = !!provider.is_beta;
   const needsTmdb = provider.needs_tmdb !== undefined ? !!provider.needs_tmdb : !!provider.needsTmdb;
