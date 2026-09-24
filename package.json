@@ -1,6 +1,6 @@
 {
   "name": "tvshow",
-  "version": "7.15.0",
+  "version": "7.16.0",
   "description": "TVShow Desktop Application for Windows",
   "author": "TVShow Team",
   "private": true,
@@ -22,6 +22,9 @@
     "electron:dev": "electron .",
     "electron:pack": "electron-builder --dir",
     "electron:dist": "electron-builder --win --publish never",
+    "build:installer:web": "node scripts/build-web-package.mjs",
+    "split:installer": "node scripts/split-installer.mjs",
+    "test:installer:web": "node scripts/test-web-installer.mjs",
     "test:phase1": "npx tsx scripts/test-phase1-sources.mjs",
     "test:phase2": "npx tsx scripts/test-phase2-resolver.mjs",
     "test:phase3-4": "npx tsx scripts/test-phase3-4-player.mjs",
