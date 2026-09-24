@@ -50,24 +50,22 @@ export function isMovieInTheaters(m: any): boolean {
     if (hasTheatrical) {
       return true;
     }
+
+    // Si tiene datos de fechas pero NO tuvo estreno en cines (p. ej. solo festival o streaming), no es de cines
+    return false;
   }
 
-  // 3. Si viene marcada explícitamente por now_playing, validar que sea reciente (últimos 90 días)
+  // 3. Si viene marcada explícitamente por now_playing (verificada por el servidor con getNowPlayingIds), validar ventana teatral (-14 a 90 días)
   if (m.in_theaters === true) {
     if (m.release_date) {
       const relTime = new Date(m.release_date).getTime();
       const daysSince = (now - relTime) / (1000 * 60 * 60 * 24);
       return daysSince >= -14 && daysSince <= 90;
     }
-    return false;
+    return true;
   }
 
-  // 4. Fallback por fecha de estreno (últimos 45 días)
-  if (m.release_date) {
-    const relTime = new Date(m.release_date).getTime();
-    const daysSince = (now - relTime) / (1000 * 60 * 60 * 24);
-    return daysSince >= 0 && daysSince <= 45;
-  }
-
+  // Sin release_dates ni marca verificada in_theaters de now_playing, NUNCA asumir que es de cines por fecha
+  // (evita marcar falsamente estrenos exclusivos de streaming como Netflix / Prime Video / VOD)
   return false;
 }

@@ -162,7 +162,10 @@ function WatchInner() {
         if (type === "movie") {
           const isCine = isMovieInTheaters({
             ...m,
-            in_theaters: spTheaters || Boolean(d?.in_theaters) || Boolean(m?.in_theaters),
+            in_theaters:
+              d?.in_theaters !== undefined
+                ? Boolean(d.in_theaters)
+                : Boolean(m?.in_theaters) || (isTt ? spTheaters : false),
           });
           setInTheaters(isCine);
         } else {

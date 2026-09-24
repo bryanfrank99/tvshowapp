@@ -12,17 +12,19 @@ export type Page<T> = { items: T[]; hasMore: boolean };
 async function tagInTheaters(items: Media[]): Promise<Media[]> {
   try {
     const ids = await getNowPlayingIds();
-    if (!ids || ids.size === 0) return items;
     const now = Date.now();
     return items.map((x: any) => {
-      if ((x.media_type === "movie" || !x.media_type) && ids.has(Number(x.id))) {
+      if (x.media_type === "tv") {
+        return { ...x, in_theaters: false };
+      }
+      if (ids && ids.has(Number(x.id))) {
         if (x.release_date) {
           const daysSince = (now - new Date(x.release_date).getTime()) / (1000 * 60 * 60 * 24);
-          if (daysSince > 90) return x;
+          if (daysSince > 90) return { ...x, in_theaters: false };
         }
         return { ...x, in_theaters: true };
       }
-      return x;
+      return { ...x, in_theaters: false };
     });
   } catch {
     return items;
@@ -289,7 +291,8 @@ export async function searchAll(q: string, page = 1, per = 20): Promise<Page<Med
   if (hasKey()) {
     try {
       const r = await tmdb<Paged<any>>(`/search/multi?query=${encodeURIComponent(q)}&page=${page}`, 300);
-      const items = (r.results || []).filter((x: any) => x.media_type === "movie" || x.media_type === "tv").slice(0, per);
+      const raw = (r.results || []).filter((x: any) => x.media_type === "movie" || x.media_type === "tv").slice(0, per);
+      const items = await tagInTheaters(raw);
       return { items, hasMore: page < (r.total_pages || 1) };
     } catch { /* fallback free */ }
   }
@@ -312,10 +315,11 @@ export async function getByGenre(id: string, name: string, page = 1, per = 24): 
       tmdb<Paged<{ results: Media[] }>>(`/discover/movie?with_genres=${id}&sort_by=popularity.desc&page=${page}`, 3600),
       tmdb<Paged<{ results: Media[] }>>(`/discover/tv?with_genres=${id}&sort_by=popularity.desc&page=${page}`, 3600),
     ]);
-    const items = [
+    const raw = [
       ...m.results.slice(0, Math.ceil(per / 2)).map((x) => ({ ...x, media_type: "movie" })),
       ...tv.results.slice(0, Math.ceil(per / 2)).map((x) => ({ ...x, media_type: "tv" })),
     ];
+    const items = await tagInTheaters(raw as any);
     return { items, hasMore: page < Math.min(m.total_pages || 1, tv.total_pages || 1) };
   }, async () => {
     if (page > 1) return { items: [], hasMore: false };

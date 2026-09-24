@@ -18,13 +18,20 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   const r = await fetch(url, { next: { revalidate: 3600 } });
   const j = await r.json();
 
-  if (params.path?.[0] === "movie" && j && j.id) {
+  if (params.path?.[0] === "movie" && j) {
     try {
       const nowPlayingIds = await getNowPlayingIds();
-      j.in_theaters = isMovieInTheaters({
-        ...j,
-        in_theaters: nowPlayingIds.has(Number(j.id)),
-      });
+      if (j.id) {
+        j.in_theaters = isMovieInTheaters({
+          ...j,
+          in_theaters: nowPlayingIds.has(Number(j.id)),
+        });
+      } else if (Array.isArray(j.results)) {
+        j.results = j.results.map((x: any) => ({
+          ...x,
+          in_theaters: nowPlayingIds.has(Number(x.id)),
+        }));
+      }
     } catch {}
   }
 

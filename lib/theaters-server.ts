@@ -23,12 +23,13 @@ export async function getNowPlayingIds(): Promise<Set<number>> {
   try {
     const ids = new Set<number>();
     const todayStr = new Date().toISOString().slice(0, 10);
-    const [p1, p2] = await Promise.all([
+    const [p1, p2, p3] = await Promise.all([
       tmdb<any>("/movie/now_playing?page=1", 3600),
       tmdb<any>("/movie/now_playing?page=2", 3600).catch(() => ({ results: [] })),
+      tmdb<any>("/movie/now_playing?page=3", 3600).catch(() => ({ results: [] })),
     ]);
 
-    const raw = [...(p1?.results || []), ...(p2?.results || [])];
+    const raw = [...(p1?.results || []), ...(p2?.results || []), ...(p3?.results || [])];
 
     // 1. Filtrar solo películas recientes (ventana teatral válida: entre -14 y 90 días)
     // Esto descarta inmediatamente reestrenos de películas clásicas o de años anteriores (p. ej. Avengers Endgame 2019, Shawshank Redemption 1994)
@@ -48,13 +49,16 @@ export async function getNowPlayingIds(): Promise<Set<number>> {
           const hasDigitalOrPhysical = allDates.some(
             (x: any) => (x.type === 4 || x.type === 5) && x.release_date && x.release_date.slice(0, 10) <= todayStr
           );
-          if (!hasDigitalOrPhysical) {
+          const hasTheatrical = allDates.some(
+            (x: any) => (x.type === 2 || x.type === 3) && x.release_date && x.release_date.slice(0, 10) <= todayStr
+          );
+          if (!hasDigitalOrPhysical && (hasTheatrical || allDates.length === 0)) {
             ids.add(Number(m.id));
           }
         } catch {
-          // Si falla la consulta de fechas de release, admitirla si es de los últimos 45 días
+          // Si falla la consulta de fechas individuales de release, admitirla sólo si está dentro de los 30 días
           const daysSince = (now - new Date(m.release_date).getTime()) / (1000 * 60 * 60 * 24);
-          if (daysSince >= 0 && daysSince <= 45) {
+          if (daysSince >= 0 && daysSince <= 30) {
             ids.add(Number(m.id));
           }
         }
