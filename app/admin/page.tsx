@@ -185,7 +185,7 @@ export default function AdminPage() {
     setIsCheckingHealth(true);
     setMsg(d.prov_diagnosing);
     try {
-      const r = await api("providers/health-check");
+      const r = await api(`providers/health-check?_t=${Date.now()}`);
       if (!r.ok) {
         const errJson = await r.json().catch(() => null);
         const errMsg =
@@ -1802,6 +1802,11 @@ export default function AdminPage() {
                           <span>{d.prov_down}</span>
                         </span>
                       )
+                    ) : healthData ? (
+                      <span className="text-[10px] bg-zinc-500/20 text-zinc-400 border border-zinc-500/30 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+                        <span>{lang === "en" ? "No data" : lang === "pt" ? "Sem dados" : "Sin datos"}</span>
+                      </span>
                     ) : null}
                     {p.is_beta && (
                       <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-bold">

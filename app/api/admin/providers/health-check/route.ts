@@ -5,6 +5,8 @@ import { needAdmin } from "@/lib/access";
 import { fillTemplate } from "@/lib/adapters/provider-adapter";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 export const maxDuration = 30;
 
 /**
@@ -21,7 +23,7 @@ export async function GET(req: NextRequest) {
     const sb = supa();
     const { data: providers, error } = await sb
       .from("providers")
-      .select("id, name, movie_tpl, tv_tpl, needs_tmdb, tv_ok, entry_key, active, ord")
+      .select("*")
       .order("ord");
 
     if (error || !providers) {

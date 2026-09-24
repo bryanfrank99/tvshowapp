@@ -8,7 +8,12 @@ export function supa() {
     const url = process.env.SUPABASE_URL || "";
     const key = process.env.SUPABASE_SERVICE_KEY || "";
     if (!url || !key) throw new Error("NO_SUPABASE");
-    admin = createClient(url, key, { auth: { persistSession: false } });
+    admin = createClient(url, key, {
+      auth: { persistSession: false },
+      global: {
+        fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+      },
+    });
   }
   return admin;
 }
