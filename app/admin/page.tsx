@@ -187,13 +187,31 @@ export default function AdminPage() {
     try {
       const r = await api("providers/health-check");
       if (!r.ok) {
-        setMsg(lang === "en" ? "Error running diagnostics" : lang === "pt" ? "Erro ao executar diagnóstico" : "Error ejecutando diagnóstico");
+        const errJson = await r.json().catch(() => null);
+        const errMsg =
+          errJson?.message ||
+          (lang === "en"
+            ? "Error running diagnostics"
+            : lang === "pt"
+            ? "Erro ao executar diagnóstico"
+            : "Error ejecutando diagnóstico");
+        setMsg(`❌ ${errMsg}`);
         return;
       }
       const j = await r.json();
       const map: Record<string, any> = {};
       for (const res of j.results || []) {
-        map[res.id] = res;
+        if (!res) continue;
+        if (res.id) {
+          map[res.id] = res;
+          map[res.id.toLowerCase().trim()] = res;
+        }
+        if (res.name) {
+          map[res.name.toLowerCase().trim()] = res;
+        }
+        if (res.ord != null) {
+          map[String(res.ord)] = res;
+        }
       }
       setHealthData(map);
       const hCount = j.summary?.healthy || 0;
@@ -205,8 +223,14 @@ export default function AdminPage() {
           ? `Diagnóstico concluído: ${hCount} operando, ${dCount} com instabilidade.`
           : `Diagnóstico completado: ${hCount} óptimos, ${dCount} con incidencia.`
       );
-    } catch {
-      setMsg(lang === "en" ? "Failed to connect to diagnostic endpoint" : lang === "pt" ? "Falha ao conectar ao ponto de diagnóstico" : "Fallo al conectar con el endpoint de diagnóstico");
+    } catch (e: any) {
+      setMsg(
+        lang === "en"
+          ? `Failed to connect: ${e?.message || "network error"}`
+          : lang === "pt"
+          ? `Falha ao conectar: ${e?.message || "erro de rede"}`
+          : `Fallo al conectar: ${e?.message || "error de red"}`
+      );
     } finally {
       setIsCheckingHealth(false);
     }
@@ -1731,7 +1755,13 @@ export default function AdminPage() {
           <div className="space-y-2">
             {provs.map((p) => {
               const langs = p.languages || (p.lang ? [p.lang] : ["multi"]);
-              const h = healthData?.[p.id];
+              const pIdClean = (p.id || "").toLowerCase().trim();
+              const pNameClean = (p.real_name || p.name || "").toLowerCase().trim();
+              const h =
+                healthData?.[p.id] ||
+                healthData?.[pIdClean] ||
+                healthData?.[pNameClean] ||
+                healthData?.[String(p.ord)];
               return (
                 <div
                   key={p.id}
@@ -1745,7 +1775,12 @@ export default function AdminPage() {
                         ({p.simulated_name || "S-"})
                       </span>
                     </b>
-                    {h && (
+                    {isCheckingHealth ? (
+                      <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                        <span>{lang === "en" ? "Testing..." : lang === "pt" ? "Testando..." : "Probando..."}</span>
+                      </span>
+                    ) : h ? (
                       h.status === "healthy" ? (
                         <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -1767,7 +1802,7 @@ export default function AdminPage() {
                           <span>{d.prov_down}</span>
                         </span>
                       )
-                    )}
+                    ) : null}
                     {p.is_beta && (
                       <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-bold">
                         {d.prov_beta_title.split(" ")[0]} BETA

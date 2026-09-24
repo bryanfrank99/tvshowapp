@@ -5,6 +5,7 @@ import { needAdmin } from "@/lib/access";
 import { fillTemplate } from "@/lib/adapters/provider-adapter";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 /**
  * GET /api/admin/providers/health-check
@@ -41,18 +42,24 @@ export async function GET(req: NextRequest) {
       "Upgrade-Insecure-Requests": "1",
     };
 
-    // Test en paralelo de cada servidor con timeout de 6 segundos y fallback resiliente
+    // Test en paralelo de cada servidor con timeout optimizado (4s activos / 2s inactivos) y fallback resiliente
     const checkPromises = providers.map(async (p: any) => {
+      const provId = String(p.id || "").trim();
+      const provName = String(p.name || "").trim();
+      const provOrd = typeof p.ord === "number" ? p.ord : Number(p.ord) || 0;
+      const isActive = !!p.active;
+
       const testId = p.needs_tmdb ? "550" : "tt0137523";
       const key = p.entry_key || defaultKey;
       const tpl = p.movie_tpl || p.tv_tpl || "";
-      const testUrl = fillTemplate(tpl, testId, 1, 1, key);
+      const testUrl = fillTemplate(tpl, testId, 1, 1, key, "es");
 
       if (!testUrl || !testUrl.startsWith("http")) {
         return {
-          id: p.id,
-          name: p.name,
-          active: !!p.active,
+          id: provId,
+          name: provName,
+          ord: provOrd,
+          active: isActive,
           latencyMs: 0,
           statusCode: null,
           status: "down",
@@ -61,12 +68,14 @@ export async function GET(req: NextRequest) {
       }
 
       const start = Date.now();
+      const timeoutMs = isActive ? 4000 : 2000;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
         let res: Response | null = null;
         let methodUsed = "HEAD";
+        let fetchError: any = null;
 
         // Primero intentamos HEAD para no consumir ancho de banda
         try {
@@ -75,13 +84,14 @@ export async function GET(req: NextRequest) {
             signal: controller.signal,
             headers: BROWSER_HEADERS,
           });
-        } catch {
+        } catch (err: any) {
+          fetchError = err;
           res = null;
         }
 
-        // Si HEAD fue bloqueado, no soportado o falló (e.g. 403, 405, 500, o error de red),
-        // reintentamos inmediatamente con GET estándar navegacional
-        if (!res || !res.ok) {
+        // Si HEAD fue bloqueado (403 WAF), no soportado (405, 501), o falló sin abort
+        // reintentamos inmediatamente con GET navegacional solo si el controller no fue abortado
+        if (!controller.signal.aborted && (!res || res.status === 405 || res.status === 501 || res.status === 403)) {
           try {
             methodUsed = "GET";
             const getRes = await fetch(testUrl, {
@@ -94,10 +104,14 @@ export async function GET(req: NextRequest) {
               getRes.body?.cancel();
             } catch {}
           } catch (getErr) {
-            if (!res) throw getErr;
+            if (!res) fetchError = getErr;
           }
         }
         clearTimeout(timeoutId);
+
+        if (!res) {
+          throw fetchError || new Error("No response");
+        }
 
         const latencyMs = Date.now() - start;
         const statusCode = res.status;
@@ -121,9 +135,10 @@ export async function GET(req: NextRequest) {
         }
 
         return {
-          id: p.id,
-          name: p.name,
-          active: !!p.active,
+          id: provId,
+          name: provName,
+          ord: provOrd,
+          active: isActive,
           latencyMs,
           statusCode,
           status,
@@ -133,15 +148,16 @@ export async function GET(req: NextRequest) {
         };
       } catch (err: any) {
         clearTimeout(timeoutId);
-        const isTimeout = err?.name === "AbortError" || String(err?.message).includes("abort");
+        const isTimeout = err?.name === "AbortError" || String(err?.message).includes("abort") || controller.signal.aborted;
         return {
-          id: p.id,
-          name: p.name,
-          active: !!p.active,
+          id: provId,
+          name: provName,
+          ord: provOrd,
+          active: isActive,
           latencyMs: Date.now() - start,
           statusCode: null,
           status: "down",
-          error: isTimeout ? "Timeout (>6s)" : err?.message || "Error de conexión",
+          error: isTimeout ? `Timeout (>${timeoutMs / 1000}s)` : err?.message || "Error de conexión",
         };
       }
     });
