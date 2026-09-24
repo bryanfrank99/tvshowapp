@@ -38,6 +38,8 @@ export const DEFAULT_PROVIDER_LANGS: Record<string, ProviderLang[]> = {
   cinesrc: ["en"],
   vidzee: ["en"],
   megaembed: ["pt", "en"],
+  filmu: ["multi", "es", "lat", "pt", "en"],
+  stellar: ["multi", "en", "es", "pt"],
 };
 
 export const DEFAULT_PROVIDER_SUBS: Record<string, string[]> = {
@@ -55,6 +57,8 @@ export const DEFAULT_PROVIDER_SUBS: Record<string, string[]> = {
   cinesrc: ["es", "en"],
   vidzee: ["es", "en"],
   megaembed: ["pt", "es", "en"],
+  filmu: ["es", "en", "pt", "multi"],
+  stellar: ["es", "en", "pt", "multi"],
 };
 
 export const PROVIDER_LANGS: { id: ProviderLang; name: string; flag: string; badge: string }[] = [

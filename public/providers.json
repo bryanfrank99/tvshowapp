@@ -1,5 +1,5 @@
 {
-  "version": "6",
+  "version": "7",
   "providers": [
     {
       "id": "vidcore",
@@ -126,6 +126,24 @@
       "tvOk": true,
       "movie": "https://megaembed.com/embed/{id}",
       "tv": "https://megaembed.com/embed/{id}/{s}/{e}"
+    },
+    {
+      "id": "filmu",
+      "name": "FilmU",
+      "ord": 15,
+      "needsTmdb": true,
+      "tvOk": true,
+      "movie": "https://embed.filmu.in/movie/{id}",
+      "tv": "https://embed.filmu.in/tv/{id}/{s}/{e}"
+    },
+    {
+      "id": "stellar",
+      "name": "Stellar",
+      "ord": 16,
+      "needsTmdb": true,
+      "tvOk": true,
+      "movie": "https://stellar.rip/en/watch/embed/movie/{id}?autoPlay=true",
+      "tv": "https://stellar.rip/en/watch/embed/tv/{id}-{s}-{e}?autoPlay=true&nextButton=true&autoNext=true"
     }
   ],
   "live": [
