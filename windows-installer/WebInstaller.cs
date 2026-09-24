@@ -13,70 +13,18 @@ using System.Windows.Forms;
 
 namespace TVShow.Installer
 {
-    public class ChunkInfo
+    public class ReleaseAssetInfo
     {
-        public string Name { get; set; }
-        public long Size { get; set; }
-        public string Sha256 { get; set; }
-    }
-
-    public class Manifest
-    {
-        public string AppName { get; set; }
         public string Version { get; set; }
-        public string TargetFile { get; set; }
-        public long TotalSize { get; set; }
-        public int TotalChunks { get; set; }
-        public string Sha256 { get; set; }
-        public List<ChunkInfo> Chunks { get; set; }
+        public string DownloadUrl { get; set; }
+        public string FileName { get; set; }
+        public long FileSize { get; set; }
 
-        public Manifest()
+        public ReleaseAssetInfo()
         {
-            AppName = "TVShow";
-            Version = "7.15.0";
-            TargetFile = "TVShow-Setup.exe";
-            Chunks = new List<ChunkInfo>();
-        }
-
-        public static Manifest Parse(string json)
-        {
-            var m = new Manifest();
-
-            var mApp = Regex.Match(json, "\"app\"\\s*:\\s*\"([^\"]+)\"");
-            if (mApp.Success) m.AppName = mApp.Groups[1].Value;
-
-            var mVer = Regex.Match(json, "\"version\"\\s*:\\s*\"([^\"]+)\"");
-            if (mVer.Success) m.Version = mVer.Groups[1].Value;
-
-            var mTarget = Regex.Match(json, "\"targetFile\"\\s*:\\s*\"([^\"]+)\"");
-            if (mTarget.Success) m.TargetFile = mTarget.Groups[1].Value;
-
-            var mTotal = Regex.Match(json, "\"totalSize\"\\s*:\\s*(\\d+)");
-            if (mTotal.Success) m.TotalSize = long.Parse(mTotal.Groups[1].Value);
-
-            var mSha = Regex.Match(json, "\"sha256\"\\s*:\\s*\"([a-fA-F0-9]{64})\"");
-            if (mSha.Success) m.Sha256 = mSha.Groups[1].Value;
-
-            // Extraer bloques de chunks
-            var chunkMatches = Regex.Matches(json, "\\{\\s*\"name\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"size\"\\s*:\\s*(\\d+)(?:\\s*,\\s*\"sha256\"\\s*:\\s*\"([^\"]+)\")?\\s*\\}");
-            foreach (Match cm in chunkMatches)
-            {
-                var c = new ChunkInfo
-                {
-                    Name = cm.Groups[1].Value,
-                    Size = long.Parse(cm.Groups[2].Value),
-                    Sha256 = cm.Groups[3].Success ? cm.Groups[3].Value : ""
-                };
-                m.Chunks.Add(c);
-            }
-            m.TotalChunks = m.Chunks.Count;
-
-            if (m.TotalSize == 0 && m.Chunks.Count > 0)
-            {
-                foreach (var ch in m.Chunks) m.TotalSize += ch.Size;
-            }
-
-            return m;
+            Version = "7.1";
+            FileName = "TVShow-Setup.exe";
+            FileSize = 0;
         }
     }
 
@@ -134,14 +82,15 @@ namespace TVShow.Installer
 
     public class InstallerForm : Form
     {
-        private const string DEFAULT_BASE_URL = "https://tvshow.freedev.app/apps/";
-        private string _baseUrl;
+        private const string GITHUB_REPO = "bryanfrank99/tvshowapp";
+        private const string GITHUB_API_URL = "https://api.github.com/repos/bryanfrank99/tvshowapp/releases/latest";
+        private const string FALLBACK_API_URL = "https://tvshowapp-one.vercel.app/api/app/version";
+
+        private string _customUrl = null;
         private string _tempDir;
         private string _outputFilePath;
-        private Manifest _manifest;
         private Thread _workerThread;
         private bool _isCancelled = false;
-        private int _currentChunkIndex = 0;
 
         // UI Controls
         private Label lblTitle;
@@ -163,19 +112,16 @@ namespace TVShow.Installer
 
         public InstallerForm(string[] args)
         {
-            _baseUrl = DEFAULT_BASE_URL;
             if (args != null)
             {
                 foreach (var arg in args)
                 {
                     if (arg.StartsWith("/url=", StringComparison.OrdinalIgnoreCase))
                     {
-                        _baseUrl = arg.Substring(5).Trim();
+                        _customUrl = arg.Substring(5).Trim();
                     }
                 }
             }
-
-            if (!_baseUrl.EndsWith("/")) _baseUrl += "/";
 
             InitializeComponent();
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
@@ -271,7 +217,7 @@ namespace TVShow.Installer
 
             lblStatus = new Label
             {
-                Text = "Iniciando conexión con el servidor...",
+                Text = "Buscando la última versión en GitHub...",
                 Font = new Font("Segoe UI", 9F, FontStyle.Regular),
                 ForeColor = Color.FromArgb(210, 215, 230),
                 Location = new Point(30, 130),
@@ -288,7 +234,7 @@ namespace TVShow.Installer
 
             lblDetails = new Label
             {
-                Text = "Preparando descarga...",
+                Text = "Conectando al repositorio...",
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Regular),
                 ForeColor = Color.FromArgb(140, 145, 165),
                 Location = new Point(30, 182),
@@ -405,46 +351,110 @@ namespace TVShow.Installer
             catch { }
         }
 
+        private ReleaseAssetInfo ResolveLatestRelease()
+        {
+            var info = new ReleaseAssetInfo();
+
+            // Si se pasa una URL manual directamente vía parámetro
+            if (!string.IsNullOrEmpty(_customUrl))
+            {
+                info.DownloadUrl = _customUrl;
+                info.FileName = Path.GetFileName(new Uri(_customUrl).LocalPath);
+                return info;
+            }
+
+            // 1. Intentar consultar GitHub Releases API directamente
+            try
+            {
+                var req = (HttpWebRequest)WebRequest.Create(GITHUB_API_URL);
+                req.UserAgent = "TVShow-WebInstaller";
+                req.Timeout = 8000;
+                req.Accept = "application/vnd.github.v3+json";
+
+                using (var resp = req.GetResponse())
+                using (var reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                {
+                    string json = reader.ReadToEnd();
+                    var mTag = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
+                    if (mTag.Success) info.Version = mTag.Groups[1].Value.TrimStart('v');
+
+                    // Buscar asset .exe (excluyendo instaladores web de poco peso)
+                    var assetMatches = Regex.Matches(json, "\\{\\s*\"url\"[^}]*\"name\"\\s*:\\s*\"([^\"]+\\.exe)\"[^}]*\"size\"\\s*:\\s*(\\d+)[^}]*\"browser_download_url\"\\s*:\\s*\"([^\"]+)\"");
+                    foreach (Match m in assetMatches)
+                    {
+                        string name = m.Groups[1].Value;
+                        long size = long.Parse(m.Groups[2].Value);
+                        string downloadUrl = m.Groups[3].Value;
+
+                        // Preferir el ejecutable instalador de tamaño completo (> 10 MB)
+                        if (size > 10 * 1024 * 1024 || !name.ToLower().Contains("web"))
+                        {
+                            info.FileName = name;
+                            info.FileSize = size;
+                            info.DownloadUrl = downloadUrl;
+                            break;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // 2. Si falló la API de GitHub (por ejemplo, rate limit de IP pública), consultar fallback de Version API
+            if (string.IsNullOrEmpty(info.DownloadUrl))
+            {
+                try
+                {
+                    var req = (HttpWebRequest)WebRequest.Create(FALLBACK_API_URL);
+                    req.UserAgent = "TVShow-WebInstaller";
+                    req.Timeout = 8000;
+
+                    using (var resp = req.GetResponse())
+                    using (var reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                    {
+                        string json = reader.ReadToEnd();
+                        var mVer = Regex.Match(json, "\"latestVersion\"\\s*:\\s*\"([^\"]+)\"");
+                        if (mVer.Success) info.Version = mVer.Groups[1].Value;
+
+                        var mExe = Regex.Match(json, "\"exeUrl\"\\s*:\\s*\"([^\"]+)\"");
+                        if (mExe.Success)
+                        {
+                            info.DownloadUrl = mExe.Groups[1].Value;
+                            info.FileName = Path.GetFileName(new Uri(info.DownloadUrl).LocalPath);
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // 3. Fallback estático directo a la estructura estándar de GitHub Releases
+            if (string.IsNullOrEmpty(info.DownloadUrl))
+            {
+                string tag = "v" + info.Version;
+                info.FileName = "TVShow-Setup-" + tag + ".exe";
+                info.DownloadUrl = "https://github.com/" + GITHUB_REPO + "/releases/download/" + tag + "/" + info.FileName;
+            }
+
+            return info;
+        }
+
         private void DownloadThreadWorker()
         {
             try
             {
                 UpdateUI(() =>
                 {
-                    lblStatus.Text = "Conectando al repositorio de instalación...";
+                    lblStatus.Text = "Buscando la última versión en GitHub Releases...";
                     lblStatus.ForeColor = Color.FromArgb(210, 215, 230);
                     btnRetry.Visible = false;
                 });
 
-                // 1. Descargar manifest.json
-                string manifestUrl = _baseUrl + "manifest.json";
-                string jsonContent = null;
-
-                using (var client = new WebClient())
-                {
-                    client.Headers.Add("User-Agent", "TVShow-WebInstaller");
-                    try
-                    {
-                        byte[] data = client.DownloadData(manifestUrl);
-                        jsonContent = Encoding.UTF8.GetString(data);
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new Exception("No se pudo obtener el archivo manifest.json desde " + manifestUrl + " (" + ex.Message + ")");
-                    }
-                }
-
-                _manifest = Manifest.Parse(jsonContent);
-
-                if (_manifest.Chunks == null || _manifest.Chunks.Count == 0)
-                {
-                    throw new Exception("El archivo manifest.json no contiene fragmentos válidos para descargar.");
-                }
+                // 1. Obtener URL y metadatos de GitHub Releases
+                var releaseInfo = ResolveLatestRelease();
 
                 UpdateUI(() =>
                 {
-                    lblSubtitle.Text = "Instalando TVShow v" + _manifest.Version;
-                    lblStatus.Text = "Iniciando descarga (" + _manifest.TotalChunks + " fragmentos de ~2 MB)...";
+                    lblSubtitle.Text = "Instalando TVShow v" + releaseInfo.Version;
+                    lblStatus.Text = "Descargando desde GitHub (" + releaseInfo.FileName + ")...";
                 });
 
                 // 2. Preparar directorio temporal
@@ -454,90 +464,76 @@ namespace TVShow.Installer
                     Directory.CreateDirectory(_tempDir);
                 }
 
-                _outputFilePath = Path.Combine(_tempDir, string.IsNullOrEmpty(_manifest.TargetFile) ? "TVShow-Setup.exe" : _manifest.TargetFile);
+                _outputFilePath = Path.Combine(_tempDir, string.IsNullOrEmpty(releaseInfo.FileName) ? "TVShow-Setup.exe" : releaseInfo.FileName);
 
-                long totalBytes = _manifest.TotalSize;
+                long totalBytes = releaseInfo.FileSize;
                 long totalDownloaded = 0;
                 var stopwatch = Stopwatch.StartNew();
                 long lastBytes = 0;
                 double currentSpeed = 0;
 
-                // Abrir archivo final para ensamblaje continuo
-                using (var outputStream = new FileStream(_outputFilePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
+                // 3. Descargar el archivo directamente de GitHub Releases (Fastly/Azure CDN con redirección 302 automática)
+                var req = (HttpWebRequest)WebRequest.Create(releaseInfo.DownloadUrl);
+                req.UserAgent = "TVShow-WebInstaller";
+                req.AllowAutoRedirect = true;
+                req.Timeout = 60000;
+                req.ReadWriteTimeout = 60000;
+
+                using (var resp = req.GetResponse())
                 {
-                    // Si ya se habían descargado fragmentos previos, posicionar al final
-                    totalDownloaded = outputStream.Length;
-                    outputStream.Seek(totalDownloaded, SeekOrigin.Begin);
-
-                    for (int i = _currentChunkIndex; i < _manifest.Chunks.Count; i++)
+                    if (totalBytes <= 0 && resp.ContentLength > 0)
                     {
-                        if (_isCancelled) return;
+                        totalBytes = resp.ContentLength;
+                    }
 
-                        _currentChunkIndex = i;
-                        var chunk = _manifest.Chunks[i];
-                        string chunkUrl = _baseUrl + chunk.Name;
-
-                        UpdateUI(() =>
+                    using (var stream = resp.GetResponseStream())
+                    using (var outputStream = new FileStream(_outputFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        byte[] buffer = new byte[65536];
+                        int read;
+                        while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
                         {
-                            lblStatus.Text = string.Format("Descargando componentes: parte {0} de {1} ({2})...", i + 1, _manifest.TotalChunks, chunk.Name);
-                        });
+                            if (_isCancelled) return;
 
-                        var req = (HttpWebRequest)WebRequest.Create(chunkUrl);
-                        req.UserAgent = "TVShow-WebInstaller";
-                        req.Timeout = 30000;
-                        req.ReadWriteTimeout = 30000;
+                            outputStream.Write(buffer, 0, read);
+                            totalDownloaded += read;
 
-                        using (var resp = req.GetResponse())
-                        using (var stream = resp.GetResponseStream())
-                        {
-                            byte[] buffer = new byte[65536];
-                            int read;
-                            while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+                            // Calcular velocidad cada 500ms
+                            if (stopwatch.ElapsedMilliseconds >= 500)
                             {
-                                if (_isCancelled) return;
-
-                                outputStream.Write(buffer, 0, read);
-                                totalDownloaded += read;
-
-                                // Calcular velocidad cada 500ms
-                                if (stopwatch.ElapsedMilliseconds >= 500)
-                                {
-                                    double seconds = stopwatch.ElapsedMilliseconds / 1000.0;
-                                    long delta = totalDownloaded - lastBytes;
-                                    currentSpeed = (delta / seconds) / (1024.0 * 1024.0); // MB/s
-                                    lastBytes = totalDownloaded;
-                                    stopwatch.Restart();
-                                }
-
-                                float percent = totalBytes > 0 ? (float)((totalDownloaded * 100.0) / totalBytes) : 0f;
-                                double mbDownloaded = totalDownloaded / (1024.0 * 1024.0);
-                                double mbTotal = totalBytes / (1024.0 * 1024.0);
-
-                                UpdateUI(() =>
-                                {
-                                    progressBar.Percentage = percent;
-                                    lblDetails.Text = string.Format("{0:F1} MB / {1:F1} MB ({2:F1} MB/s)", mbDownloaded, mbTotal, currentSpeed);
-                                    lblSpeed.Text = string.Format("{0:F0}%", percent);
-                                });
+                                double seconds = stopwatch.ElapsedMilliseconds / 1000.0;
+                                long delta = totalDownloaded - lastBytes;
+                                currentSpeed = (delta / seconds) / (1024.0 * 1024.0); // MB/s
+                                lastBytes = totalDownloaded;
+                                stopwatch.Restart();
                             }
-                        }
 
-                        outputStream.Flush();
+                            float percent = totalBytes > 0 ? (float)((totalDownloaded * 100.0) / totalBytes) : 0f;
+                            double mbDownloaded = totalDownloaded / (1024.0 * 1024.0);
+                            double mbTotal = totalBytes / (1024.0 * 1024.0);
+
+                            UpdateUI(() =>
+                            {
+                                progressBar.Percentage = percent;
+                                lblDetails.Text = string.Format("{0:F1} MB / {1:F1} MB ({2:F1} MB/s)", mbDownloaded, mbTotal, currentSpeed);
+                                lblSpeed.Text = string.Format("{0:F0}%", percent);
+                            });
+                        }
                     }
                 }
 
-                // 3. Verificación de Integridad
+                // 4. Verificación de Integridad
                 UpdateUI(() =>
                 {
                     progressBar.Percentage = 100f;
-                    lblStatus.Text = "Verificando integridad del instalador ensamblado...";
+                    lblStatus.Text = "Verificando el instalador descargado...";
                     lblSpeed.Text = "100%";
                 });
 
                 var fi = new FileInfo(_outputFilePath);
                 if (!fi.Exists || fi.Length < 1024 * 1024)
                 {
-                    throw new Exception("El archivo ensamblado está incompleto o dañado.");
+                    throw new Exception("El archivo descargado está incompleto o dañado.");
                 }
 
                 // Comprobar firma PE de Windows (MZ)
@@ -547,11 +543,11 @@ namespace TVShow.Installer
                     fs.Read(mz, 0, 2);
                     if (mz[0] != 0x4D || mz[1] != 0x5A) // 'M', 'Z'
                     {
-                        throw new Exception("El archivo ensamblado no es un ejecutable válido de Windows.");
+                        throw new Exception("El archivo descargado no es un ejecutable válido de Windows.");
                     }
                 }
 
-                // 4. Lanzar instalación
+                // 5. Lanzar instalación
                 UpdateUI(() =>
                 {
                     lblStatus.Text = "Iniciando instalación de TVShow...";
@@ -580,7 +576,7 @@ namespace TVShow.Installer
 
                 UpdateUI(() =>
                 {
-                    lblStatus.Text = "Error durante la descarga.";
+                    lblStatus.Text = "Error durante la descarga desde GitHub.";
                     lblStatus.ForeColor = Color.FromArgb(255, 90, 90);
                     lblDetails.Text = ex.Message;
                     btnRetry.Visible = true;

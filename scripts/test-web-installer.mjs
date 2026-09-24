@@ -81,14 +81,14 @@ assert.strictEqual(reassembledHash, originalHash, "El archivo reensamblado debe 
 assert.strictEqual(reassembledBuffer.length, dummySize, "El tamaño reensamblado debe ser idéntico al original");
 console.log("✔ Reensamblaje verificado: Integridad de datos 100% idéntica (SHA-256 coincidente).");
 
-// 5. Verificar que el ejecutable contiene la URL de freedev.app y NO expone GitHub
-console.log("\n[5/5] Inspeccionando cadenas en TVShow-Setup.exe (verificación de privacidad)...");
-const hasFreedev = exeBuffer.includes(Buffer.from("tvshow.freedev.app", "utf16le")) || exeBuffer.includes(Buffer.from("tvshow.freedev.app", "utf8"));
-const hasGithub = exeBuffer.includes(Buffer.from("github.com", "utf16le")) || exeBuffer.includes(Buffer.from("github.com", "utf8"));
+// 5. Verificar que el ejecutable contiene el repositorio de GitHub y el endpoint de fallback
+console.log("\n[5/5] Inspeccionando configuración de origen en TVShow-Setup.exe...");
+const hasRepo = exeBuffer.includes(Buffer.from("bryanfrank99/tvshowapp", "utf16le")) || exeBuffer.includes(Buffer.from("bryanfrank99/tvshowapp", "utf8"));
+const hasFallback = exeBuffer.includes(Buffer.from("tvshowapp-one.vercel.app", "utf16le")) || exeBuffer.includes(Buffer.from("tvshowapp-one.vercel.app", "utf8"));
 
-assert(hasFreedev, "El instalador debe contener la URL https://tvshow.freedev.app/apps/");
-assert(!hasGithub, "El instalador NO debe exponer el dominio de GitHub");
-console.log("✔ Privacidad confirmada: Apunta a tvshow.freedev.app y NO contiene URLs de GitHub.");
+assert(hasRepo, "El instalador debe apuntar al repositorio bryanfrank99/tvshowapp en GitHub Releases");
+assert(hasFallback, "El instalador debe incluir el fallback automático de versión");
+console.log("✔ Configuración confirmada: Apunta a GitHub Releases (bryanfrank99/tvshowapp) con fallback automático.");
 
 // Limpiar archivos de prueba temporales
 try {
