@@ -217,7 +217,7 @@ namespace TVShow.Installer
 
             lblStatus = new Label
             {
-                Text = "Buscando la última versión en GitHub...",
+                Text = "Buscando la última versión...",
                 Font = new Font("Segoe UI", 9F, FontStyle.Regular),
                 ForeColor = Color.FromArgb(210, 215, 230),
                 Location = new Point(30, 130),
@@ -234,7 +234,7 @@ namespace TVShow.Installer
 
             lblDetails = new Label
             {
-                Text = "Conectando al repositorio...",
+                Text = "Conectando...",
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Regular),
                 ForeColor = Color.FromArgb(140, 145, 165),
                 Location = new Point(30, 182),
@@ -443,18 +443,18 @@ namespace TVShow.Installer
             {
                 UpdateUI(() =>
                 {
-                    lblStatus.Text = "Buscando la última versión en GitHub Releases...";
+                    lblStatus.Text = "Buscando la última versión...";
                     lblStatus.ForeColor = Color.FromArgb(210, 215, 230);
                     btnRetry.Visible = false;
                 });
 
-                // 1. Obtener URL y metadatos de GitHub Releases
+                // 1. Obtener URL y metadatos del instalador
                 var releaseInfo = ResolveLatestRelease();
 
                 UpdateUI(() =>
                 {
                     lblSubtitle.Text = "Instalando TVShow v" + releaseInfo.Version;
-                    lblStatus.Text = "Descargando desde GitHub (" + releaseInfo.FileName + ")...";
+                    lblStatus.Text = "Descargando...";
                 });
 
                 // 2. Preparar directorio temporal
@@ -576,7 +576,7 @@ namespace TVShow.Installer
 
                 UpdateUI(() =>
                 {
-                    lblStatus.Text = "Error durante la descarga desde GitHub.";
+                    lblStatus.Text = "Error durante la descarga.";
                     lblStatus.ForeColor = Color.FromArgb(255, 90, 90);
                     lblDetails.Text = ex.Message;
                     btnRetry.Visible = true;
