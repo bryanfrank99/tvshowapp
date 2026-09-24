@@ -8,6 +8,7 @@ export type BillingSettings = {
   cycleType: "weekly" | "monthly";
   closingDay: number; // 0 = Domingo, 1 = Lunes... o día del mes (1-31)
   currency: string;
+  resellerMarginPercent: number; // % de ganancia del revendedor (ej. 20%)
 };
 
 export type CodeTransaction = {
@@ -63,6 +64,7 @@ export async function getBillingSettings(): Promise<BillingSettings> {
         "billing_cycle_type",
         "billing_closing_day",
         "billing_currency",
+        "billing_reseller_margin_percent",
       ]);
 
     const map = new Map<string, string>();
@@ -80,8 +82,12 @@ export async function getBillingSettings(): Promise<BillingSettings> {
     const cycleType = (map.get("billing_cycle_type") === "monthly" ? "monthly" : "weekly") as "weekly" | "monthly";
     const closingDay = parseInt(map.get("billing_closing_day") || "0", 10) || 0;
     const currency = map.get("billing_currency") || "$";
+    const rawMargin = map.get("billing_reseller_margin_percent");
+    const resellerMarginPercent = rawMargin !== undefined && rawMargin !== null && !isNaN(parseFloat(rawMargin))
+      ? Math.min(100, Math.max(0, parseFloat(rawMargin)))
+      : 20;
 
-    return { pricePerDay, pricePerMonth, cycleType, closingDay, currency };
+    return { pricePerDay, pricePerMonth, cycleType, closingDay, currency, resellerMarginPercent };
   } catch {
     return {
       pricePerDay: 0.3333,
@@ -89,17 +95,21 @@ export async function getBillingSettings(): Promise<BillingSettings> {
       cycleType: "weekly",
       closingDay: 0,
       currency: "$",
+      resellerMarginPercent: 20,
     };
   }
 }
 
-// 2. Guardar ajustes financieros (Paquete de 30 días)
+// 2. Guardar ajustes financieros (Paquete de 30 días y margen de revendedor)
 export async function updateBillingSettings(settings: Partial<BillingSettings>): Promise<BillingSettings> {
   const sb = supa();
   const current = await getBillingSettings();
 
   const pricePerMonth = settings.pricePerMonth !== undefined ? Math.max(0.01, settings.pricePerMonth) : current.pricePerMonth;
   const pricePerDay = Number((pricePerMonth / 30).toFixed(4));
+  const resellerMarginPercent = settings.resellerMarginPercent !== undefined
+    ? Math.min(100, Math.max(0, Number(settings.resellerMarginPercent)))
+    : (current.resellerMarginPercent ?? 20);
 
   const merged: BillingSettings = {
     pricePerDay,
@@ -107,6 +117,7 @@ export async function updateBillingSettings(settings: Partial<BillingSettings>):
     cycleType: settings.cycleType || current.cycleType,
     closingDay: settings.closingDay !== undefined ? settings.closingDay : current.closingDay,
     currency: settings.currency || current.currency,
+    resellerMarginPercent,
   };
 
   const rows = [
@@ -115,6 +126,7 @@ export async function updateBillingSettings(settings: Partial<BillingSettings>):
     { key: "billing_cycle_type", value: merged.cycleType },
     { key: "billing_closing_day", value: merged.closingDay.toString() },
     { key: "billing_currency", value: merged.currency },
+    { key: "billing_reseller_margin_percent", value: merged.resellerMarginPercent.toString() },
   ];
 
   try {
@@ -428,8 +440,23 @@ export async function getBillingSummary(adminUser: { id: string; username: strin
     );
   }
 
+  const marginPercent = settings.resellerMarginPercent ?? 20;
+
+  for (const row of Object.values(currentDebtByAdmin)) {
+    const gross = row.totalAmount;
+    const profit = Number((gross * (marginPercent / 100)).toFixed(2));
+    const netDue = Number((gross - profit).toFixed(2));
+    (row as any).grossAmount = gross;
+    (row as any).resellerProfit = profit;
+    (row as any).netDueAmount = netDue;
+    (row as any).marginPercent = marginPercent;
+    row.totalAmount = netDue;
+  }
+
   // KPIs globales para el Superadmin
-  const currentCycleTotal = Object.values(currentDebtByAdmin).reduce((acc, a) => acc + a.totalAmount, 0);
+  const currentCycleGross = Object.values(currentDebtByAdmin).reduce((acc, a: any) => acc + (a.grossAmount || 0), 0);
+  const currentCycleResellerProfit = Object.values(currentDebtByAdmin).reduce((acc, a: any) => acc + (a.resellerProfit || 0), 0);
+  const currentCycleTotal = Object.values(currentDebtByAdmin).reduce((acc, a: any) => acc + (a.netDueAmount || a.totalAmount || 0), 0);
   const pendingInvoices = invoices.filter((i) => i.status === "pending");
   const pendingDebtTotal = pendingInvoices.reduce((acc, i) => acc + (Number(i.total_amount) || 0), 0);
   const paidInvoices = invoices.filter((i) => i.status === "paid");
@@ -437,9 +464,11 @@ export async function getBillingSummary(adminUser: { id: string; username: strin
   const suspendedAdminsCount = invoices.filter((i) => i.is_suspended).length;
 
   // Si es subadmin, obtener su balance específico
-  const myCurrentBalance = Object.values(currentDebtByAdmin).find(
+  const rawSubBalance = Object.values(currentDebtByAdmin).find(
     (a) => a.username.toLowerCase() === adminUser.username.toLowerCase() || (adminUser.id && a.adminId === adminUser.id)
-  ) || {
+  );
+
+  const myCurrentBalance = rawSubBalance ? { ...rawSubBalance } : {
     adminId: adminUser.id,
     username: adminUser.username,
     name: adminUser.username,
@@ -447,6 +476,10 @@ export async function getBillingSummary(adminUser: { id: string; username: strin
     packagesCount: 0,
     totalDays: 0,
     totalAmount: 0,
+    grossAmount: 0,
+    resellerProfit: 0,
+    netDueAmount: 0,
+    marginPercent,
   };
 
   return {
@@ -454,6 +487,8 @@ export async function getBillingSummary(adminUser: { id: string; username: strin
     currentPeriod,
     isSuperAdmin,
     kpis: {
+      currentCycleGross: Number(currentCycleGross.toFixed(2)),
+      currentCycleResellerProfit: Number(currentCycleResellerProfit.toFixed(2)),
       currentCycleTotal: Number(currentCycleTotal.toFixed(2)),
       pendingDebtTotal: Number(pendingDebtTotal.toFixed(2)),
       paidTotal: Number(paidTotal.toFixed(2)),
@@ -517,18 +552,28 @@ export async function executePeriodClose(superAdmin: { id: string; username: str
     );
   }
 
-  // 3. Generar una factura para cada administrador con ventas en el ciclo
-  const invoicesToInsert = Object.values(grouped).map((g) => ({
-    period_id: periodId,
-    admin_id: g.adminId || null,
-    admin_username: g.username,
-    total_codes: g.totalCodes,
-    total_days: g.totalDays,
-    total_amount: g.totalAmount,
-    status: "pending",
-    is_suspended: false,
-    notes: notes || `Cierre ${settings.cycleType} al ${new Date().toLocaleDateString("es-ES")}`,
-  }));
+  // 3. Generar una factura para cada administrador con ventas en el ciclo (calculando valor real neto a pagar)
+  const marginPercent = settings.resellerMarginPercent ?? 20;
+  const invoicesToInsert = Object.values(grouped).map((g) => {
+    const grossTotal = g.totalAmount;
+    const resellerProfit = Number((grossTotal * (marginPercent / 100)).toFixed(2));
+    const netDueAmount = Number((grossTotal - resellerProfit).toFixed(2));
+    const invoiceNotes = notes
+      ? `${notes} | Venta Bruta: $${grossTotal} | Ganancia Revendedor (${marginPercent}%): $${resellerProfit} | A pagar: $${netDueAmount}`
+      : `Venta Bruta: $${grossTotal} | Ganancia Revendedor (${marginPercent}%): $${resellerProfit} | A pagar: $${netDueAmount} (Cierre ${settings.cycleType})`;
+
+    return {
+      period_id: periodId,
+      admin_id: g.adminId || null,
+      admin_username: g.username,
+      total_codes: g.totalCodes,
+      total_days: g.totalDays,
+      total_amount: netDueAmount,
+      status: "pending",
+      is_suspended: false,
+      notes: invoiceNotes,
+    };
+  });
 
   if (invoicesToInsert.length > 0) {
     const { error: invErr } = await sb.from("admin_invoices").insert(invoicesToInsert);

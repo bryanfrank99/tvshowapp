@@ -117,6 +117,9 @@ export interface AdminDict {
   btn_key_pass: string;
   confirm_toggle_admin: (action: string, user: string, warning: string) => string;
   confirm_delete_admin: (user: string) => string;
+  confirm_change_role: (user: string, role: string) => string;
+  role_promote_super: string;
+  role_demote_manager: string;
 
   // Providers Tab
   prov_new: string;
@@ -178,6 +181,12 @@ export interface AdminDict {
   bill_settings_title: string;
   bill_settings_sub: string;
   bill_price_30d_label: string;
+  bill_margin_percent_label: string;
+  bill_reseller_profit_label: string;
+  bill_real_due_label: string;
+  bill_gross_sales_label: string;
+  bill_my_profit_label: string;
+  bill_margin_preview: (base: string, margin: number, profit: string, due: string) => string;
   bill_cycle_label: string;
   bill_btn_save_rate: string;
   bill_btn_saving_rate: string;
@@ -345,6 +354,9 @@ const es: AdminDict = {
   btn_key_pass: "🔑 Clave",
   confirm_toggle_admin: (action, user, warning) => `¿Deseas ${action} la cuenta de @${user}?\n${warning}`,
   confirm_delete_admin: (user) => `¿Eliminar administrador @${user}?\nEsta acción no se puede deshacer.`,
+  confirm_change_role: (user, role) => `¿Deseas cambiar el rol de @${user} a "${role}"?`,
+  role_promote_super: "Promover a Super Admin",
+  role_demote_manager: "Cambiar a Gestor de Claves",
 
   prov_new: "+ Nuevo Servidor",
   prov_diagnose: "Diagnosticar Servidores",
@@ -403,6 +415,12 @@ const es: AdminDict = {
   bill_settings_title: "Tarifas y Configuración de Cierre",
   bill_settings_sub: "Define el precio por paquete mensual de 30 días y el ciclo de corte programado para los revendedores.",
   bill_price_30d_label: "Precio Paquete 30 Días ($ USD)",
+  bill_margin_percent_label: "Margen de Ganancia Revendedor (%)",
+  bill_reseller_profit_label: "Ganancia Revendedor",
+  bill_real_due_label: "A Pagar (Valor Real)",
+  bill_gross_sales_label: "Venta Bruta",
+  bill_my_profit_label: "Tu Ganancia Neta",
+  bill_margin_preview: (base, margin, profit, due) => `Por cada paquete de $${base} USD con ${margin}% de margen: el revendedor gana $${profit} USD y te debe pagar $${due} USD.`,
   bill_cycle_label: "Ciclo de Cierre",
   bill_btn_save_rate: "Guardar Tarifa",
   bill_btn_saving_rate: "Guardando...",
@@ -569,6 +587,9 @@ const en: AdminDict = {
   btn_key_pass: "🔑 Pass",
   confirm_toggle_admin: (action, user, warning) => `Do you want to ${action} the account for @${user}?\n${warning}`,
   confirm_delete_admin: (user) => `Delete administrator @${user}?\nThis action cannot be undone.`,
+  confirm_change_role: (user, role) => `Do you want to change the role of @${user} to "${role}"?`,
+  role_promote_super: "Promote to Super Admin",
+  role_demote_manager: "Change to Key Manager",
 
   prov_new: "+ New Server",
   prov_diagnose: "Diagnose Servers",
@@ -627,6 +648,12 @@ const en: AdminDict = {
   bill_settings_title: "Rates & Closing Configuration",
   bill_settings_sub: "Define the price per 30-day package and the scheduled closing cycle for resellers.",
   bill_price_30d_label: "30-Day Package Price ($ USD)",
+  bill_margin_percent_label: "Reseller Profit Margin (%)",
+  bill_reseller_profit_label: "Reseller Profit",
+  bill_real_due_label: "Payable (Real Value)",
+  bill_gross_sales_label: "Gross Sales",
+  bill_my_profit_label: "Your Net Profit",
+  bill_margin_preview: (base, margin, profit, due) => `For each $${base} USD package with ${margin}% margin: the reseller earns $${profit} USD and owes you $${due} USD.`,
   bill_cycle_label: "Closing Cycle",
   bill_btn_save_rate: "Save Rate",
   bill_btn_saving_rate: "Saving...",
@@ -793,6 +820,9 @@ const pt: AdminDict = {
   btn_key_pass: "🔑 Senha",
   confirm_toggle_admin: (action, user, warning) => `Deseja ${action} a conta de @${user}?\n${warning}`,
   confirm_delete_admin: (user) => `Excluir administrador @${user}?\nEsta ação não pode ser desfeita.`,
+  confirm_change_role: (user, role) => `Deseja mudar o papel de @${user} para "${role}"?`,
+  role_promote_super: "Promover a Super Admin",
+  role_demote_manager: "Mudar para Gerenciador",
 
   prov_new: "+ Novo Servidor",
   prov_diagnose: "Diagnosticar Servidores",
@@ -851,6 +881,12 @@ const pt: AdminDict = {
   bill_settings_title: "Tarifas e Configuração de Fechamento",
   bill_settings_sub: "Defina o preço por pacote de 30 dias e o ciclo de corte programado para os revendedores.",
   bill_price_30d_label: "Preço Pacote 30 Dias ($ USD)",
+  bill_margin_percent_label: "Margem de Ganho Revendedor (%)",
+  bill_reseller_profit_label: "Ganho Revendedor",
+  bill_real_due_label: "A Pagar (Valor Real)",
+  bill_gross_sales_label: "Venda Bruta",
+  bill_my_profit_label: "Seu Lucro Líquido",
+  bill_margin_preview: (base, margin, profit, due) => `Por pacote de $${base} USD com ${margin}% de margem: o revendedor ganha $${profit} USD e deve te pagar $${due} USD.`,
   bill_cycle_label: "Ciclo de Fechamento",
   bill_btn_save_rate: "Salvar Tarifa",
   bill_btn_saving_rate: "Salvando...",

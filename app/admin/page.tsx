@@ -149,6 +149,7 @@ export default function AdminPage() {
   const [billingData, setBillingData] = useState<any>(null);
   const [isLoadingBilling, setIsLoadingBilling] = useState(false);
   const [pricePerMonthInput, setPricePerMonthInput] = useState("10.00");
+  const [resellerMarginInput, setResellerMarginInput] = useState("20");
   const [cycleTypeInput, setCycleTypeInput] = useState<"weekly" | "monthly">("weekly");
   const [closingDayInput, setClosingDayInput] = useState<number>(0);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -303,6 +304,7 @@ export default function AdminPage() {
         setBillingData(b);
         if (b.settings) {
           setPricePerMonthInput(b.settings.pricePerMonth?.toString() || "10.00");
+          setResellerMarginInput(b.settings.resellerMarginPercent !== undefined ? b.settings.resellerMarginPercent.toString() : "20");
           setCycleTypeInput(b.settings.cycleType);
           setClosingDayInput(b.settings.closingDay);
         }
@@ -330,6 +332,7 @@ export default function AdminPage() {
         setBillingData(j);
         if (j.settings) {
           setPricePerMonthInput(j.settings.pricePerMonth?.toString() || "10.00");
+          setResellerMarginInput(j.settings.resellerMarginPercent !== undefined ? j.settings.resellerMarginPercent.toString() : "20");
           setCycleTypeInput(j.settings.cycleType);
           setClosingDayInput(j.settings.closingDay);
         }
@@ -346,6 +349,9 @@ export default function AdminPage() {
     setMsg("");
     try {
       const pMonth = parseFloat(pricePerMonthInput) || 10.00;
+      const marginPct = parseFloat(resellerMarginInput) !== undefined && !isNaN(parseFloat(resellerMarginInput))
+        ? parseFloat(resellerMarginInput)
+        : 20;
       const r = await api("billing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -353,6 +359,7 @@ export default function AdminPage() {
           action: "update_settings",
           settings: {
             pricePerMonth: pMonth,
+            resellerMarginPercent: marginPct,
             cycleType: cycleTypeInput,
             closingDay: Number(closingDayInput),
           },
@@ -362,10 +369,10 @@ export default function AdminPage() {
       if (r.ok) {
         setMsg(
           lang === "en"
-            ? "30-day package rate and closing cycle updated successfully."
+            ? "30-day package rate, reseller margin, and closing cycle updated successfully."
             : lang === "pt"
-            ? "Tarifa por pacote de 30 dias e ciclo de corte atualizados com sucesso."
-            : "Tarifa por paquete de 30 días y ciclo de corte actualizados correctamente."
+            ? "Tarifa por pacote de 30 dias, margem do revendedor e ciclo atualizados com sucesso."
+            : "Tarifa por paquete de 30 días, margen de revendedor y ciclo actualizados correctamente."
         );
         await loadBilling();
       } else {
@@ -375,6 +382,33 @@ export default function AdminPage() {
       setMsg(lang === "en" ? "Connection error while saving settings" : lang === "pt" ? "Erro de conexão ao salvar configurações" : "Error de conexión al guardar configuración");
     } finally {
       setIsSavingSettings(false);
+    }
+  };
+
+  const handleUpdateAdminRole = async (targetUser: AdminUserItem, newRole: "superadmin" | "admin") => {
+    const roleLabel = newRole === "superadmin" ? d.role_super : d.role_manager;
+    if (!confirm(d.confirm_change_role(targetUser.username, roleLabel))) return;
+    try {
+      const res = await api("users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: targetUser.id, role: newRole }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMsg(
+          lang === "en"
+            ? `Role of @${targetUser.username} updated to ${roleLabel}`
+            : lang === "pt"
+            ? `Papel de @${targetUser.username} alterado para ${roleLabel}`
+            : `Rol de @${targetUser.username} actualizado a ${roleLabel}`
+        );
+        await load();
+      } else {
+        setMsg(data.message || (lang === "en" ? "Error updating role" : lang === "pt" ? "Erro ao atualizar função" : "Error al actualizar rol"));
+      }
+    } catch {
+      setMsg(lang === "en" ? "Connection error updating role" : lang === "pt" ? "Erro de conexão ao atualizar função" : "Error de conexión al actualizar rol");
     }
   };
 
@@ -1432,17 +1466,19 @@ export default function AdminPage() {
                         {c.revoked ? d.btn_reactivate : d.btn_revoke}
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm(d.confirm_delete_code(c.label || c.ref_code))) {
-                            api(`codes?id=${c.id}`, { method: "DELETE" }).then(load);
-                          }
-                        }}
-                        className={`${btn} hover:!border-red-500 hover:text-red-400`}
-                      >
-                        {d.btn_delete}
-                      </button>
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(d.confirm_delete_code(c.label || c.ref_code))) {
+                              api(`codes?id=${c.id}`, { method: "DELETE" }).then(load);
+                            }
+                          }}
+                          className={`${btn} hover:!border-red-500 hover:text-red-400`}
+                        >
+                          {d.btn_delete}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1522,15 +1558,27 @@ export default function AdminPage() {
                       </div>
                       <div className="text-zinc-500 font-mono text-xs">@{u.username}</div>
                     </div>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                        u.role === "superadmin"
-                          ? "bg-[#008CFF]/20 text-[#008CFF] border-[#008CFF]/40"
-                          : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                      }`}
-                    >
-                      {u.role === "superadmin" ? d.role_super : d.role_manager}
-                    </span>
+                    {isSuperAdmin && !isSelf ? (
+                      <select
+                        value={u.role}
+                        onChange={(e) => handleUpdateAdminRole(u, e.target.value as "superadmin" | "admin")}
+                        className="bg-zinc-900 border border-white/20 text-white rounded-lg px-2 py-1 text-xs outline-none focus:border-[#008CFF] cursor-pointer"
+                        title={d.th_role}
+                      >
+                        <option value="admin">{d.role_manager}</option>
+                        <option value="superadmin">{d.role_super}</option>
+                      </select>
+                    ) : (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                          u.role === "superadmin"
+                            ? "bg-[#008CFF]/20 text-[#008CFF] border-[#008CFF]/40"
+                            : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                        }`}
+                      >
+                        {u.role === "superadmin" ? d.role_super : d.role_manager}
+                      </span>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 py-2 border-y border-white/5 text-center text-xs">
@@ -1635,15 +1683,27 @@ export default function AdminPage() {
                       </td>
 
                       <td className="px-4 py-3">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                            u.role === "superadmin"
-                              ? "bg-[#008CFF]/20 text-[#008CFF] border-[#008CFF]/40"
-                              : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                          }`}
-                        >
-                          {u.role === "superadmin" ? d.role_super : d.role_manager}
-                        </span>
+                        {isSuperAdmin && !isSelf ? (
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleUpdateAdminRole(u, e.target.value as "superadmin" | "admin")}
+                            className="bg-zinc-900 border border-white/20 text-white rounded-lg px-2.5 py-1 text-xs outline-none focus:border-[#008CFF] cursor-pointer"
+                            title={d.th_role}
+                          >
+                            <option value="admin">{d.role_manager}</option>
+                            <option value="superadmin">{d.role_super}</option>
+                          </select>
+                        ) : (
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                              u.role === "superadmin"
+                                ? "bg-[#008CFF]/20 text-[#008CFF] border-[#008CFF]/40"
+                                : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                            }`}
+                          >
+                            {u.role === "superadmin" ? d.role_super : d.role_manager}
+                          </span>
+                        )}
                       </td>
 
                       <td className="px-4 py-3 text-center font-bold text-emerald-400">
@@ -2207,11 +2267,15 @@ export default function AdminPage() {
           {isSuperAdmin ? (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
               <div className="p-3 sm:p-4 rounded-2xl bg-[#0e0f17] border border-white/5 space-y-1">
-                <span className="text-[10px] sm:text-[11px] text-zinc-400 uppercase font-semibold">{d.bill_kpi_open_cycle}</span>
+                <span className="text-[10px] sm:text-[11px] text-zinc-400 uppercase font-semibold">{d.bill_kpi_open_cycle} ({d.bill_real_due_label})</span>
                 <p className="text-xl sm:text-2xl font-black text-white">
                   ${billingData?.kpis?.currentCycleTotal?.toFixed(2) || "0.00"}
                 </p>
-                <span className="text-[10px] text-zinc-500">{d.bill_kpi_open_cycle_sub}</span>
+                <div className="text-[10px] text-zinc-400 flex flex-wrap gap-x-2">
+                  <span>{d.bill_gross_sales_label}: <strong className="text-zinc-300 font-mono">${billingData?.kpis?.currentCycleGross?.toFixed(2) || "0.00"}</strong></span>
+                  <span>•</span>
+                  <span>{d.bill_reseller_profit_label}: <strong className="text-emerald-400 font-mono">+${billingData?.kpis?.currentCycleResellerProfit?.toFixed(2) || "0.00"}</strong></span>
+                </div>
               </div>
 
               <div className="p-3 sm:p-4 rounded-2xl bg-[#0e0f17] border border-white/5 space-y-1">
@@ -2240,13 +2304,21 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-950/40 via-[#0e0f17] to-[#0e0f17] border border-blue-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <span className="text-xs uppercase font-bold text-blue-400 tracking-wider">{d.bill_reseller_title}</span>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl sm:text-3xl font-black text-white">
-                    ${billingData?.kpis?.myCurrentBalance?.totalAmount?.toFixed(2) || "0.00"}
+                    ${billingData?.kpis?.myCurrentBalance?.netDueAmount?.toFixed(2) || billingData?.kpis?.myCurrentBalance?.totalAmount?.toFixed(2) || "0.00"}
                   </span>
-                  <span className="text-xs text-zinc-400">{d.bill_reseller_due_desc}</span>
+                  <span className="text-xs text-blue-300 font-semibold">{d.bill_real_due_label}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 pt-0.5 text-xs">
+                  <span className="text-zinc-400">
+                    {d.bill_gross_sales_label}: <strong className="text-white font-mono">${(billingData?.kpis?.myCurrentBalance?.grossAmount ?? billingData?.kpis?.myCurrentBalance?.totalAmount ?? 0).toFixed(2)}</strong>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold">
+                    {d.bill_my_profit_label}: +${(billingData?.kpis?.myCurrentBalance?.resellerProfit ?? 0).toFixed(2)} ({billingData?.settings?.resellerMarginPercent ?? 20}%)
+                  </span>
                 </div>
                 <p className="text-xs text-zinc-400">
                   {d.bill_reseller_sold_summary(
@@ -2260,6 +2332,10 @@ export default function AdminPage() {
                 <div>
                   <span className="text-zinc-500 block">{d.bill_rate_package_label}</span>
                   <strong className="text-emerald-400 font-mono text-sm">${billingData?.settings?.pricePerMonth ?? "10.00"} USD</strong>
+                </div>
+                <div>
+                  <span className="text-zinc-500 block">{d.bill_margin_percent_label}</span>
+                  <strong className="text-blue-400 font-mono text-sm">{billingData?.settings?.resellerMarginPercent ?? 20}%</strong>
                 </div>
                 <div>
                   <span className="text-zinc-500 block">{d.bill_frequency_label}</span>
@@ -2294,7 +2370,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <form onSubmit={handleSaveBillingSettings} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+              <form onSubmit={handleSaveBillingSettings} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-300 mb-1 flex items-center justify-between">
                     <span>{d.bill_price_30d_label}</span>
@@ -2312,6 +2388,27 @@ export default function AdminPage() {
                       required
                       className={`${inp} pl-7 font-mono font-bold text-white`}
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1 flex items-center justify-between">
+                    <span>{d.bill_margin_percent_label}</span>
+                    <span className="text-[10px] text-blue-400 font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">%</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      max="100"
+                      placeholder="20"
+                      value={resellerMarginInput}
+                      onChange={(e) => setResellerMarginInput(e.target.value)}
+                      required
+                      className={`${inp} pr-7 font-mono font-bold text-white`}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-mono font-bold">%</span>
                   </div>
                 </div>
 
@@ -2371,7 +2468,36 @@ export default function AdminPage() {
                 </div>
               </form>
 
-              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200/90 flex items-start gap-2.5">
+              {(() => {
+                const pBase = parseFloat(pricePerMonthInput) || 10.00;
+                const mPct = parseFloat(resellerMarginInput) || 0;
+                const profitVal = (pBase * (mPct / 100)).toFixed(2);
+                const dueVal = (pBase - parseFloat(profitVal)).toFixed(2);
+                return (
+                  <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200/90 space-y-2.5">
+                    <div className="flex items-center gap-2 font-semibold text-blue-300">
+                      <span className="text-base">💡</span>
+                      <span>{d.bill_margin_preview(pBase.toFixed(2), mPct, profitVal, dueVal)}</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-blue-500/20 text-center">
+                      <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
+                        <span className="text-[10px] text-zinc-400 block uppercase font-medium">{d.bill_gross_sales_label}</span>
+                        <span className="font-mono font-bold text-white text-base">${pBase.toFixed(2)}</span>
+                      </div>
+                      <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
+                        <span className="text-[10px] text-emerald-400 block uppercase font-medium">{d.bill_reseller_profit_label} ({mPct}%)</span>
+                        <span className="font-mono font-bold text-emerald-400 text-base">+${profitVal}</span>
+                      </div>
+                      <div className="bg-black/30 p-2.5 rounded-lg border border-white/5">
+                        <span className="text-[10px] text-[#008CFF] block uppercase font-medium">{d.bill_real_due_label}</span>
+                        <span className="font-mono font-bold text-[#008CFF] text-base">${dueVal}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-xs text-zinc-400 flex items-start gap-2.5">
                 <span className="text-base shrink-0">📦</span>
                 <p>{d.bill_model_expl(pricePerMonthInput)}</p>
               </div>
@@ -2412,9 +2538,15 @@ export default function AdminPage() {
                             {row.codesCount} cod · {row.packagesCount ?? Math.round((row.totalDays || 0) / 30)} pkg
                           </span>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right space-y-0.5">
                           <span className="font-bold text-[#008CFF] font-mono text-base block">
-                            ${row.totalAmount?.toFixed(2)}
+                            ${(row.netDueAmount !== undefined ? row.netDueAmount : row.totalAmount)?.toFixed(2)}
+                          </span>
+                          <span className="text-[10px] text-zinc-400 block font-mono">
+                            {d.bill_gross_sales_label}: ${(row.grossAmount !== undefined ? row.grossAmount : row.totalAmount)?.toFixed(2)}
+                          </span>
+                          <span className="text-[10px] text-emerald-400 block font-mono">
+                            {d.bill_reseller_profit_label}: +${(row.resellerProfit || 0).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -2429,7 +2561,9 @@ export default function AdminPage() {
                           <th className="py-2.5 px-3">{d.th_admin}</th>
                           <th className="py-2.5 px-3 text-center">{d.tab_codes}</th>
                           <th className="py-2.5 px-3 text-center">Paquetes (30d)</th>
-                          <th className="py-2.5 px-3 text-right">Total Acumulado</th>
+                          <th className="py-2.5 px-3 text-right">{d.bill_gross_sales_label}</th>
+                          <th className="py-2.5 px-3 text-right text-emerald-400">{d.bill_reseller_profit_label}</th>
+                          <th className="py-2.5 px-3 text-right text-[#008CFF]">{d.bill_real_due_label}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
@@ -2442,11 +2576,17 @@ export default function AdminPage() {
                               )}
                             </td>
                             <td className="py-3 px-3 text-center font-mono">{row.codesCount}</td>
-                            <td className="py-3 px-3 text-center font-mono font-semibold text-emerald-400">
+                            <td className="py-3 px-3 text-center font-mono font-semibold text-zinc-300">
                               {row.packagesCount ?? Math.round((row.totalDays || 0) / 30)} pkg
                             </td>
+                            <td className="py-3 px-3 text-right font-mono text-zinc-300">
+                              ${(row.grossAmount !== undefined ? row.grossAmount : row.totalAmount)?.toFixed(2)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
+                              +${(row.resellerProfit || 0).toFixed(2)}
+                            </td>
                             <td className="py-3 px-3 text-right font-bold text-[#008CFF] font-mono text-sm">
-                              ${row.totalAmount?.toFixed(2)}
+                              ${(row.netDueAmount !== undefined ? row.netDueAmount : row.totalAmount)?.toFixed(2)}
                             </td>
                           </tr>
                         ))}

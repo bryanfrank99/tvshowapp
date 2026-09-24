@@ -260,6 +260,9 @@ export async function PATCH(req: NextRequest) {
 
   if (body.role && ["superadmin", "admin"].includes(body.role)) {
     updates.role = body.role;
+    try {
+      await sb.from("admin_sessions").update({ role: body.role }).eq("user_id", id);
+    } catch {}
   }
 
   if (typeof body.is_active === "boolean") {

@@ -448,26 +448,10 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "params" }, { status: 400 });
 
   if (!isSuperAdmin) {
-    try {
-      const { data: codeData } = await sb
-        .from("access_codes")
-        .select("created_by,creator_username")
-        .eq("id", id)
-        .maybeSingle();
-
-      if (codeData) {
-        const isOwner =
-          (codeData.created_by && codeData.created_by === currentAdmin?.id) ||
-          (codeData.creator_username &&
-            codeData.creator_username.toLowerCase() === currentAdmin?.username?.toLowerCase());
-        if (!isOwner) {
-          return NextResponse.json(
-            { error: "forbidden", message: "No tienes permiso para eliminar claves de otro administrador." },
-            { status: 403 }
-          );
-        }
-      }
-    } catch {}
+    return NextResponse.json(
+      { error: "forbidden", message: "Solo los Super Administradores pueden borrar claves de acceso." },
+      { status: 403 }
+    );
   }
 
   // Limpiar sesiones antes de borrar el código
