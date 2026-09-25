@@ -38,6 +38,7 @@ export default function IframeSourcePlayer({
   const [isTv, setIsTv] = useState(false);
   const [isTrapped, setIsTrapped] = useState(false);
   const [hudNotice, setHudNotice] = useState<string | null>(null);
+  const hudTimerRef = useRef<NodeJS.Timeout | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -48,6 +49,15 @@ export default function IframeSourcePlayer({
   useEffect(() => {
     setLoading(true);
   }, [source.url]);
+
+  // Limpiar temporizador HUD al desmontar componente
+  useEffect(() => {
+    return () => {
+      if (hudTimerRef.current) {
+        clearTimeout(hudTimerRef.current);
+      }
+    };
+  }, []);
 
   // Enviar mensajes postMessage multi-protocolo al iframe para intentar pausar/reproducir
   const sendIframeCommand = useCallback((cmd: "play" | "pause" | "seek", value?: number) => {
@@ -91,11 +101,15 @@ export default function IframeSourcePlayer({
     // 2. Enfocar el iframe para capturar eventos de teclado/mando
     frame.focus();
 
-    // 3. Mostrar guía flotante en pantalla
-    setHudNotice("🎮 Modo Reproductor · Usa Tab / Shift+Tab para navegar controles · Pulsa ATRÁS para salir");
-    setTimeout(() => {
-      setHudNotice((prev) => (prev?.includes("Modo Reproductor") ? "🎮 Modo Reproductor activo (ATRÁS para salir)" : prev));
-    }, 4500);
+    // 3. Mostrar guía flotante superior (se oculta automáticamente a los 10s)
+    if (hudTimerRef.current) {
+      clearTimeout(hudTimerRef.current);
+    }
+    setHudNotice("🎮 Modo Reproductor activo (Pulsa ATRÁS para salir)");
+    hudTimerRef.current = setTimeout(() => {
+      setHudNotice(null);
+      hudTimerRef.current = null;
+    }, 10000);
   }, []);
 
   // Salir de Modo Reproductor: Restaurar foco + Cerrar Pantalla Completa
@@ -113,13 +127,16 @@ export default function IframeSourcePlayer({
     frameRef.current?.blur();
     containerRef.current?.blur();
 
+    if (hudTimerRef.current) {
+      clearTimeout(hudTimerRef.current);
+      hudTimerRef.current = null;
+    }
     setHudNotice(null);
 
     // 3. Devolver foco a los controles de la aplicación TVShow
     setTimeout(() => {
       const btn =
         document.getElementById("btn-focus-player") ||
-        document.getElementById("btn-enter-player-mode") ||
         document.getElementById("btn-fullscreen");
       if (btn) {
         btn.focus();
@@ -129,13 +146,15 @@ export default function IframeSourcePlayer({
     }, 100);
   }, []);
 
-  // Exponer método global para que Android nativo pueda llamar al salir con KEYCODE_BACK
+  // Exponer métodos globales para activación y salida
   useEffect(() => {
+    (window as any).__enterPlayerMode = enterPlayerMode;
     (window as any).__exitPlayerLocked = exitPlayerMode;
     return () => {
+      delete (window as any).__enterPlayerMode;
       delete (window as any).__exitPlayerLocked;
     };
-  }, [exitPlayerMode]);
+  }, [enterPlayerMode, exitPlayerMode]);
 
   // Captura global de la tecla ATRÁS cuando el modo bloqueado o pantalla completa está activo
   useEffect(() => {
@@ -193,7 +212,7 @@ export default function IframeSourcePlayer({
         </div>
       )}
 
-      {/* Indicador flotante superior central: única leyenda para salir con la tecla Atrás */}
+      {/* Indicador flotante superior central: única leyenda para salir con la tecla Atrás (auto-ocultable a los 10s) */}
       {hudNotice && (
         <div
           onClick={exitPlayerMode}
@@ -201,22 +220,6 @@ export default function IframeSourcePlayer({
           title="Haz clic o pulsa la tecla Atrás para salir"
         >
           {hudNotice}
-        </div>
-      )}
-
-      {/* Botón flotante para TV: Activa el Modo Reproductor (solo visible cuando NO está en modo enfoque) */}
-      {!loading && !isTrapped && (
-        <div className="absolute bottom-3 right-3 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 group-focus:opacity-100 transition-opacity">
-          <button
-            id="btn-enter-player-mode"
-            type="button"
-            onClick={enterPlayerMode}
-            className="px-3.5 py-2 rounded-xl bg-black/80 hover:bg-[#008CFF] border border-white/20 hover:border-transparent text-white text-xs font-bold shadow-lg inline-flex items-center gap-1.5 backdrop-blur-md active:scale-95 transition"
-            title="Enfocar el reproductor con el mando y pantalla completa"
-          >
-            <span>🎮</span>
-            <span>Enfocar Reproductor</span>
-          </button>
         </div>
       )}
 

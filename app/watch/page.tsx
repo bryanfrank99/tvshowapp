@@ -255,9 +255,8 @@ function WatchInner() {
           <button
             id="btn-focus-player"
             onClick={() => {
-              const btn = document.querySelector<HTMLButtonElement>("#btn-enter-player-mode");
-              if (btn) {
-                btn.click();
+              if (typeof (window as any).__enterPlayerMode === "function") {
+                (window as any).__enterPlayerMode();
               } else {
                 const container = document.querySelector<HTMLElement>("#tv-iframe-container, #tv-native-player, #tv-player-frame");
                 if (container) {
