@@ -357,6 +357,11 @@ export default function TvNav() {
   // Manejo de teclas del mando (Atrás, D-Pad Center/OK, Flechas espaciales)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Si el reproductor está en modo bloqueado, suspender TvNav para no interferir con el reproductor
+      if (typeof window !== "undefined" && (window as any).__TV_PLAYER_LOCKED__) {
+        return;
+      }
+
       const k = e.keyCode;
 
       // Botón Atrás (Android 4, Escape 27, Tizen 10009, webOS 461)

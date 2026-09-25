@@ -10,6 +10,24 @@ interface IframeSourcePlayerProps {
   onError?: () => void;
 }
 
+function enterFullscreen(el: HTMLElement) {
+  if (el.requestFullscreen) {
+    el.requestFullscreen().catch(() => {});
+  } else if ((el as any).webkitRequestFullscreen) {
+    (el as any).webkitRequestFullscreen();
+  }
+}
+
+function exitFullscreen() {
+  if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    } else if ((document as any).webkitExitFullscreen) {
+      (document as any).webkitExitFullscreen();
+    }
+  }
+}
+
 export default function IframeSourcePlayer({
   source,
   title,
@@ -18,6 +36,7 @@ export default function IframeSourcePlayer({
 }: IframeSourcePlayerProps) {
   const [loading, setLoading] = useState(true);
   const [isTv, setIsTv] = useState(false);
+  const [isTrapped, setIsTrapped] = useState(false);
   const [hudNotice, setHudNotice] = useState<string | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -54,44 +73,107 @@ export default function IframeSourcePlayer({
     } catch {}
   }, []);
 
-  // Delegar foco directamente al iframe para permitir interacción con el D-pad en el reproductor embebido
-  const focusIframe = useCallback(() => {
+  // Entrar en Modo Reproductor: Foco en iframe + Pantalla Completa obligatoria
+  const enterPlayerMode = useCallback(() => {
     const frame = frameRef.current;
-    if (frame) {
-      frame.focus();
-      setHudNotice("Control en el reproductor (Pulsa Atrás para salir)");
-      setTimeout(() => setHudNotice(null), 4000);
-    }
+    const container = containerRef.current;
+    if (!frame || !container) return;
+
+    setIsTrapped(true);
+    (window as any).__TV_PLAYER_LOCKED__ = true;
+    try {
+      (window as any).AndroidPlayerBridge?.setPlayerLocked(true);
+    } catch {}
+
+    // 1. Activar Pantalla Completa automáticamente
+    enterFullscreen(container);
+
+    // 2. Enfocar el iframe para capturar eventos de teclado/mando
+    frame.focus();
+
+    // 3. Mostrar guía flotante en pantalla
+    setHudNotice("🎮 Modo Reproductor · Usa Tab / Shift+Tab para navegar controles · Pulsa ATRÁS para salir");
+    setTimeout(() => {
+      setHudNotice((prev) => (prev?.includes("Modo Reproductor") ? "🎮 Modo Reproductor activo (ATRÁS para salir)" : prev));
+    }, 4500);
   }, []);
 
-  // Escuchar teclas cuando el contenedor tiene foco
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  // Salir de Modo Reproductor: Restaurar foco + Cerrar Pantalla Completa
+  const exitPlayerMode = useCallback(() => {
+    setIsTrapped(false);
+    (window as any).__TV_PLAYER_LOCKED__ = false;
+    try {
+      (window as any).AndroidPlayerBridge?.setPlayerLocked(false);
+    } catch {}
 
-    const onKeyDown = (e: KeyboardEvent) => {
+    // 1. Cerrar Pantalla Completa
+    exitFullscreen();
+
+    // 2. Desenfocar el iframe
+    frameRef.current?.blur();
+    containerRef.current?.blur();
+
+    setHudNotice(null);
+
+    // 3. Devolver foco a los controles de la aplicación TVShow
+    setTimeout(() => {
+      const btn =
+        document.getElementById("btn-focus-player") ||
+        document.getElementById("btn-enter-player-mode") ||
+        document.getElementById("btn-fullscreen");
+      if (btn) {
+        btn.focus();
+        btn.classList.add("tv-focused");
+        btn.setAttribute("data-tv-focused", "true");
+      }
+    }, 100);
+  }, []);
+
+  // Exponer método global para que Android nativo pueda llamar al salir con KEYCODE_BACK
+  useEffect(() => {
+    (window as any).__exitPlayerLocked = exitPlayerMode;
+    return () => {
+      delete (window as any).__exitPlayerLocked;
+    };
+  }, [exitPlayerMode]);
+
+  // Captura global de la tecla ATRÁS cuando el modo bloqueado o pantalla completa está activo
+  useEffect(() => {
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
       const k = e.keyCode;
-      // D-Pad Center (23), Enter (13), Espacio (32)
-      if (k === 23 || k === 13 || k === 32 || e.key === "Enter") {
-        // Si el foco está en el contenedor general del iframe, enfocar el iframe
-        if (document.activeElement === container) {
+      // Botón Atrás: Android keycode 4, Escape 27, GoBack
+      if (e.key === "GoBack" || k === 4 || k === 27 || e.key === "Escape") {
+        if (isTrapped || (window as any).__TV_PLAYER_LOCKED__ || document.fullscreenElement) {
           e.preventDefault();
-          focusIframe();
-          sendIframeCommand("play");
+          e.stopPropagation();
+          exitPlayerMode();
         }
       }
-      // Botón Atrás: si el foco estaba en el iframe o contenedor, devolver foco a la página
-      if (k === 4 || k === 27 || e.key === "Escape") {
-        container.blur();
-        document.getElementById("btn-fullscreen")?.focus();
+    };
+
+    window.addEventListener("keydown", onGlobalKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onGlobalKeyDown, true);
+    };
+  }, [exitPlayerMode, isTrapped]);
+
+  // Si el usuario sale de pantalla completa mediante el sistema o navegador, salir también del modo reproductor
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+        if (isTrapped) {
+          exitPlayerMode();
+        }
       }
     };
 
-    container.addEventListener("keydown", onKeyDown);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", onFullscreenChange);
     return () => {
-      container.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", onFullscreenChange);
     };
-  }, [focusIframe, sendIframeCommand]);
+  }, [exitPlayerMode, isTrapped]);
 
   return (
     <div
@@ -113,22 +195,23 @@ export default function IframeSourcePlayer({
 
       {/* Notificación flotante de control TV */}
       {hudNotice && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/90 border border-[#008CFF]/60 text-white text-xs sm:text-sm font-semibold shadow-2xl animate-fade-in pointer-events-none">
-          🎮 {hudNotice}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/90 border border-[#008CFF]/60 text-white text-xs sm:text-sm font-semibold shadow-2xl animate-fade-in pointer-events-none text-center">
+          {hudNotice}
         </div>
       )}
 
-      {/* Botón flotante para TV: Permite transferir el mando al reproductor interno */}
-      {isTv && !loading && (
+      {/* Botón flotante para TV: Activa el Modo Reproductor Bloqueado y Pantalla Completa */}
+      {!loading && (
         <div className="absolute bottom-3 right-3 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 group-focus:opacity-100 transition-opacity">
           <button
+            id="btn-enter-player-mode"
             type="button"
-            onClick={focusIframe}
-            className="px-3 py-1.5 rounded-xl bg-black/80 hover:bg-[#008CFF] border border-white/20 hover:border-transparent text-white text-xs font-bold shadow-lg inline-flex items-center gap-1.5 backdrop-blur-md active:scale-95 transition"
-            title="Enfocar el reproductor embebido con el mando"
+            onClick={isTrapped ? exitPlayerMode : enterPlayerMode}
+            className="px-3.5 py-2 rounded-xl bg-black/80 hover:bg-[#008CFF] border border-white/20 hover:border-transparent text-white text-xs font-bold shadow-lg inline-flex items-center gap-1.5 backdrop-blur-md active:scale-95 transition"
+            title="Enfocar el reproductor con el mando y pantalla completa"
           >
             <span>🎮</span>
-            <span>Enfocar Reproductor</span>
+            <span>{isTrapped ? "Salir del Reproductor (Atrás)" : "Enfocar Reproductor"}</span>
           </button>
         </div>
       )}
@@ -138,7 +221,6 @@ export default function IframeSourcePlayer({
         key={source.url}
         src={source.url}
         title={title}
-        autoFocus={isTv}
         tabIndex={0}
         referrerPolicy="origin"
         className="w-full h-full border-0 bg-black block"

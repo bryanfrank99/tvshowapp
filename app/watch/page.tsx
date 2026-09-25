@@ -252,6 +252,27 @@ function WatchInner() {
             <span>{d.fullscreen}</span>
           </button>
 
+          <button
+            id="btn-focus-player"
+            onClick={() => {
+              const btn = document.querySelector<HTMLButtonElement>("#btn-enter-player-mode");
+              if (btn) {
+                btn.click();
+              } else {
+                const container = document.querySelector<HTMLElement>("#tv-iframe-container, #tv-native-player, #tv-player-frame");
+                if (container) {
+                  container.focus();
+                  if (container.requestFullscreen) container.requestFullscreen().catch(() => {});
+                }
+              }
+            }}
+            className="px-3.5 py-2 rounded-xl bg-[#008CFF]/20 border border-[#008CFF]/40 text-xs sm:text-sm font-bold text-[#008CFF] hover:bg-[#008CFF] hover:text-white active:scale-95 transition inline-flex items-center gap-2 touch-manipulation focus:ring-2 focus:ring-[#008CFF] outline-none shadow-sm"
+            title="Enfocar el reproductor con el mando y pantalla completa"
+          >
+            <span>🎮</span>
+            <span>{lang === "pt" ? "Focar Reprodutor" : "Enfocar Reproductor"}</span>
+          </button>
+
           {sources.length > 1 && (
             <button
               id="btn-cycle-server"
