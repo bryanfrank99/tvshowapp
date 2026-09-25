@@ -23,7 +23,7 @@ export default function IframeSourcePlayer({
   }, [source.url]);
 
   return (
-    <div className="relative w-full aspect-video bg-black">
+    <div className="relative w-full h-full bg-black">
       {loading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/85 pointer-events-none transition-opacity duration-300">
           <div className="flex flex-col items-center gap-2.5">
@@ -41,7 +41,7 @@ export default function IframeSourcePlayer({
         title={title}
         autoFocus
         referrerPolicy="origin"
-        className="w-full h-full aspect-video border-0 bg-black"
+        className="w-full h-full border-0 bg-black block"
         allowFullScreen
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
         sandbox={source.sandbox || undefined}

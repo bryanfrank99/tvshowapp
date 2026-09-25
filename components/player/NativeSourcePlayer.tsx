@@ -31,7 +31,7 @@ export default function NativeSourcePlayer({
   }, [source.url, source.type]);
 
   return (
-    <div className="relative w-full aspect-video bg-black flex items-center justify-center">
+    <div className="relative w-full h-full bg-black flex items-center justify-center">
       {error ? (
         <div className="p-6 text-center text-amber-300 text-sm">
           No se pudo reproducir este stream directo.
@@ -42,7 +42,7 @@ export default function NativeSourcePlayer({
           controls
           playsInline
           title={title}
-          className="w-full h-full aspect-video bg-black"
+          className="w-full h-full bg-black object-contain"
           onError={() => {
             setError(true);
             onError?.();

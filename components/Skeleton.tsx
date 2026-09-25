@@ -73,10 +73,10 @@ export function DetailSkeleton() {
 
 export function PlayerSkeleton() {
   return (
-    <div aria-hidden>
+    <div aria-hidden className="w-full">
       <Shimmer className="h-7 w-2/3" />
       <Shimmer className="h-3 w-1/2 mt-2 mb-3" />
-      <Shimmer className="w-full aspect-video" />
+      <Shimmer className="w-full rounded-2xl sm:rounded-3xl min-h-[380px] portrait:aspect-[4/3] portrait:min-h-[380px] landscape:aspect-video landscape:max-h-[85vh] sm:aspect-video sm:min-h-0 sm:max-h-none" />
     </div>
   );
 }
