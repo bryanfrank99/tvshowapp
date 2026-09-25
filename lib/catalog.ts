@@ -9,6 +9,19 @@ import * as free from "./free";
 export type Spot = { show: any; seasonNum: number; ep: any | null };
 export type Page<T> = { items: T[]; hasMore: boolean };
 
+/**
+ * Filtro universal de estreno:
+ * Permite contenidos ya estrenados (incluyendo los que están actualmente en cines).
+ * Descarta estrictamente contenidos futuros cuya fecha de estreno aún no ha llegado.
+ */
+export function isPremiered(item: any): boolean {
+  if (!item) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  if (item.release_date && item.release_date.slice(0, 10) > today) return false;
+  if (item.first_air_date && item.first_air_date.slice(0, 10) > today) return false;
+  return true;
+}
+
 async function tagInTheaters(items: Media[]): Promise<Media[]> {
   try {
     const ids = await getNowPlayingIds();
@@ -47,7 +60,7 @@ type Paged<T = any> = T & { total_pages?: number };
 export async function getFeaturedToday(page = 1, per = 5): Promise<Page<Media>> {
   return tmdbOr(async () => {
     const d = await tmdb<Paged<{ results: Media[] }>>(`/trending/all/day?page=${page}`, 1800);
-    const raw = d.results.filter((x) => x.backdrop_path).slice(0, per);
+    const raw = (d.results || []).filter((x) => x.backdrop_path && isPremiered(x)).slice(0, per);
     const items = await tagInTheaters(raw);
     return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
@@ -56,7 +69,7 @@ export async function getFeaturedToday(page = 1, per = 5): Promise<Page<Media>> 
       free.cineCatalog("movie", "top", Math.ceil(per / 2) + 2, page > 1 ? skip : 0),
       free.cineCatalog("series", "top", Math.ceil(per / 2) + 2, page > 1 ? skip : 0),
     ]);
-    const items = [...m, ...s].slice(0, per);
+    const items = [...m, ...s].filter(isPremiered).slice(0, per);
     return { items, hasMore: items.length >= per };
   });
 }
@@ -107,8 +120,8 @@ export async function getTopPicks(page = 1, per = 12): Promise<Page<Media>> {
       tmdb<Paged<{ results: Media[] }>>(`/tv/top_rated?page=${page}`, 3600),
     ]);
     const raw = [
-      ...m.results.slice(0, half).map((x) => ({ ...x, media_type: "movie" })),
-      ...t.results.slice(0, half).map((x) => ({ ...x, media_type: "tv" })),
+      ...(m.results || []).filter(isPremiered).slice(0, half).map((x) => ({ ...x, media_type: "movie" })),
+      ...(t.results || []).filter(isPremiered).slice(0, half).map((x) => ({ ...x, media_type: "tv" })),
     ]
       .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
       .slice(0, per);
@@ -120,92 +133,109 @@ export async function getTopPicks(page = 1, per = 12): Promise<Page<Media>> {
       free.cineCatalog("movie", "top", half + 1, skip),
       free.cineCatalog("series", "top", half + 1, skip),
     ]);
-    const items = [...m, ...s].sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0)).slice(0, per);
+    const items = [...m, ...s].filter(isPremiered).sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0)).slice(0, per);
     return { items, hasMore: m.length + s.length >= per };
   });
 }
 
 export async function getUpcoming(page = 1, per = 12): Promise<Page<Media>> {
   return tmdbOr(async () => {
-    const d = await tmdb<Paged<{ results: Media[] }>>(`/movie/upcoming?page=${page}`, 3600);
-    const raw = d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie" }));
+    const d = await tmdb<Paged<{ results: Media[] }>>(`/movie/now_playing?page=${page}`, 3600);
+    const raw = (d.results || [])
+      .filter(isPremiered)
+      .slice(0, per)
+      .map((x) => ({ ...x, media_type: "movie", in_theaters: true }));
     const items = await tagInTheaters(raw);
     return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
     const items = await free.cineCatalog("movie", "top", per + 1, (page - 1) * per);
-    return { items: items.slice(0, per), hasMore: items.length > per };
+    return { items: items.filter(isPremiered).slice(0, per), hasMore: items.length > per };
   });
 }
 
 export async function getMovies(page = 1, per = 24): Promise<Page<Media>> {
   return tmdbOr(async () => {
-    const d = await tmdb<Paged<{ results: Media[] }>>(`/discover/movie?sort_by=popularity.desc&page=${page}`, 3600);
-    const raw = d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie" }));
+    const today = new Date().toISOString().slice(0, 10);
+    const d = await tmdb<Paged<{ results: Media[] }>>(
+      `/discover/movie?sort_by=popularity.desc&primary_release_date.lte=${today}&page=${page}`,
+      3600
+    );
+    const raw = (d.results || []).filter(isPremiered).slice(0, per).map((x) => ({ ...x, media_type: "movie" }));
     const items = await tagInTheaters(raw);
     return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
     const items = await free.cineCatalog("movie", "top", per + 1, (page - 1) * per);
-    return { items: items.slice(0, per), hasMore: items.length > per };
+    return { items: items.filter(isPremiered).slice(0, per), hasMore: items.length > per };
   });
 }
 
 export async function getSeries(page = 1, per = 24): Promise<Page<Media>> {
   return tmdbOr(async () => {
-    const d = await tmdb<Paged<{ results: Media[] }>>(`/discover/tv?sort_by=popularity.desc&page=${page}`, 3600);
-    return { items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "tv" })), hasMore: page < (d.total_pages || 1) };
+    const today = new Date().toISOString().slice(0, 10);
+    const d = await tmdb<Paged<{ results: Media[] }>>(
+      `/discover/tv?sort_by=popularity.desc&first_air_date.lte=${today}&page=${page}`,
+      3600
+    );
+    return {
+      items: (d.results || []).filter(isPremiered).slice(0, per).map((x) => ({ ...x, media_type: "tv" })),
+      hasMore: page < (d.total_pages || 1),
+    };
   }, async () => {
     const items = await free.cineCatalog("series", "top", per + 1, (page - 1) * per);
-    return { items: items.slice(0, per), hasMore: items.length > per };
+    return { items: items.filter(isPremiered).slice(0, per), hasMore: items.length > per };
   });
 }
 
 export async function getKidsMovies(page = 1, per = 12): Promise<Page<Media>> {
   return tmdbOr(async () => {
+    const today = new Date().toISOString().slice(0, 10);
     const d = await tmdb<Paged<{ results: Media[] }>>(
-      `/discover/movie?sort_by=popularity.desc&page=${page}&with_genres=10751|16&without_genres=27,53,80&certification_country=US&certification.lte=PG`,
+      `/discover/movie?sort_by=popularity.desc&primary_release_date.lte=${today}&page=${page}&with_genres=10751|16&without_genres=27,53,80&certification_country=US&certification.lte=PG`,
       3600
     );
     return {
-      items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie" })),
+      items: d.results.filter(isPremiered).slice(0, per).map((x) => ({ ...x, media_type: "movie" })),
       hasMore: page < (d.total_pages || 1),
     };
   }, async () => {
     const items = await free.cineCatalogByGenre("movie", "Animation", per + 1);
-    return { items: items.slice(0, per), hasMore: items.length > per };
+    return { items: items.filter(isPremiered).slice(0, per), hasMore: items.length > per };
   });
 }
 
 export async function getKidsSeries(page = 1, per = 12): Promise<Page<Media>> {
   return tmdbOr(async () => {
+    const today = new Date().toISOString().slice(0, 10);
     const d = await tmdb<Paged<{ results: Media[] }>>(
-      `/discover/tv?sort_by=popularity.desc&page=${page}&with_genres=10762|10751&without_genres=27,53,80,18,10763,10764,10767&vote_count.gte=5`,
+      `/discover/tv?sort_by=popularity.desc&first_air_date.lte=${today}&page=${page}&with_genres=10762|10751&without_genres=27,53,80,18,10763,10764,10767&vote_count.gte=5`,
       3600
     );
     return {
-      items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "tv" })),
+      items: d.results.filter(isPremiered).slice(0, per).map((x) => ({ ...x, media_type: "tv" })),
       hasMore: page < (d.total_pages || 1),
     };
   }, async () => {
     const items = await free.cineCatalogByGenre("series", "Animation", per + 1);
-    return { items: items.slice(0, per), hasMore: items.length > per };
+    return { items: items.filter(isPremiered).slice(0, per), hasMore: items.length > per };
   });
 }
 
 export async function getKids(page = 1, per = 24): Promise<Page<Media>> {
   const half = Math.ceil(per / 2);
   return tmdbOr(async () => {
+    const today = new Date().toISOString().slice(0, 10);
     const [m, t] = await Promise.all([
       tmdb<Paged<{ results: Media[] }>>(
-        `/discover/movie?sort_by=popularity.desc&page=${page}&with_genres=10751|16&without_genres=27,53,80&certification_country=US&certification.lte=PG`,
+        `/discover/movie?sort_by=popularity.desc&primary_release_date.lte=${today}&page=${page}&with_genres=10751|16&without_genres=27,53,80&certification_country=US&certification.lte=PG`,
         3600
       ),
       tmdb<Paged<{ results: Media[] }>>(
-        `/discover/tv?sort_by=popularity.desc&page=${page}&with_genres=10762|10751&without_genres=27,53,80,18,10763,10764,10767&vote_count.gte=5`,
+        `/discover/tv?sort_by=popularity.desc&first_air_date.lte=${today}&page=${page}&with_genres=10762|10751&without_genres=27,53,80,18,10763,10764,10767&vote_count.gte=5`,
         3600
       ),
     ]);
-    const movies = (m.results || []).slice(0, half).map((x) => ({ ...x, media_type: "movie" }));
-    const series = (t.results || []).slice(0, half).map((x) => ({ ...x, media_type: "tv" }));
+    const movies = (m.results || []).filter(isPremiered).slice(0, half).map((x) => ({ ...x, media_type: "movie" }));
+    const series = (t.results || []).filter(isPremiered).slice(0, half).map((x) => ({ ...x, media_type: "tv" }));
 
     const combined: Media[] = [];
     const maxLen = Math.max(movies.length, series.length);
@@ -223,20 +253,22 @@ export async function getKids(page = 1, per = 24): Promise<Page<Media>> {
       free.cineCatalogByGenre("movie", "Animation", half + 1),
       free.cineCatalogByGenre("series", "Animation", half + 1),
     ]);
+    const filteredM = m.filter(isPremiered);
+    const filteredS = s.filter(isPremiered);
     const combined: Media[] = [];
-    const maxLen = Math.max(m.length, s.length);
+    const maxLen = Math.max(filteredM.length, filteredS.length);
     for (let i = 0; i < maxLen; i++) {
-      if (i < m.length) combined.push(m[i]);
-      if (i < s.length) combined.push(s[i]);
+      if (i < filteredM.length) combined.push(filteredM[i]);
+      if (i < filteredS.length) combined.push(filteredS[i]);
     }
-    return { items: combined.slice(0, per), hasMore: m.length + s.length >= per };
+    return { items: combined.slice(0, per), hasMore: filteredM.length + filteredS.length >= per };
   });
 }
 
 export async function getTrending(page = 1, per = 20): Promise<Page<Media>> {
   return tmdbOr(async () => {
     const d = await tmdb<Paged<{ results: Media[] }>>(`/trending/all/week?page=${page}`, 600);
-    const raw = d.results.filter((x) => x.media_type === "movie" || x.media_type === "tv").slice(0, per);
+    const raw = d.results.filter((x) => (x.media_type === "movie" || x.media_type === "tv") && isPremiered(x)).slice(0, per);
     const items = await tagInTheaters(raw);
     return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
@@ -245,7 +277,7 @@ export async function getTrending(page = 1, per = 20): Promise<Page<Media>> {
       free.cineCatalog("movie", "top", Math.ceil(per / 2) + 1, skip),
       free.cineCatalog("series", "top", Math.ceil(per / 2) + 1, skip),
     ]);
-    const items = [...m, ...s].slice(0, per);
+    const items = [...m, ...s].filter(isPremiered).slice(0, per);
     return { items, hasMore: m.length + s.length > per };
   });
 }
@@ -255,7 +287,7 @@ export async function getNowPlaying(page = 1, per = 24): Promise<Page<Media>> {
     const ids = await getNowPlayingIds();
     const d = await tmdb<Paged<{ results: Media[] }>>(`/movie/now_playing?page=${page}`, 3600);
     return {
-      items: d.results.slice(0, per).map((x) => ({ ...x, media_type: "movie", in_theaters: ids.has(Number(x.id)) })),
+      items: d.results.filter(isPremiered).slice(0, per).map((x) => ({ ...x, media_type: "movie", in_theaters: ids.has(Number(x.id)) })),
       hasMore: page < (d.total_pages || 1),
     };
   }, async () => {
@@ -267,7 +299,7 @@ export async function getTop10ImdbWeek(): Promise<Media[]> {
   return tmdbOr(async () => {
     const d = await tmdb<{ results: Media[] }>("/trending/all/week", 3600);
     const ranked = [...d.results]
-      .filter((x) => x.title || x.name)
+      .filter((x) => (x.title || x.name) && isPremiered(x))
       .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
       .slice(0, 10)
       .map((x, i) => ({
@@ -281,6 +313,7 @@ export async function getTop10ImdbWeek(): Promise<Media[]> {
     // En modo free el rating IMDb es NATIVO (Cinemeta trae imdbRating real).
     const [m, s] = await Promise.all([free.cineCatalog("movie", "top", 8), free.cineCatalog("series", "top", 8)]);
     return [...m, ...s]
+      .filter(isPremiered)
       .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
       .slice(0, 10)
       .map((x, i) => ({ ...x, rank: i + 1 }));
@@ -291,7 +324,9 @@ export async function searchAll(q: string, page = 1, per = 20): Promise<Page<Med
   if (hasKey()) {
     try {
       const r = await tmdb<Paged<any>>(`/search/multi?query=${encodeURIComponent(q)}&page=${page}`, 300);
-      const raw = (r.results || []).filter((x: any) => x.media_type === "movie" || x.media_type === "tv").slice(0, per);
+      const raw = (r.results || [])
+        .filter((x: any) => (x.media_type === "movie" || x.media_type === "tv") && isPremiered(x))
+        .slice(0, per);
       const items = await tagInTheaters(raw);
       return { items, hasMore: page < (r.total_pages || 1) };
     } catch { /* fallback free */ }
@@ -299,25 +334,28 @@ export async function searchAll(q: string, page = 1, per = 20): Promise<Page<Med
   // Free sin paginado real: página 1 con todo lo encontrado.
   const [cine, tv] = await Promise.all([free.cineSearch(q).catch(() => []), free.tvSearch(q).catch(() => [])]);
   const seen = new Set<string>();
-  const all = [...cine, ...tv].filter((x) => {
-    const k = String(x.id);
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  const all = [...cine, ...tv]
+    .filter(isPremiered)
+    .filter((x) => {
+      const k = String(x.id);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
   return { items: page === 1 ? all : [], hasMore: false };
 }
 
 // Títulos por género. TMDB: discover; free: filtra los tops (traen géneros).
 export async function getByGenre(id: string, name: string, page = 1, per = 24): Promise<Page<Media>> {
   return tmdbOr<Page<Media>>(async () => {
+    const today = new Date().toISOString().slice(0, 10);
     const [m, tv] = await Promise.all([
-      tmdb<Paged<{ results: Media[] }>>(`/discover/movie?with_genres=${id}&sort_by=popularity.desc&page=${page}`, 3600),
-      tmdb<Paged<{ results: Media[] }>>(`/discover/tv?with_genres=${id}&sort_by=popularity.desc&page=${page}`, 3600),
+      tmdb<Paged<{ results: Media[] }>>(`/discover/movie?with_genres=${id}&sort_by=popularity.desc&primary_release_date.lte=${today}&page=${page}`, 3600),
+      tmdb<Paged<{ results: Media[] }>>(`/discover/tv?with_genres=${id}&sort_by=popularity.desc&first_air_date.lte=${today}&page=${page}`, 3600),
     ]);
     const raw = [
-      ...m.results.slice(0, Math.ceil(per / 2)).map((x) => ({ ...x, media_type: "movie" })),
-      ...tv.results.slice(0, Math.ceil(per / 2)).map((x) => ({ ...x, media_type: "tv" })),
+      ...m.results.filter(isPremiered).slice(0, Math.ceil(per / 2)).map((x) => ({ ...x, media_type: "movie" })),
+      ...tv.results.filter(isPremiered).slice(0, Math.ceil(per / 2)).map((x) => ({ ...x, media_type: "tv" })),
     ];
     const items = await tagInTheaters(raw as any);
     return { items, hasMore: page < Math.min(m.total_pages || 1, tv.total_pages || 1) };
@@ -327,6 +365,7 @@ export async function getByGenre(id: string, name: string, page = 1, per = 24): 
     const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const want = norm(name);
     const items = [...mm, ...ss]
+      .filter(isPremiered)
       .filter((x) => (x.genres || []).some((g) => { const ng = norm(String(g)); return ng === want || ng.includes(want) || want.includes(ng); }))
       .slice(0, per);
     return { items, hasMore: false };
@@ -353,7 +392,7 @@ export async function getPersonWorks(name: string): Promise<{ person: any; works
       }
       const det = await tmdb<any>(`/person/${p.id}?append_to_response=combined_credits`, 3600);
       const cast = ((det.combined_credits?.cast || []) as any[])
-        .filter((x) => x.media_type === "movie" || x.media_type === "tv")
+        .filter((x) => (x.media_type === "movie" || x.media_type === "tv") && isPremiered(x))
         .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))
         .slice(0, 24)
         .map((x) => ({ id: x.id, media_type: x.media_type, title: x.title, name: x.name, poster_path: x.poster_path ?? null, vote_average: x.vote_average ?? 0 }));
@@ -444,6 +483,7 @@ export async function getSimilarTitles(
         .filter((x: any) => {
           if (!x || !x.poster_path || String(x.id) === numId || sameSeen.has(String(x.id))) return false;
           if (!x.title && !x.name) return false;
+          if (!isPremiered(x)) return false;
           sameSeen.add(String(x.id));
           return true;
         })
@@ -493,6 +533,7 @@ export async function getSimilarTitles(
         .filter((x: any) => {
           if (!x || !x.poster_path || String(x.id) === numId || crossSeen.has(String(x.id))) return false;
           if (!x.title && !x.name) return false;
+          if (!isPremiered(x)) return false;
           crossSeen.add(String(x.id));
           return true;
         })
@@ -523,8 +564,8 @@ export async function getSimilarTitles(
       free.cineCatalogByGenre("series", genreName, 10).catch(() => []),
     ]);
 
-    const mFiltered = mList.filter((x) => String(x.id) !== numId && !!x.poster_path);
-    const sFiltered = sList.filter((x) => String(x.id) !== numId && !!x.poster_path);
+    const mFiltered = mList.filter((x) => String(x.id) !== numId && !!x.poster_path && isPremiered(x));
+    const sFiltered = sList.filter((x) => String(x.id) !== numId && !!x.poster_path && isPremiered(x));
 
     const combined: Media[] = [];
     const max = Math.max(mFiltered.length, sFiltered.length);

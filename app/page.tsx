@@ -1,4 +1,4 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
 import { getFeaturedToday, getEpisodeSpotlight, getTopPicks, getUpcoming, getTop10ImdbWeek } from "@/lib/catalog";
 import { Section, MediaCard, Top10Card } from "@/components/Cards";
@@ -31,7 +31,7 @@ export default async function Home() {
       <Section title={<T icon={<IconFire className="text-orange-400" />} text={d.toppicks} />}>
         <div className="rail">{picks.items.map((x: any) => <MediaCard key={String(x.id)} item={x} />)}</div>
       </Section>
-      <Section title={<T icon={<IconCalendar className="text-[#008CFF]" />} text={d.upcoming} />}>
+      <Section title={<T icon={<span className="text-base leading-none">🍿</span>} text={d.upcoming} />}>
         <div className="rail">{upcoming.items.map((x: any) => <MediaCard key={String(x.id)} item={x} />)}</div>
       </Section>
       <Section title={<T icon={<IconTrophy className="text-[#f5c518]" />} text={d.top10} />}>
