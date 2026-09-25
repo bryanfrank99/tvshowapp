@@ -440,6 +440,12 @@ export default function TvNav() {
     const onFocusIn = (e: FocusEvent) => {
       const el = e.target as HTMLElement | null;
       if (!el || el === document.body) return;
+
+      // Si el elemento enfocado está en SideNav, NO guardarlo como el destino de foco de la ruta
+      if (el.closest('nav[aria-label="Principal"]')) {
+        return;
+      }
+
       document.querySelectorAll(".tv-focused, [data-tv-focused='true']").forEach((node) => {
         if (node !== el) {
           node.classList.remove("tv-focused");
@@ -456,24 +462,53 @@ export default function TvNav() {
       } catch {}
     };
 
+    // Al mover el ratón por el contenido principal, retirar cualquier foco TV residual en SideNav
+    const onPointerMove = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && !target.closest('nav[aria-label="Principal"]')) {
+        const sideNav = document.querySelector('nav[aria-label="Principal"]');
+        if (sideNav) {
+          sideNav.querySelectorAll(".tv-focused, [data-tv-focused='true']").forEach((node) => {
+            node.classList.remove("tv-focused");
+            node.removeAttribute("data-tv-focused");
+          });
+        }
+      }
+    };
+
     window.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("focusin", onFocusIn);
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("focusin", onFocusIn);
+      window.removeEventListener("pointermove", onPointerMove);
     };
   }, [pathname, router]);
 
   // Al cambiar de ruta o cargar la página: enfocar primer elemento relevante o restaurar sesión
   useEffect(() => {
+    // 1. Limpiar SIEMPRE cualquier clase o indicador .tv-focused que haya quedado en SideNav
+    const sideNav = document.querySelector('nav[aria-label="Principal"]');
+    if (sideNav) {
+      sideNav.querySelectorAll(".tv-focused, [data-tv-focused='true']").forEach((node) => {
+        node.classList.remove("tv-focused");
+        node.removeAttribute("data-tv-focused");
+      });
+      if (document.activeElement && sideNav.contains(document.activeElement)) {
+        (document.activeElement as HTMLElement).blur();
+      }
+    }
+
     const timer = setTimeout(() => {
       let id: string | null = null;
       try { id = sessionStorage.getItem("tvfocus:" + pathname); } catch {}
       let el: HTMLElement | null = null;
-      if (id) {
+      // NUNCA restaurar foco a un elemento de SideNav
+      if (id && !id.startsWith("nav-")) {
         el = document.getElementById(id) ||
           (document.querySelector(`[href="${CSS.escape(id)}"]`) as HTMLElement | null);
-        if (el && !isVisible(el)) el = null;
+        if (el && (!isVisible(el) || el.closest('nav[aria-label="Principal"]'))) el = null;
       }
       if (!el) {
         // En página de reproducción, priorizar el reproductor nativo o botón fullscreen
@@ -489,6 +524,7 @@ export default function TvNav() {
             el = heroBtn;
           } else {
             const candidates = getFocusableElements();
+            // Buscar elemento enfocado exclusivamente dentro de <main>
             el = candidates.find((x) => x.closest("main")) || candidates[0] || null;
           }
         }

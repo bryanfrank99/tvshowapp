@@ -7,20 +7,23 @@ export function isTVUA(): boolean {
   if (typeof navigator === "undefined") return false;
   try {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("mode") === "mobile") {
-      try { localStorage.removeItem("tv_mode"); } catch {}
+    if (params.get("mode") === "mobile" || params.get("tv") === "0" || params.get("mode") === "desktop") {
+      try {
+        localStorage.removeItem("tv_mode");
+        sessionStorage.removeItem("tv_mode");
+      } catch {}
       return false;
     }
     if (params.get("tv") === "1" || params.get("mode") === "tv") {
-      try { localStorage.setItem("tv_mode", "1"); } catch {}
+      try { sessionStorage.setItem("tv_mode", "1"); } catch {}
       return true;
     }
-    if (params.get("tv") === "0") {
-      try { localStorage.removeItem("tv_mode"); } catch {}
-      return false;
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("tv_mode") === "1") {
+      return true;
     }
+    // Limpiar tv_mode residual de localStorage para no dejar permanentemente el navegador desktop en modo TV
     if (typeof localStorage !== "undefined" && localStorage.getItem("tv_mode") === "1") {
-      return true;
+      try { localStorage.removeItem("tv_mode"); } catch {}
     }
   } catch {}
   if (/TVShowMobile/i.test(navigator.userAgent)) return false;

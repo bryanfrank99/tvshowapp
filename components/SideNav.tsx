@@ -37,27 +37,35 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
     "/list": labels.nav_list,
   };
 
-  // Al cambiar de ruta o al salir el cursor, desenfocar para colapsar inmediatamente (sin retener foco de clic)
+  // Al cambiar de ruta o al salir el cursor, desenfocar y limpiar indicadores para colapsar inmediatamente
   useEffect(() => {
-    if (typeof document !== "undefined" && !document.body.classList.contains("tv")) {
-      if (navRef.current && document.activeElement && navRef.current.contains(document.activeElement)) {
+    if (navRef.current) {
+      navRef.current.querySelectorAll(".tv-focused, [data-tv-focused='true']").forEach((node) => {
+        node.classList.remove("tv-focused");
+        node.removeAttribute("data-tv-focused");
+      });
+      if (document.activeElement && navRef.current.contains(document.activeElement)) {
         (document.activeElement as HTMLElement).blur();
       }
     }
   }, [path]);
 
   const handleMouseLeave = () => {
-    if (typeof document !== "undefined" && !document.body.classList.contains("tv")) {
-      if (navRef.current && document.activeElement && navRef.current.contains(document.activeElement)) {
+    if (navRef.current) {
+      navRef.current.querySelectorAll(".tv-focused, [data-tv-focused='true']").forEach((node) => {
+        node.classList.remove("tv-focused");
+        node.removeAttribute("data-tv-focused");
+      });
+      if (document.activeElement && navRef.current.contains(document.activeElement)) {
         (document.activeElement as HTMLElement).blur();
       }
     }
   };
 
   const handleItemClick = (e: React.MouseEvent<HTMLElement>) => {
-    if (typeof document !== "undefined" && !document.body.classList.contains("tv")) {
-      e.currentTarget.blur();
-    }
+    e.currentTarget.blur();
+    e.currentTarget.classList.remove("tv-focused");
+    e.currentTarget.removeAttribute("data-tv-focused");
   };
 
   return (
@@ -67,7 +75,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
           ref={navRef}
           aria-label="Principal"
           onMouseLeave={handleMouseLeave}
-          className="flex fixed inset-y-0 left-0 z-40 w-16 hover:w-52 has-[:focus-visible]:w-52 has-[.tv-focused]:w-52 focus-within:w-52 [.tv_&]:focus-within:w-52 [.tv_&]:has-[.tv-focused]:w-52 transition-[width] duration-200 ease-in-out bg-[#0b0b10] border-r border-white/10 shadow-2xl shadow-black/80 flex-col items-stretch py-4 gap-1 overflow-hidden group/nav"
+          className="flex fixed inset-y-0 left-0 z-40 w-16 hover:w-52 has-[:focus-visible]:w-52 has-[.tv-focused]:w-52 has-[data-tv-focused='true']:w-52 [.tv_&]:has-[.tv-focused]:w-52 [.tv_&]:has-[data-tv-focused='true']:w-52 transition-[width] duration-200 ease-in-out bg-[#0b0b10] border-r border-white/10 shadow-2xl shadow-black/80 flex-col items-stretch py-4 gap-1 overflow-hidden group/nav"
         >
           <Link
             id="nav-logo"
@@ -81,14 +89,14 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
               alt="TV"
               width={32}
               height={32}
-              className="w-8 h-8 shrink-0 group-hover/nav:hidden group-has-[:focus-visible]/nav:hidden group-has-[.tv-focused]/nav:hidden [.tv_&]:group-focus-within/nav:hidden [.tv_&]:group-has-[.tv-focused]/nav:hidden"
+              className="w-8 h-8 shrink-0 group-hover/nav:hidden group-has-[:focus-visible]/nav:hidden group-has-[.tv-focused]/nav:hidden [.tv_&]:group-has-[.tv-focused]/nav:hidden"
             />
             <Image
               src="/TVSHOW.png"
               alt="TVSHOW"
               width={120}
               height={32}
-              className="tv-label h-7 w-auto shrink-0 hidden group-hover/nav:block group-has-[:focus-visible]/nav:block group-has-[.tv-focused]/nav:block [.tv_&]:group-focus-within/nav:block [.tv_&]:group-has-[.tv-focused]/nav:block"
+              className="tv-label h-7 w-auto shrink-0 hidden group-hover/nav:block group-has-[:focus-visible]/nav:block group-has-[.tv-focused]/nav:block [.tv_&]:group-has-[.tv-focused]/nav:block"
             />
           </Link>
           {ITEMS.map(({ href, Icon }) => {
@@ -108,7 +116,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
                 <span className="w-11 h-12 shrink-0 inline-flex items-center justify-center">
                   <Icon size={22} />
                 </span>
-                <span className="tv-label text-sm font-semibold opacity-0 group-hover/nav:opacity-100 group-has-[:focus-visible]/nav:opacity-100 group-has-[.tv-focused]/nav:opacity-100 [.tv_&]:group-focus-within/nav:opacity-100 [.tv_&]:group-has-[.tv-focused]/nav:opacity-100 transition">
+                <span className="tv-label text-sm font-semibold opacity-0 group-hover/nav:opacity-100 group-has-[:focus-visible]/nav:opacity-100 group-has-[.tv-focused]/nav:opacity-100 [.tv_&]:group-has-[.tv-focused]/nav:opacity-100 transition">
                   {names[href]}
                 </span>
               </Link>
@@ -130,7 +138,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
               <span className="w-11 h-12 shrink-0 inline-flex items-center justify-center">
                 <IconGlobe size={22} />
               </span>
-              <span className="tv-label text-sm font-semibold opacity-0 group-hover/nav:opacity-100 group-has-[:focus-visible]/nav:opacity-100 [.tv_&]:group-focus-within/nav:opacity-100 transition">
+              <span className="tv-label text-sm font-semibold opacity-0 group-hover/nav:opacity-100 group-has-[:focus-visible]/nav:opacity-100 group-has-[.tv-focused]/nav:opacity-100 [.tv_&]:group-has-[.tv-focused]/nav:opacity-100 transition">
                 {LANG_NAMES[lang]}
               </span>
             </button>

@@ -116,13 +116,12 @@ body.tv .tv-hero {
   body.tv .tv-hero { height: 28rem !important; }
 }
 
-/* Barra lateral TV: compacta para maximizar el canvas 16:9, expandida al recibir foco */
+/* Barra lateral TV: compacta por defecto (4.25rem), expandida ÚNICAMENTE al pasar el ratón por encima (hover) o al tener foco activo de control remoto */
 body.tv nav[aria-label="Principal"] { width: 4.25rem !important; }
-body.tv nav[aria-label="Principal"]:hover { width: 4.25rem !important; }
-body.tv nav[aria-label="Principal"]:focus-within,
+body.tv nav[aria-label="Principal"]:hover,
 body.tv nav[aria-label="Principal"]:has(.tv-focused),
 body.tv nav[aria-label="Principal"]:has([data-tv-focused="true"]) { width: 13rem !important; }
-body.tv nav[aria-label="Principal"]:focus-within .tv-label,
+body.tv nav[aria-label="Principal"]:hover .tv-label,
 body.tv nav[aria-label="Principal"]:has(.tv-focused) .tv-label,
 body.tv nav[aria-label="Principal"]:has([data-tv-focused="true"]) .tv-label {
   opacity: 1 !important;
