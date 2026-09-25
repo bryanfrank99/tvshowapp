@@ -84,7 +84,7 @@ console.log("✔ Reensamblaje verificado: Integridad de datos 100% idéntica (SH
 // 5. Verificar que el ejecutable contiene el repositorio de GitHub y el endpoint de fallback
 console.log("\n[5/5] Inspeccionando configuración de origen en TVShow-Setup.exe...");
 const hasRepo = exeBuffer.includes(Buffer.from("bryanfrank99/tvshowapp", "utf16le")) || exeBuffer.includes(Buffer.from("bryanfrank99/tvshowapp", "utf8"));
-const hasFallback = exeBuffer.includes(Buffer.from("tvshowapp-one.vercel.app", "utf16le")) || exeBuffer.includes(Buffer.from("tvshowapp-one.vercel.app", "utf8"));
+const hasFallback = exeBuffer.includes(Buffer.from("tvshowapp.net", "utf16le")) || exeBuffer.includes(Buffer.from("tvshowapp.net", "utf8"));
 
 assert(hasRepo, "El instalador debe apuntar al repositorio bryanfrank99/tvshowapp en GitHub Releases");
 assert(hasFallback, "El instalador debe incluir el fallback automático de versión");

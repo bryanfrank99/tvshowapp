@@ -11,6 +11,7 @@ import { getLang } from "@/lib/tmdb";
 import { t } from "@/lib/dict";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://tvshowapp.net"),
   title: "TVShow — Catálogo + Player",
   description: "TMDB + IMDb + multi-player",
   icons: { icon: "/favicon.png" },

@@ -86,7 +86,7 @@ export function buildWebPackage(options = {}) {
     "===================================================",
     "",
     "Origen de descarga configurado: GitHub Releases (bryanfrank99/tvshowapp)",
-    "Fallback automático: https://tvshowapp-one.vercel.app/api/app/version",
+    "Fallback automático: https://tvshowapp.net/api/app/version",
     "",
     "Archivo generado para distribución:",
     "-> dist/TVShow-Setup.exe (~112 KB)",

@@ -1,7 +1,7 @@
 # Spec: Limitar apertura de navegador externo en Android
 
 ## Contexto
-En Android (`capacitor.config.ts:10` `server.url=https://tvshowapp-one.vercel.app`) los embeds (myembed.biz, redeflixapi.store, pipocacine.lat, vidcore.io, etc.) redirigen o hacen `window.open` a ads → `AdBlockWebChromeClient.java:32` lanza `Intent.ACTION_VIEW` a navegador externo para todo no bloqueado, y `AdBlockWebViewClient.java:35` delega a `BridgeWebViewClient` que también abre externo. Usuario pide limitar que nunca se abra navegador externo mientras se usa la app.
+En Android (`capacitor.config.ts:10` `server.url=https://tvshowapp.net`) los embeds (myembed.biz, redeflixapi.store, pipocacine.lat, vidcore.io, etc.) redirigen o hacen `window.open` a ads → `AdBlockWebChromeClient.java:32` lanza `Intent.ACTION_VIEW` a navegador externo para todo no bloqueado, y `AdBlockWebViewClient.java:35` delega a `BridgeWebViewClient` que también abre externo. Usuario pide limitar que nunca se abra navegador externo mientras se usa la app.
 
 ## Objetivos
 - [ ] Ningún click/popup dentro del player o app abre navegador externo (Chrome) sin consentimiento explícito.

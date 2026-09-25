@@ -84,7 +84,7 @@ namespace TVShow.Installer
     {
         private const string GITHUB_REPO = "bryanfrank99/tvshowapp";
         private const string GITHUB_API_URL = "https://api.github.com/repos/bryanfrank99/tvshowapp/releases/latest";
-        private const string FALLBACK_API_URL = "https://tvshowapp-one.vercel.app/api/app/version";
+        private const string FALLBACK_API_URL = "https://tvshowapp.net/api/app/version";
 
         private string _customUrl = null;
         private string _tempDir;

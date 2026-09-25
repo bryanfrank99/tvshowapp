@@ -6,7 +6,7 @@ Interceptar top-level navigations y popups antes de que Capacitor lance `Intent`
 ## Archivos
 | Archivo | Cambio |
 | --- | --- |
-| `AdBlockWebViewClient.java` | `shouldOverrideUrlLoading`: `isBlocked→true`, host allowlist (`tvshowapp-one.vercel.app`, `localhost`, `capacitor://`) → `false` (interno), `embed` hosts (`myembed.biz`, `redeflixapi.store`, `pipocacine.lat`, `vidcore.io`, `vidzy.org`, `vimeus.com`, `multiembed.mov`, `moviesapi.to`, `cinesrc.st`, `player.vidzee.wtf`, `embos.top`, `vidapi.xyz`, `streambetter.shop`) → `false` (permitir iframe/nav interno), resto → `true` (bloquear externo sin Intent) |
+| `AdBlockWebViewClient.java` | `shouldOverrideUrlLoading`: `isBlocked→true`, host allowlist (`tvshowapp.net`, `tvshowapp-one.vercel.app`, `localhost`, `capacitor://`) → `false` (interno), `embed` hosts (`myembed.biz`, `redeflixapi.store`, `pipocacine.lat`, `vidcore.io`, `vidzy.org`, `vimeus.com`, `multiembed.mov`, `moviesapi.to`, `cinesrc.st`, `player.vidzee.wtf`, `embos.top`, `vidapi.xyz`, `streambetter.shop`) → `false` (permitir iframe/nav interno), resto → `true` (bloquear externo sin Intent) |
 | `AdBlockWebChromeClient.java` | `onCreateWindow`: no `Intent.ACTION_VIEW`; si `isBlocked` → `true` bloqueado; si allowlist/embed → `view.loadUrl(url)` en WebView principal o `WebView tmp` interno; resto → bloqueado. `onCloseWindow` mantiene `destroy()` |
 | `capacitor.config.ts` | Añadir `server.allowNavigation: ['myembed.biz','redeflixapi.store','pipocacine.lat','vidcore.io',...]` para que Capacitor no trate iframes como externo (opcional, alternativo al allowlist Java) |
 

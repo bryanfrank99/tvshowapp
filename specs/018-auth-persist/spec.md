@@ -13,7 +13,7 @@ Flujo actual:
 Síntoma confirma: `ref_code` persiste (localStorage), pero `tvsess` se pierde al reiniciar.
 
 ## Hipótesis (a verificar)
-1. **WebView Capacitor no persiste cookies** — `capacitor.config.ts:10` apunta a `https://tvshowapp-one.vercel.app` y `android/.../MainActivity.java` no configura `CookieManager.setAcceptCookie(true)` / `flush()`, así que `tvsess` es solo en memoria (H1, probabilidad alta — explica app).
+1. **WebView Capacitor no persiste cookies** — `capacitor.config.ts:10` apunta a `https://tvshowapp.net` y `android/.../MainActivity.java` no configura `CookieManager.setAcceptCookie(true)` / `flush()`, así que `tvsess` es solo en memoria (H1, probabilidad alta — explica app).
 2. **Cookie sin `Secure` en HTTPS** — `SameSite=lax` sin `secure:true` en prod puede ser descartada por Chrome/Brave al cerrar (H2, media).
 3. **Sin fallback en cliente** — solo `ref_code` se guarda; el código real nunca se almacena, así que no hay re-login automático tras pérdida de cookie (H3, alta — explica navegador/PC también si el usuario tiene limpieza de cookies).
 4. Expiración/revoked no es causa — `expires_at` 30d y `revoked=false` verificados (H4 descartada).

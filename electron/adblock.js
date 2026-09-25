@@ -54,6 +54,7 @@ function isBlocked(urlString) {
 }
 
 const ALLOWED_STREAM_HOSTS = [
+  'tvshowapp.net',
   'tvshowapp-one.vercel.app',
   'localhost',
   '127.0.0.1',

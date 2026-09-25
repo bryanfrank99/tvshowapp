@@ -4,7 +4,7 @@
 Paso 1 (rutas query) listo. Para el binario hay dos caminos.
 
 ## Opción A (recomendada): shell nativo sobre URL
-Capacitor carga `https://tvshowapp-one.vercel.app`. Cero refactor: valen SQLite
+Capacitor carga `https://tvshowapp.net`. Cero refactor: valen SQLite
 server, proxies, lovegate, tvf90 y guía XML. El plugin nativo intercepta el
 WebView y bloquea ads/popups.
 

@@ -75,7 +75,7 @@ if (!gotTheLock) {
 
 function createMainWindow() {
   const isDev = process.env.NODE_ENV === 'development';
-  const targetUrl = process.env.TVSHOW_URL || 'https://tvshowapp-one.vercel.app';
+  const targetUrl = process.env.TVSHOW_URL || 'https://tvshowapp.net';
 
   // Configuración de la ventana principal
   const iconPath = path.join(__dirname, '../resources/icon.png');

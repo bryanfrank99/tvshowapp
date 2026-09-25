@@ -1,7 +1,7 @@
 # Plan: App de Escritorio Windows con Electron (spec ./spec.md)
 
 ## Enfoque
-Implementar un shell nativo en `electron/` que cargue la URL de producción (`https://tvshowapp-one.vercel.app`), aplicando políticas estrictas de seguridad (aislamiento de contexto, sin Node en el renderer) y filtrado a nivel de sesión en Chromium para replicar exactamente el comportamiento de Android:
+Implementar un shell nativo en `electron/` que cargue la URL de producción (`https://tvshowapp.net`), aplicando políticas estrictas de seguridad (aislamiento de contexto, sin Node en el renderer) y filtrado a nivel de sesión en Chromium para replicar exactamente el comportamiento de Android:
 1. `setWindowOpenHandler`: deniega la apertura de ventanas no deseadas de los reproductores y delega enlaces externos legítimos a `shell.openExternal`.
 2. `webRequest.onBeforeRequest`: filtra URLs entrantes contra la base de datos de hosts de anuncios (`adhosts.txt`).
 3. Empaquetado con `electron-builder` configurado para generar instalador `.exe` (NSIS) y ejecutable portable para Windows con el ícono oficial de la aplicación.
