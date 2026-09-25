@@ -40,6 +40,7 @@ const PlayerContainer = forwardRef<HTMLDivElement, PlayerContainerProps>(
     return (
       <div
         ref={ref}
+        id="tv-player-frame"
         className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden border border-white/15 bg-black shadow-[0_12px_40px_rgba(0,0,0,0.85)] ring-1 ring-white/5 min-h-[380px] portrait:aspect-[4/3] portrait:min-h-[380px] landscape:aspect-video landscape:max-h-[85vh] sm:aspect-video sm:min-h-0 sm:max-h-none transition-[min-height,aspect-ratio] duration-300"
       >
         {locked ? (

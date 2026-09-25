@@ -423,6 +423,13 @@ export default function TvNav() {
         }
       }
 
+      // Si el foco está en el reproductor nativo, permitir que izquierda/derecha hagan seek sin perder foco
+      if (ae.id === "tv-native-player" || ae.closest("#tv-native-player")) {
+        if (dir === "ArrowLeft" || dir === "ArrowRight") {
+          return;
+        }
+      }
+
       const target = findNextTarget(ae, dir, candidates);
       if (target) {
         e.preventDefault();
@@ -469,12 +476,21 @@ export default function TvNav() {
         if (el && !isVisible(el)) el = null;
       }
       if (!el) {
-        const heroBtn = document.getElementById("hero-play-btn");
-        if (heroBtn && isVisible(heroBtn)) {
-          el = heroBtn;
-        } else {
-          const candidates = getFocusableElements();
-          el = candidates.find((x) => x.closest("main")) || candidates[0] || null;
+        // En página de reproducción, priorizar el reproductor nativo o botón fullscreen
+        if (pathname.startsWith("/watch")) {
+          el = document.getElementById("tv-native-player") ||
+               document.getElementById("btn-fullscreen") ||
+               document.getElementById("tv-player-frame") ||
+               null;
+        }
+        if (!el) {
+          const heroBtn = document.getElementById("hero-play-btn");
+          if (heroBtn && isVisible(heroBtn)) {
+            el = heroBtn;
+          } else {
+            const candidates = getFocusableElements();
+            el = candidates.find((x) => x.closest("main")) || candidates[0] || null;
+          }
         }
       }
       if (el) {

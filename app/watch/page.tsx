@@ -185,8 +185,9 @@ function WatchInner() {
       {/* 1. Barra superior limpia de navegación cinemática */}
       <div className="flex items-center justify-between gap-3 mb-2.5">
         <Link
+          id="btn-back-watch"
           href={`/title?type=${type}&id=${id}`}
-          className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-zinc-400 hover:text-white transition group py-1.5 px-3 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 active:scale-95 touch-manipulation"
+          className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-zinc-400 hover:text-white transition group py-1.5 px-3 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 active:scale-95 touch-manipulation focus:ring-2 focus:ring-[#008CFF] outline-none"
         >
           <span className="group-hover:-translate-x-0.5 transition-transform">←</span>
           <span>{d.volver.replace(/^←\s*/, "")}</span>
@@ -242,8 +243,9 @@ function WatchInner() {
       <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            id="btn-fullscreen"
             onClick={goFullscreen}
-            className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-semibold text-zinc-200 hover:text-white hover:border-[#008CFF]/60 hover:bg-[#008CFF]/10 active:scale-95 transition inline-flex items-center gap-2 touch-manipulation"
+            className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-semibold text-zinc-200 hover:text-white hover:border-[#008CFF]/60 hover:bg-[#008CFF]/10 active:scale-95 transition inline-flex items-center gap-2 touch-manipulation focus:ring-2 focus:ring-[#008CFF] outline-none"
             title={d.fullscreen}
           >
             <span>⛶</span>
@@ -252,8 +254,9 @@ function WatchInner() {
 
           {sources.length > 1 && (
             <button
+              id="btn-cycle-server"
               onClick={handleCycleNext}
-              className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-semibold text-zinc-300 hover:text-white hover:border-[#008CFF]/60 hover:bg-[#008CFF]/10 active:scale-95 transition inline-flex items-center gap-2 touch-manipulation"
+              className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-semibold text-zinc-300 hover:text-white hover:border-[#008CFF]/60 hover:bg-[#008CFF]/10 active:scale-95 transition inline-flex items-center gap-2 touch-manipulation focus:ring-2 focus:ring-[#008CFF] outline-none"
               title="Cambiar al siguiente servidor"
             >
               <span>🔄</span>
@@ -266,22 +269,25 @@ function WatchInner() {
           <div className="flex items-center gap-2 flex-wrap">
             {e > 1 && (
               <Link
+                id="btn-prev-ep"
                 href={`/watch?type=tv&id=${id}&s=${s}&e=${e - 1}`}
-                className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-medium text-zinc-300 hover:text-white active:scale-95 transition"
+                className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-medium text-zinc-300 hover:text-white active:scale-95 transition focus:ring-2 focus:ring-[#008CFF] outline-none"
               >
                 ← E{e - 1}
               </Link>
             )}
             <Link
+              id="btn-next-ep"
               href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`}
-              className="px-4 py-2 rounded-xl bg-[#008CFF] hover:bg-[#0077dd] text-white text-xs sm:text-sm font-bold active:scale-95 transition shadow-[0_0_16px_rgba(0,140,255,0.4)] inline-flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-[#008CFF] hover:bg-[#0077dd] text-white text-xs sm:text-sm font-bold active:scale-95 transition shadow-[0_0_16px_rgba(0,140,255,0.4)] inline-flex items-center gap-1.5 focus:ring-2 focus:ring-white outline-none"
             >
               <span>{d.siguiente} {d.ep_e}{e + 1}</span>
               <span>→</span>
             </Link>
             <Link
+              id="btn-all-ep"
               href={`/title?type=tv&id=${id}&season=${s}`}
-              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm text-zinc-300 hover:text-white active:scale-95 transition hidden sm:inline-flex"
+              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm text-zinc-300 hover:text-white active:scale-95 transition hidden sm:inline-flex focus:ring-2 focus:ring-[#008CFF] outline-none"
             >
               {d.todos_capitulos}
             </Link>
