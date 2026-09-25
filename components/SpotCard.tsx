@@ -14,7 +14,7 @@ export function SpotCard({ show, seasonNum, ep }: { show: any; seasonNum: number
   return (
     <Link
       href={`/watch?type=tv&id=${show.id}&s=${seasonNum}&e=${ep?.episode_number || 1}`}
-      className="group relative block bg-zinc-900/60 border border-white/10 rounded-2xl overflow-hidden hover:border-[#008CFF]/80 active:scale-[0.98] transition-[transform,border-color,box-shadow] duration-200 ease-out shadow-sm hover:shadow-[0_8px_20px_rgba(0,0,0,0.35)] touch-manipulation select-none shrink-0"
+      className="group relative block bg-zinc-900/60 border border-white/10 rounded-2xl overflow-hidden hover:border-[#008CFF]/80 focus:border-[#008CFF] focus:ring-4 focus:ring-[#008CFF]/50 active:scale-[0.98] transition-[transform,border-color,box-shadow] duration-200 ease-out shadow-sm hover:shadow-[0_8px_20px_rgba(0,0,0,0.35)] touch-manipulation select-none shrink-0 outline-none"
       style={{ flex: "0 0 280px" }}
     >
       <div className="relative aspect-video w-full overflow-hidden bg-zinc-900">
@@ -23,16 +23,16 @@ export function SpotCard({ show, seasonNum, ep }: { show: any; seasonNum: number
           alt={show.name}
           width={480}
           height={270}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 group-focus:scale-105 group-[.tv-focused]:scale-105"
           loading="lazy"
         />
         <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-zinc-950/80 to-transparent pointer-events-none" />
-        <span className="absolute inset-0 m-auto w-11 h-11 rounded-full opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all duration-200 flex items-center justify-center bg-gradient-to-br from-[#008CFF] to-[#008CFF]/80 shadow-[0_0_20px_rgba(0,140,255,0.7)] ring-1 ring-white/40 pointer-events-none">
+        <span className="absolute inset-0 m-auto w-11 h-11 rounded-full opacity-0 group-hover:opacity-100 group-focus:opacity-100 group-[.tv-focused]:opacity-100 scale-90 group-hover:scale-100 group-focus:scale-100 group-[.tv-focused]:scale-100 transition-all duration-200 flex items-center justify-center bg-gradient-to-br from-[#008CFF] to-[#008CFF]/80 shadow-[0_0_20px_rgba(0,140,255,0.7)] ring-1 ring-white/40 pointer-events-none">
           <IconPlay size={18} className="ml-0.5 text-white" />
         </span>
       </div>
       <div className="p-3">
-        <p className="text-xs sm:text-sm font-bold truncate text-zinc-100 group-hover:text-[#008CFF] transition-colors">
+        <p className="text-xs sm:text-sm font-bold truncate text-zinc-100 group-hover:text-[#008CFF] group-focus:text-[#008CFF] group-[.tv-focused]:text-[#008CFF] transition-colors">
           {show.name} · {d.tv_t}{seasonNum}{d.ep_e}{ep?.episode_number ?? 1}
         </p>
         <p className="text-xs text-zinc-400 line-clamp-2 mt-1">

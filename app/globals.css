@@ -75,10 +75,12 @@ html.tv, html:has(body.tv) { font-size: 100%; }
 
 /* Foco destacado para mando Android TV en 16:9 */
 body.tv :focus,
-body.tv :focus-visible {
+body.tv :focus-visible,
+body.tv .tv-focused,
+body.tv [data-tv-focused="true"] {
   outline: 3px solid #008CFF !important;
   outline-offset: 3px !important;
-  box-shadow: 0 0 16px rgba(0, 140, 255, 0.85), 0 0 30px rgba(0, 140, 255, 0.4) !important;
+  box-shadow: 0 0 16px rgba(0, 140, 255, 0.9), 0 0 32px rgba(0, 140, 255, 0.45) !important;
   transition: transform 0.15s ease, outline 0.15s ease, box-shadow 0.15s ease !important;
   z-index: 30 !important;
 }
@@ -86,8 +88,21 @@ body.tv :focus-visible {
 body.tv button:focus,
 body.tv a:focus,
 body.tv input:focus,
-body.tv [tabindex]:focus {
+body.tv [tabindex]:focus,
+body.tv .tv-focused,
+body.tv [data-tv-focused="true"] {
   transform: scale(1.05) !important;
+}
+
+@keyframes tvPulseGlow {
+  0% { box-shadow: 0 0 14px rgba(0, 140, 255, 0.8), 0 0 24px rgba(0, 140, 255, 0.35); }
+  50% { box-shadow: 0 0 24px rgba(0, 140, 255, 1), 0 0 40px rgba(0, 140, 255, 0.65); }
+  100% { box-shadow: 0 0 14px rgba(0, 140, 255, 0.8), 0 0 24px rgba(0, 140, 255, 0.35); }
+}
+
+body.tv .tv-focused,
+body.tv [data-tv-focused="true"] {
+  animation: tvPulseGlow 2.2s infinite ease-in-out;
 }
 
 /* Hero cinemático proporcionado a pantalla 16:9 */
@@ -101,10 +116,18 @@ body.tv .tv-hero {
   body.tv .tv-hero { height: 28rem !important; }
 }
 
-/* Barra lateral TV: compacta para maximizar el canvas 16:9 */
+/* Barra lateral TV: compacta para maximizar el canvas 16:9, expandida al recibir foco */
 body.tv nav[aria-label="Principal"] { width: 4.25rem !important; }
 body.tv nav[aria-label="Principal"]:hover { width: 4.25rem !important; }
-body.tv nav[aria-label="Principal"]:focus-within { width: 13rem !important; }
+body.tv nav[aria-label="Principal"]:focus-within,
+body.tv nav[aria-label="Principal"]:has(.tv-focused),
+body.tv nav[aria-label="Principal"]:has([data-tv-focused="true"]) { width: 13rem !important; }
+body.tv nav[aria-label="Principal"]:focus-within .tv-label,
+body.tv nav[aria-label="Principal"]:has(.tv-focused) .tv-label,
+body.tv nav[aria-label="Principal"]:has([data-tv-focused="true"]) .tv-label {
+  opacity: 1 !important;
+  display: inline-block !important;
+}
 body.tv nav[aria-label="Principal"] img[alt="TV"] { display: block !important; opacity: 1 !important; }
 
 /* Carriles de contenido adaptados a proporciones de TV 16:9 */

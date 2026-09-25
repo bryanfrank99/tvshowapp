@@ -67,45 +67,48 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
           ref={navRef}
           aria-label="Principal"
           onMouseLeave={handleMouseLeave}
-          className="flex fixed inset-y-0 left-0 z-40 w-16 hover:w-52 has-[:focus-visible]:w-52 [.tv_&]:focus-within:w-52 transition-[width] duration-200 ease-in-out bg-[#0b0b10] border-r border-white/10 shadow-2xl shadow-black/80 flex-col items-stretch py-4 gap-1 overflow-hidden group/nav"
+          className="flex fixed inset-y-0 left-0 z-40 w-16 hover:w-52 has-[:focus-visible]:w-52 has-[.tv-focused]:w-52 focus-within:w-52 [.tv_&]:focus-within:w-52 [.tv_&]:has-[.tv-focused]:w-52 transition-[width] duration-200 ease-in-out bg-[#0b0b10] border-r border-white/10 shadow-2xl shadow-black/80 flex-col items-stretch py-4 gap-1 overflow-hidden group/nav"
         >
           <Link
+            id="nav-logo"
             href="/"
             aria-label="Inicio"
             onClick={handleItemClick}
-            className="flex items-center gap-3 px-4 mb-4 h-10"
+            className="flex items-center gap-3 px-4 mb-4 h-10 outline-none focus:ring-2 focus:ring-[#008CFF] rounded-xl"
           >
             <Image
               src="/favicon.png"
               alt="TV"
               width={32}
               height={32}
-              className="w-8 h-8 shrink-0 group-hover/nav:hidden group-has-[:focus-visible]/nav:hidden [.tv_&]:group-focus-within/nav:hidden"
+              className="w-8 h-8 shrink-0 group-hover/nav:hidden group-has-[:focus-visible]/nav:hidden group-has-[.tv-focused]/nav:hidden [.tv_&]:group-focus-within/nav:hidden [.tv_&]:group-has-[.tv-focused]/nav:hidden"
             />
             <Image
               src="/TVSHOW.png"
               alt="TVSHOW"
               width={120}
               height={32}
-              className="tv-label h-7 w-auto shrink-0 hidden group-hover/nav:block group-has-[:focus-visible]/nav:block [.tv_&]:group-focus-within/nav:block"
+              className="tv-label h-7 w-auto shrink-0 hidden group-hover/nav:block group-has-[:focus-visible]/nav:block group-has-[.tv-focused]/nav:block [.tv_&]:group-focus-within/nav:block [.tv_&]:group-has-[.tv-focused]/nav:block"
             />
           </Link>
           {ITEMS.map(({ href, Icon }) => {
             const active = path === href;
+            const navId = `nav-${href === '/' ? 'home' : href.slice(1)}`;
             return (
               <Link
                 key={href}
+                id={navId}
                 href={href}
                 aria-current={active ? "page" : undefined}
                 onClick={handleItemClick}
-                className={`flex items-center gap-3 h-12 rounded-xl mx-2 whitespace-nowrap ${
+                className={`flex items-center gap-3 h-12 rounded-xl mx-2 whitespace-nowrap outline-none focus:ring-2 focus:ring-[#008CFF] focus:bg-white/15 ${
                   active ? "bg-[#008CFF] text-white" : "text-zinc-300 hover:text-white hover:bg-white/10"
                 }`}
               >
                 <span className="w-11 h-12 shrink-0 inline-flex items-center justify-center">
                   <Icon size={22} />
                 </span>
-                <span className="tv-label text-sm font-semibold opacity-0 group-hover/nav:opacity-100 group-has-[:focus-visible]/nav:opacity-100 [.tv_&]:group-focus-within/nav:opacity-100 transition">
+                <span className="tv-label text-sm font-semibold opacity-0 group-hover/nav:opacity-100 group-has-[:focus-visible]/nav:opacity-100 group-has-[.tv-focused]/nav:opacity-100 [.tv_&]:group-focus-within/nav:opacity-100 [.tv_&]:group-has-[.tv-focused]/nav:opacity-100 transition">
                   {names[href]}
                 </span>
               </Link>
@@ -113,6 +116,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
           })}
           <div className="mt-auto flex flex-col gap-1 pb-2">
             <button
+              id="nav-lang"
               type="button"
               onClick={(e) => {
                 handleItemClick(e);
@@ -121,7 +125,7 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
               aria-haspopup="dialog"
               aria-expanded={langOpen}
               title={`${d.lang_label}: ${LANG_NAMES[lang]}`}
-              className="flex items-center gap-3 h-12 rounded-xl mx-2 whitespace-nowrap text-zinc-400 hover:text-white hover:bg-white/5 focus:bg-white/10 focus:text-white outline-none focus:ring-2 focus:ring-[#008CFF]"
+              className="flex items-center gap-3 h-12 rounded-xl mx-2 whitespace-nowrap text-zinc-400 hover:text-white hover:bg-white/5 focus:bg-white/15 focus:text-white outline-none focus:ring-2 focus:ring-[#008CFF]"
             >
               <span className="w-11 h-12 shrink-0 inline-flex items-center justify-center">
                 <IconGlobe size={22} />
