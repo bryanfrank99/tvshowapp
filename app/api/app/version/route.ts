@@ -115,7 +115,7 @@ export async function GET(request: Request) {
       apkTvUrl,
       exeUrl,
       windowsUrl: exeUrl,
-      releaseNotes: release.body || "",
+      releaseNotes: "",
       publishedAt: release.published_at || new Date().toISOString(),
     };
 

@@ -26,7 +26,7 @@ export default function MobileBottomNav() {
   return (
     <nav
       aria-label="Navegación Móvil"
-      className="flex md:hidden [.tv_&]:!hidden fixed bottom-0 inset-x-0 z-50 bg-[#0b0b10]/95 backdrop-blur-xl border-t border-white/10 px-1 pt-1 pb-[max(0.6rem,env(safe-area-inset-bottom))] items-center shadow-[0_-10px_25px_rgba(0,0,0,0.8)] select-none"
+      className="flex md:hidden [.tv_&]:!hidden fixed bottom-0 inset-x-0 z-50 bg-[#0b0b10]/95 backdrop-blur-xl border-t border-white/10 px-1 pt-1.5 pb-[max(1.25rem,calc(env(safe-area-inset-bottom)+0.6rem))] items-center shadow-[0_-10px_25px_rgba(0,0,0,0.8)] select-none w-full max-w-full"
     >
       <div className="grid grid-cols-5 w-full max-w-lg mx-auto">
         {items.map(({ href, label, Icon }) => {

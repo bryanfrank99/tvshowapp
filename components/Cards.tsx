@@ -12,7 +12,7 @@ import { isMovieInTheaters } from "@/lib/theaters";
 
 export function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="mb-8">
+    <section className="mb-8 w-full max-w-full min-w-0 overflow-hidden">
       <div className="flex items-baseline gap-3 mb-3">
         <h2 className="text-xl font-extrabold">{title}</h2>
       </div>
@@ -140,7 +140,7 @@ export function Top10Card({ item }: { item: Media }) {
   return (
     <Link
       href={`/title?type=${type}&id=${item.id}`}
-      className="group relative flex gap-3.5 items-center bg-zinc-900/60 border border-white/10 rounded-2xl p-3 hover:border-[#008CFF]/80 active:scale-[0.98] transition-[transform,border-color,box-shadow] duration-200 ease-out touch-manipulation"
+      className="group relative flex gap-3.5 items-center bg-zinc-900/60 border border-white/10 rounded-2xl p-3 hover:border-[#008CFF]/80 active:scale-[0.98] transition-[transform,border-color,box-shadow] duration-200 ease-out touch-manipulation w-full max-w-full min-w-0"
     >
       <span
         className="text-3xl sm:text-4xl font-black min-w-10 text-center select-none"

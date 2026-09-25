@@ -31,19 +31,21 @@ export default function Header() {
     <header className="sticky top-0 z-30 bg-[#0b0b10]/95 border-b border-white/10">
       <div className="w-full max-w-[1840px] mx-auto px-3 sm:px-6 md:px-8 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-4">
         {/* Logo solo en móvil cuando el SideNav está oculto */}
-        <Link href="/" className="flex md:hidden [.tv_&]:!hidden items-center shrink-0 mr-1 sm:mr-2">
-          <Image src="/TVSHOW.png" alt="TVSHOW" width={84} height={22} className="h-5 w-auto object-contain" priority />
+        <Link href="/" className="flex md:hidden [.tv_&]:!hidden items-center shrink-0 mr-1 sm:mr-2 pl-0.5">
+          <Image src="/TVSHOW.png" alt="TVSHOW" width={80} height={21} className="h-5 w-auto object-contain" priority />
         </Link>
         <nav aria-label="Ruta" className="flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm min-w-0 flex-1 overflow-hidden">
-          <Link href="/" className="text-zinc-500 hover:text-white shrink-0">{d.nav_home.charAt(0) + d.nav_home.slice(1).toLowerCase()}</Link>
-          {crumb && (
+          {crumb ? (
             <>
-              <span className="text-zinc-600 shrink-0">/</span>
-              <span className="font-bold truncate">{crumb}</span>
+              <Link href="/" className="text-zinc-500 hover:text-white shrink-0 hidden xs:inline">{d.nav_home.charAt(0) + d.nav_home.slice(1).toLowerCase()}</Link>
+              <span className="text-zinc-600 shrink-0 hidden xs:inline">/</span>
+              <span className="font-bold truncate text-zinc-200">{crumb}</span>
             </>
+          ) : (
+            <span className="hidden md:inline text-zinc-500">{d.nav_home.charAt(0) + d.nav_home.slice(1).toLowerCase()}</span>
           )}
         </nav>
-        <div className="ml-auto shrink-0 flex items-center gap-2">
+        <div className="ml-auto shrink-0 flex items-center gap-1.5 sm:gap-2">
           {/* Controles móviles adicionales: Búsqueda, Kids e Idioma */}
           <div className="flex md:hidden [.tv_&]:!hidden items-center gap-1.5">
             <Link
@@ -62,7 +64,9 @@ export default function Header() {
             </Link>
             <LangMenu />
           </div>
-          <Clock />
+          <div className="hidden sm:block">
+            <Clock />
+          </div>
         </div>
       </div>
     </header>
