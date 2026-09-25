@@ -193,25 +193,29 @@ export default function IframeSourcePlayer({
         </div>
       )}
 
-      {/* Notificación flotante de control TV */}
+      {/* Indicador flotante superior central: única leyenda para salir con la tecla Atrás */}
       {hudNotice && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/90 border border-[#008CFF]/60 text-white text-xs sm:text-sm font-semibold shadow-2xl animate-fade-in pointer-events-none text-center">
+        <div
+          onClick={exitPlayerMode}
+          className="absolute top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/90 border border-[#008CFF]/60 text-white text-xs sm:text-sm font-semibold shadow-2xl animate-fade-in pointer-events-auto cursor-pointer select-none text-center hover:bg-black/95 transition"
+          title="Haz clic o pulsa la tecla Atrás para salir"
+        >
           {hudNotice}
         </div>
       )}
 
-      {/* Botón flotante para TV: Activa el Modo Reproductor Bloqueado y Pantalla Completa */}
-      {!loading && (
+      {/* Botón flotante para TV: Activa el Modo Reproductor (solo visible cuando NO está en modo enfoque) */}
+      {!loading && !isTrapped && (
         <div className="absolute bottom-3 right-3 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 group-focus:opacity-100 transition-opacity">
           <button
             id="btn-enter-player-mode"
             type="button"
-            onClick={isTrapped ? exitPlayerMode : enterPlayerMode}
+            onClick={enterPlayerMode}
             className="px-3.5 py-2 rounded-xl bg-black/80 hover:bg-[#008CFF] border border-white/20 hover:border-transparent text-white text-xs font-bold shadow-lg inline-flex items-center gap-1.5 backdrop-blur-md active:scale-95 transition"
             title="Enfocar el reproductor con el mando y pantalla completa"
           >
             <span>🎮</span>
-            <span>{isTrapped ? "Salir del Reproductor (Atrás)" : "Enfocar Reproductor"}</span>
+            <span>Enfocar Reproductor</span>
           </button>
         </div>
       )}

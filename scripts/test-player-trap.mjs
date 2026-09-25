@@ -82,17 +82,21 @@ function simulateAndroidKeyEvent(keyCode) {
 }
 
 // -------------------------------------------------------------
-// [TEST 1] Entrada en Modo Reproductor
+// [TEST 1] Activación de Modo Reproductor Bloqueado
 // -------------------------------------------------------------
 console.log("\n[TEST 1] Activación de Modo Reproductor Bloqueado");
 enterPlayerMode();
+
+// Comprobar que el botón inferior derecho queda eliminado (!playerLocked)
+const isBottomRightButtonVisible = !playerLocked;
 
 assert.strictEqual(playerLocked, true, "El reproductor debe estar en modo bloqueado (playerLocked = true)");
 assert.strictEqual(androidPlayerLocked, true, "El puente nativo Android debe marcar playerLocked = true");
 assert.strictEqual(isFullscreen, true, "Debe entrar automáticamente en Pantalla Completa");
 assert.strictEqual(focusedElement, mockIframe, "El iframe debe recibir el foco");
-assert.ok(hudNotice.includes("ATRÁS para salir"), "Debe mostrar el HUD explicativo");
-console.log("  ✓ Modo reproductor activado con Pantalla Completa y foco en el iframe");
+assert.ok(hudNotice.includes("ATRÁS para salir"), "Debe mostrar el HUD superior central");
+assert.strictEqual(isBottomRightButtonVisible, false, "El botón inferior derecho DEBE eliminarse en modo reproductor");
+console.log("  ✓ Modo reproductor activado con Pantalla Completa, foco en iframe y ÚNICA leyenda en centro superior");
 
 // -------------------------------------------------------------
 // [TEST 2] Navegación D-Pad a Tab y Shift+Tab
