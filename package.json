@@ -1,6 +1,6 @@
 {
   "name": "tvshow",
-  "version": "7.18.0",
+  "version": "7.19.0",
   "description": "TVShow Desktop Application for Windows",
   "author": "TVShow Team",
   "private": true,
@@ -30,7 +30,7 @@
     "test:phase3-4": "npx tsx scripts/test-phase3-4-player.mjs",
     "test:phase5": "npx tsx scripts/test-phase5-healthcheck.mjs",
     "test:device-binding": "npx tsx scripts/test-device-binding.mjs",
-    "test:new-providers": "npx tsx scripts/test-providers-filmu-stellar.mjs && npx tsx scripts/test-stellar-lang-integration.mjs",
+    "test:new-providers": "npx tsx scripts/test-providers-filmu-stellar.mjs && npx tsx scripts/test-stellar-lang-integration.mjs && npx tsx scripts/test-provider-nasriplay.mjs",
     "test:stellar-lang": "npx tsx scripts/test-stellar-lang-integration.mjs",
     "test:sources": "npm run test:phase1 && npm run test:phase2 && npm run test:phase3-4 && npm run test:phase5",
     "prepare": "husky"

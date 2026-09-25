@@ -40,6 +40,7 @@ export const DEFAULT_PROVIDER_LANGS: Record<string, ProviderLang[]> = {
   megaembed: ["pt", "en"],
   filmu: ["multi", "es", "lat", "pt", "en"],
   stellar: ["es", "pt", "en", "multi"],
+  nasriplay: ["lat", "es", "en", "multi"],
 };
 
 export const DEFAULT_PROVIDER_SUBS: Record<string, string[]> = {
@@ -59,6 +60,7 @@ export const DEFAULT_PROVIDER_SUBS: Record<string, string[]> = {
   megaembed: ["pt", "es", "en"],
   filmu: ["es", "en", "pt", "multi"],
   stellar: ["es", "en", "pt", "multi"],
+  nasriplay: ["es", "en", "multi"],
 };
 
 export const PROVIDER_LANGS: { id: ProviderLang; name: string; flag: string; badge: string }[] = [

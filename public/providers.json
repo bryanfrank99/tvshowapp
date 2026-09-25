@@ -1,5 +1,5 @@
 {
-  "version": "8",
+  "version": "9",
   "providers": [
     {
       "id": "vidcore",
@@ -144,6 +144,15 @@
       "tvOk": true,
       "movie": "https://stellar.rip/{lang}/watch/embed/movie/{id}?autoPlay=true",
       "tv": "https://stellar.rip/{lang}/watch/embed/tv/{id}-{s}-{e}?autoPlay=true&nextButton=true&autoNext=true"
+    },
+    {
+      "id": "nasriplay",
+      "name": "NasriPlay",
+      "ord": 17,
+      "needsTmdb": true,
+      "tvOk": true,
+      "movie": "https://nsrplay.space/embed/movie/{id}",
+      "tv": "https://nsrplay.space/embed/tv/{id}/{s}/{e}"
     }
   ],
   "live": [
