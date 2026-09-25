@@ -32,13 +32,13 @@ export default function Header() {
       <header className="fixed top-0 left-0 right-0 md:left-16 [.tv_&]:left-16 z-30 pt-[env(safe-area-inset-top,0px)] bg-[#0b0b10]/95 backdrop-blur-md border-b border-white/10 transition-[left] duration-200 select-none">
         <div className="w-full max-w-[1840px] mx-auto h-12 sm:h-14 px-3 sm:px-6 md:px-8 flex items-center gap-2 sm:gap-4">
           {/* Logo solo en móvil cuando el SideNav está oculto */}
-          <Link href="/" className="flex md:hidden [.tv_&]:!hidden items-center shrink-0 mr-1 sm:mr-2 pl-0.5">
+          <Link href="/" tabIndex={-1} data-tv-skip="true" className="flex md:hidden [.tv_&]:!hidden items-center shrink-0 mr-1 sm:mr-2 pl-0.5">
             <Image src="/TVSHOW.png" alt="TVSHOW" width={80} height={21} className="h-5 w-auto object-contain" priority />
           </Link>
           <nav aria-label="Ruta" className="flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm min-w-0 flex-1 overflow-hidden">
             {crumb ? (
               <>
-                <Link href="/" className="text-zinc-500 hover:text-white shrink-0 hidden xs:inline">{d.nav_home.charAt(0) + d.nav_home.slice(1).toLowerCase()}</Link>
+                <Link href="/" tabIndex={-1} data-tv-skip="true" className="text-zinc-500 hover:text-white shrink-0 hidden xs:inline">{d.nav_home.charAt(0) + d.nav_home.slice(1).toLowerCase()}</Link>
                 <span className="text-zinc-600 shrink-0 hidden xs:inline">/</span>
                 <span className="font-bold truncate text-zinc-200">{crumb}</span>
               </>

@@ -81,8 +81,10 @@ export default function SideNav({ labels }: { labels: Record<string, string> }) 
             id="nav-logo"
             href="/"
             aria-label="Inicio"
+            tabIndex={-1}
+            data-tv-skip="true"
             onClick={handleItemClick}
-            className="flex items-center gap-3 px-4 mb-4 h-10 outline-none focus:ring-2 focus:ring-[#008CFF] rounded-xl"
+            className="flex items-center gap-3 px-4 mb-4 h-10 outline-none rounded-xl select-none"
           >
             <Image
               src="/favicon.png"

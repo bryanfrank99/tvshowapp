@@ -1,11 +1,78 @@
 // scripts/test-tv-navigation.mjs
-// Test automatizado de navegación espacial para Android TV y Web
+// Test automatizado de navegación espacial para Android TV y Web,
+// incluyendo exclusión estricta de logo y reloj (Clock).
 
 import assert from "node:assert";
+import fs from "node:fs";
+import path from "node:path";
 
 console.log("=== INICIANDO PRUEBAS DE NAVEGACIÓN ESPACIAL ANDROID TV ===");
 
-// 1. Simulación de entorno DOM para pruebas precisas
+// -------------------------------------------------------------
+// [TEST 0] Verificación estática del código fuente
+// -------------------------------------------------------------
+console.log("\n[TEST 0] Verificación estática de exclusión en Clock.tsx, SideNav.tsx y Header.tsx");
+
+const clockCode = fs.readFileSync(path.join(process.cwd(), "components/Clock.tsx"), "utf8");
+const sideNavCode = fs.readFileSync(path.join(process.cwd(), "components/SideNav.tsx"), "utf8");
+const headerCode = fs.readFileSync(path.join(process.cwd(), "components/Header.tsx"), "utf8");
+const tvNavCode = fs.readFileSync(path.join(process.cwd(), "components/TvNav.tsx"), "utf8");
+
+// Clock no debe ser un botón ni alterar el idioma
+assert.strictEqual(
+  clockCode.includes("<button"),
+  false,
+  "Clock.tsx NO debe renderizar un <button>"
+);
+assert.strictEqual(
+  clockCode.includes("setClientLang"),
+  false,
+  "Clock.tsx NO debe alterar el idioma al recibir eventos"
+);
+assert.strictEqual(
+  clockCode.includes('data-tv-skip="true"'),
+  true,
+  "Clock.tsx debe marcarse con data-tv-skip='true'"
+);
+assert.strictEqual(
+  clockCode.includes("tabIndex={-1}"),
+  true,
+  "Clock.tsx debe tener tabIndex={-1}"
+);
+
+// SideNav logo debe estar excluido
+assert.strictEqual(
+  sideNavCode.includes('id="nav-logo"'),
+  true,
+  "SideNav.tsx debe contener el logo"
+);
+assert.strictEqual(
+  sideNavCode.includes('tabIndex={-1}'),
+  true,
+  "SideNav.tsx debe asignar tabIndex={-1} al logo"
+);
+assert.strictEqual(
+  sideNavCode.includes('data-tv-skip="true"'),
+  true,
+  "SideNav.tsx debe asignar data-tv-skip='true' al logo"
+);
+
+// TvNav debe implementar filtro isFocusable excluyendo logo y reloj
+assert.strictEqual(
+  tvNavCode.includes("nav-logo"),
+  true,
+  "TvNav.tsx debe contemplar la exclusión de nav-logo"
+);
+assert.strictEqual(
+  tvNavCode.includes("header-clock"),
+  true,
+  "TvNav.tsx debe contemplar la exclusión de header-clock"
+);
+console.log("  ✓ Verificación estática exitosa: Logo y Reloj están excluidos y Clock es no-interactivo");
+
+// -------------------------------------------------------------
+// 1. Simulación de entorno DOM para pruebas dinámicas
+// -------------------------------------------------------------
 class MockDOMElement {
   constructor(tag, id = "", className = "") {
     this.tagName = tag.toUpperCase();
@@ -80,12 +147,14 @@ class MockDOMElement {
     if (selector.startsWith(".")) return this.classList.contains(selector.slice(1));
     if (selector === "main") return this.tagName === "MAIN";
     if (selector === "nav") return this.tagName === "NAV";
+    if (selector === "header") return this.tagName === "HEADER";
     if (selector === 'nav[aria-label="Principal"]') {
       return this.tagName === "NAV" && this.getAttribute("aria-label") === "Principal";
     }
     if (selector === '[role="dialog"]') return this.getAttribute("role") === "dialog";
     if (selector === ".rail") return this.classList.contains("rail");
     if (selector.includes("[aria-current=\"page\"]")) return this.getAttribute("aria-current") === "page";
+    if (selector === '[data-tv-skip="true"]') return this.getAttribute("data-tv-skip") === "true";
     return this.tagName.toLowerCase() === selector.toLowerCase();
   }
 
@@ -101,32 +170,24 @@ class MockDOMElement {
     return res;
   }
 
-  querySelector(selector) {
-    const all = this.querySelectorAll(selector);
-    return all.length > 0 ? all[0] : null;
-  }
-
-  focus() {
-    this.focused = true;
-  }
-
-  blur() {
-    this.focused = false;
-  }
-
-  click() {
-    this.clicked = true;
-  }
-
-  scrollIntoView(options) {
-    this.scrolled = options;
-  }
+  focus() { this.focused = true; }
+  blur() { this.focused = false; }
+  click() { this.clicked = true; }
 }
 
-// 2. Construcción del Árbol DOM de la aplicación TVShow
-const rootDoc = new MockDOMElement("div", "root");
-const body = new MockDOMElement("body", "body", "tv");
-rootDoc.appendChild(body);
+// Estructura DOM
+const body = new MockDOMElement("body", "body");
+
+// Header con reloj no-interactivo y skip
+const header = new MockDOMElement("header", "header");
+header.setRect(0, 0, 1840, 60);
+body.appendChild(header);
+
+const headerClock = new MockDOMElement("time", "header-clock");
+headerClock.setAttribute("tabindex", "-1");
+headerClock.setAttribute("data-tv-skip", "true");
+headerClock.setRect(15, 1750, 60, 30);
+header.appendChild(headerClock);
 
 // SideNav
 const aside = new MockDOMElement("aside", "aside", "tv-aside");
@@ -136,8 +197,11 @@ sideNav.setRect(0, 0, 68, 1080);
 aside.appendChild(sideNav);
 body.appendChild(aside);
 
+// Logo con tabindex="-1" y data-tv-skip="true"
 const navLogo = new MockDOMElement("a", "nav-logo");
 navLogo.setAttribute("href", "/");
+navLogo.setAttribute("tabindex", "-1");
+navLogo.setAttribute("data-tv-skip", "true");
 navLogo.setRect(10, 10, 48, 48);
 sideNav.appendChild(navLogo);
 
@@ -194,7 +258,6 @@ const rail1Cards = [];
 for (let i = 0; i < 6; i++) {
   const card = new MockDOMElement("a", `rail1-card-${i}`);
   card.setAttribute("href", `/title?type=movie&id=100${i}`);
-  // Cada tarjeta de 180px de ancho con 16px de separación
   card.setRect(460, 120 + i * (180 + 16), 180, 240);
   rail1.appendChild(card);
   rail1Cards.push(card);
@@ -214,8 +277,8 @@ for (let i = 0; i < 6; i++) {
   rail2Cards.push(card);
 }
 
-// 3. Importación lógica de los algoritmos de TvNav
 const allElements = [
+  headerClock,
   navLogo, navSearch, navHome, navMovies, navSeries, navLang,
   heroPlayBtn, heroFavBtn,
   ...rail1Cards,
@@ -228,11 +291,22 @@ function isVisible(el) {
   return r.width > 0 && r.height > 0;
 }
 
+function isFocusable(el) {
+  if (!el || !el.isConnected) return false;
+  if (el.hasAttribute("disabled")) return false;
+  if (el.getAttribute("tabindex") === "-1") return false;
+  if (el.hasAttribute("data-tv-skip") || el.getAttribute("data-tv-skip") === "true") return false;
+  if (el.id === "nav-logo" || el.id === "header-clock") return false;
+  if (el.closest('[data-tv-skip="true"], #nav-logo, #header-clock, [aria-hidden="true"]')) return false;
+  return isVisible(el);
+}
+
 function getFocusableElements() {
-  return allElements.filter(isVisible);
+  return allElements.filter(isFocusable);
 }
 
 function setVisualFocus(target) {
+  if (!isFocusable(target)) return;
   allElements.forEach((node) => {
     node.classList.remove("tv-focused");
     node.removeAttribute("data-tv-focused");
@@ -245,7 +319,8 @@ function setVisualFocus(target) {
 function navigateFromSideNav(current, dir, candidates) {
   const nav = current.closest('nav[aria-label="Principal"]');
   if (!nav) return null;
-  const navItems = [navLogo, navSearch, navHome, navMovies, navSeries, navLang];
+  const rawNavItems = [navLogo, navSearch, navHome, navMovies, navSeries, navLang];
+  const navItems = rawNavItems.filter(isFocusable);
   const curIdx = navItems.indexOf(current);
 
   if (dir === "ArrowDown") {
@@ -277,7 +352,7 @@ function navigateFromRail(current, dir, rail, candidates) {
   if (dir === "ArrowLeft") {
     if (curIdx > 0) return railItems[curIdx - 1];
     // Al llegar a la primera tarjeta, salta a la barra de navegación
-    const navItems = [navLogo, navSearch, navHome, navMovies, navSeries, navLang];
+    const navItems = [navLogo, navSearch, navHome, navMovies, navSeries, navLang].filter(isFocusable);
     return navItems.find((n) => n.getAttribute("aria-current") === "page") || navItems[0];
   }
 
@@ -350,22 +425,6 @@ function navigateGenericSpatial(current, dir, candidates) {
   const curRect = current.getBoundingClientRect();
   const curX = curRect.left + curRect.width / 2;
   const curY = curRect.top + curRect.height / 2;
-
-  if (dir === "ArrowLeft") {
-    let hasLeftNeighbor = false;
-    for (const cand of candidates) {
-      if (cand === current || !cand.closest("main")) continue;
-      const r = cand.getBoundingClientRect();
-      if (r.right <= curRect.left + 5 && Math.abs(r.top - curRect.top) < 60) {
-        hasLeftNeighbor = true;
-        break;
-      }
-    }
-    if (!hasLeftNeighbor && curRect.left < 280) {
-      const navItems = [navLogo, navSearch, navHome, navMovies, navSeries, navLang];
-      return navItems.find((n) => n.getAttribute("aria-current") === "page") || navItems[0];
-    }
-  }
 
   let best = null;
   let bestScore = Infinity;
@@ -469,7 +528,6 @@ current = next;
 console.log("  ✓ ArrowDown desde hero salta a #rail1-card-0");
 
 console.log("\n[TEST 2] Navegación Intra-carril Horizontal (.rail)");
-// Moverse secuencialmente por Rail 1
 for (let i = 0; i < 5; i++) {
   next = findNextTarget(current, "ArrowRight", getFocusableElements());
   assert.strictEqual(next, rail1Cards[i + 1], `ArrowRight debe ir a rail1-card-${i + 1}`);
@@ -478,12 +536,10 @@ for (let i = 0; i < 5; i++) {
 }
 console.log("  ✓ Movimiento horizontal hacia la derecha a través de todas las tarjetas del carril");
 
-// Límite derecho del carril
 next = findNextTarget(current, "ArrowRight", getFocusableElements());
 assert.strictEqual(next, null, "ArrowRight al final del carril no debe saltar arbitrariamente");
 console.log("  ✓ Límite derecho del carril respetado (no salta fuera de control)");
 
-// Regresar hacia la izquierda
 for (let i = 5; i > 0; i--) {
   next = findNextTarget(current, "ArrowLeft", getFocusableElements());
   assert.strictEqual(next, rail1Cards[i - 1], `ArrowLeft debe ir a rail1-card-${i - 1}`);
@@ -493,14 +549,12 @@ for (let i = 5; i > 0; i--) {
 console.log("  ✓ Movimiento horizontal hacia la izquierda hasta el inicio del carril");
 
 console.log("\n[TEST 3] Transición de Carril a SideNav y Navegación en SideNav");
-// Estando en la tarjeta 0, pulsar ArrowLeft debe saltar a SideNav
 next = findNextTarget(current, "ArrowLeft", getFocusableElements());
 assert.strictEqual(next, navHome, "ArrowLeft en tarjeta 0 debe saltar al ítem activo de SideNav (nav-home)");
 setVisualFocus(next);
 current = next;
 console.log("  ✓ Transición limpia de Rail a SideNav (#nav-home)");
 
-// En SideNav: ArrowDown
 next = findNextTarget(current, "ArrowDown", getFocusableElements());
 assert.strictEqual(next, navMovies, "ArrowDown en SideNav debe ir a #nav-movies");
 setVisualFocus(next);
@@ -513,14 +567,12 @@ setVisualFocus(next);
 current = next;
 console.log("  ✓ ArrowDown en SideNav va a #nav-series");
 
-// En SideNav: ArrowUp
 next = findNextTarget(current, "ArrowUp", getFocusableElements());
 assert.strictEqual(next, navMovies, "ArrowUp en SideNav debe regresar a #nav-movies");
 setVisualFocus(next);
 current = next;
 console.log("  ✓ ArrowUp en SideNav regresa a #nav-movies");
 
-// En SideNav: ArrowRight -> Salida hacia el contenido
 next = findNextTarget(current, "ArrowRight", getFocusableElements());
 assert.strictEqual(next, heroPlayBtn, "ArrowRight en SideNav debe salir al contenido principal (#hero-play-btn)");
 setVisualFocus(next);
@@ -528,18 +580,15 @@ current = next;
 console.log("  ✓ ArrowRight desde SideNav salta de vuelta al contenido principal (#hero-play-btn)");
 
 console.log("\n[TEST 4] Navegación Vertical Inter-Carril (Preservando Columna / Coordenada X)");
-// Ir a la tarjeta 3 de Rail 1
 current = rail1Cards[3];
 setVisualFocus(current);
 
-// Pulsar ArrowDown -> Debe ir a la tarjeta 3 de Rail 2 (misma coordenada X)
 next = findNextTarget(current, "ArrowDown", getFocusableElements());
 assert.strictEqual(next, rail2Cards[3], "ArrowDown desde rail1-card-3 debe ir a rail2-card-3 preservando la columna X");
 setVisualFocus(next);
 current = next;
 console.log("  ✓ ArrowDown salta verticalmente a #rail2-card-3 manteniendo la columna");
 
-// Pulsar ArrowUp -> Debe regresar a la tarjeta 3 de Rail 1
 next = findNextTarget(current, "ArrowUp", getFocusableElements());
 assert.strictEqual(next, rail1Cards[3], "ArrowUp desde rail2-card-3 debe regresar a rail1-card-3");
 setVisualFocus(next);
@@ -549,9 +598,37 @@ console.log("  ✓ ArrowUp regresa verticalmente a #rail1-card-3 manteniendo la 
 console.log("\n[TEST 5] Ejecución de Acción (D-Pad Center / Enter)");
 current = rail1Cards[2];
 setVisualFocus(current);
-// Simular Enter / Click
 current.click();
 assert.strictEqual(current.clicked, true, "El elemento enfocado debe registrar el evento click al pulsar Enter");
 console.log("  ✓ Evento click ejecutado correctamente en el elemento enfocado");
 
-console.log("\n=== TODAS LAS PRUEBAS DE NAVEGACIÓN ESPACIAL PASARON CON ÉXITO ===");
+console.log("\n[TEST 6] Exclusión Estricta de Foco en Logo y Hora (Clock)");
+
+// 1. Verificar que el logo y el reloj son clasificados como NO focusables
+assert.strictEqual(isFocusable(navLogo), false, "navLogo NO debe ser focusable");
+assert.strictEqual(isFocusable(headerClock), false, "headerClock NO debe ser focusable");
+
+// 2. getFocusableElements no debe contener ni logo ni reloj
+const focusableElements = getFocusableElements();
+assert.strictEqual(focusableElements.includes(navLogo), false, "navLogo NO debe estar en getFocusableElements()");
+assert.strictEqual(focusableElements.includes(headerClock), false, "headerClock NO debe estar en getFocusableElements()");
+console.log("  ✓ getFocusableElements excluye completamente tanto el logo (#nav-logo) como la hora (#header-clock)");
+
+// 3. Al situarse en el primer ítem del SideNav (navSearch) y presionar ArrowUp, NUNCA debe ir a navLogo
+current = navSearch;
+setVisualFocus(current);
+next = findNextTarget(current, "ArrowUp", getFocusableElements());
+assert.strictEqual(next, null, "ArrowUp desde navSearch no debe saltar al logo");
+console.log("  ✓ ArrowUp en el elemento superior de SideNav (#nav-search) respeta el límite y NO enfoca el logo");
+
+// 4. Intentar setVisualFocus en navLogo o headerClock debe ser ignorado
+setVisualFocus(navLogo);
+assert.strictEqual(navLogo.focused, false, "navLogo no debe poder recibir foco visual");
+assert.strictEqual(navLogo.classList.contains("tv-focused"), false, "navLogo no debe tener clase tv-focused");
+
+setVisualFocus(headerClock);
+assert.strictEqual(headerClock.focused, false, "headerClock no debe poder recibir foco visual");
+assert.strictEqual(headerClock.classList.contains("tv-focused"), false, "headerClock no debe tener clase tv-focused");
+console.log("  ✓ setVisualFocus protege el sistema impidiendo enfocar el logo o la hora");
+
+console.log("\n=== TODAS LAS PRUEBAS DE NAVEGACIÓN Y EXCLUSIONES PASARON CON ÉXITO ===");

@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { isTVUA } from "@/hooks/useIsTV";
 
 const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'a[href]:not([tabindex="-1"]):not([data-tv-skip]), button:not([disabled]):not([tabindex="-1"]):not([data-tv-skip]), input:not([disabled]):not([tabindex="-1"]):not([data-tv-skip]), select:not([disabled]):not([tabindex="-1"]):not([data-tv-skip]), textarea:not([disabled]):not([tabindex="-1"]):not([data-tv-skip]), [tabindex]:not([tabindex="-1"]):not([data-tv-skip])';
 
 function isVisible(el: HTMLElement): boolean {
   if (!el || !el.isConnected) return false;
@@ -16,14 +16,26 @@ function isVisible(el: HTMLElement): boolean {
   return true;
 }
 
+function isFocusable(el: HTMLElement): boolean {
+  if (!el || !el.isConnected) return false;
+  if (el.hasAttribute("disabled")) return false;
+  if (el.getAttribute("tabindex") === "-1") return false;
+  if (el.hasAttribute("data-tv-skip") || el.getAttribute("data-tv-skip") === "true") return false;
+  if (el.id === "nav-logo" || el.id === "header-clock") return false;
+  if (el.closest('[data-tv-skip="true"], #nav-logo, #header-clock, [aria-hidden="true"]')) return false;
+  return isVisible(el);
+}
+
 function getFocusableElements(): HTMLElement[] {
   const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
   const root = dialog || document;
   const all = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
-  return all.filter((el) => isVisible(el) && !el.hasAttribute("disabled"));
+  return all.filter(isFocusable);
 }
 
 function setVisualFocus(target: HTMLElement) {
+  if (!isFocusable(target)) return;
+
   // Limpiar indicadores visuales previos
   document.querySelectorAll(".tv-focused, [data-tv-focused='true']").forEach((node) => {
     node.classList.remove("tv-focused");
@@ -57,7 +69,7 @@ function navigateFromSideNav(current: HTMLElement, dir: Direction, candidates: H
   const nav = current.closest('nav[aria-label="Principal"]');
   if (!nav) return null;
 
-  const navItems = Array.from(nav.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isVisible);
+  const navItems = Array.from(nav.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isFocusable);
   const curIdx = navItems.indexOf(current);
 
   if (dir === "ArrowDown") {
@@ -133,7 +145,7 @@ function navigateFromRail(current: HTMLElement, dir: Direction, rail: HTMLElemen
     // curIdx === 0: Inicio del carril -> Transición fluida a SideNav
     const nav = document.querySelector<HTMLElement>('nav[aria-label="Principal"]');
     if (nav) {
-      const navItems = Array.from(nav.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isVisible);
+      const navItems = Array.from(nav.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isFocusable);
       const currentActive = navItems.find((n) => n.getAttribute("aria-current") === "page");
       if (currentActive) return currentActive;
       const curRect = current.getBoundingClientRect();
@@ -251,7 +263,7 @@ function navigateGenericSpatial(current: HTMLElement, dir: Direction, candidates
     if (!hasLeftNeighbor && curRect.left < 280) {
       const nav = document.querySelector<HTMLElement>('nav[aria-label="Principal"]');
       if (nav) {
-        const navItems = Array.from(nav.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isVisible);
+        const navItems = Array.from(nav.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isFocusable);
         const currentActive = navItems.find((n) => n.getAttribute("aria-current") === "page");
         if (currentActive) return currentActive;
         return navItems[0] || null;
@@ -316,7 +328,7 @@ function navigateGenericSpatial(current: HTMLElement, dir: Direction, candidates
     if (dir === "ArrowLeft" && !current.closest('nav[aria-label="Principal"]')) {
       const nav = document.querySelector<HTMLElement>('nav[aria-label="Principal"]');
       if (nav) {
-        const navItems = Array.from(nav.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isVisible);
+        const navItems = Array.from(nav.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isFocusable);
         return navItems.find((n) => n.getAttribute("aria-current") === "page") || navItems[0] || null;
       }
     } else if (dir === "ArrowRight" && current.closest('nav[aria-label="Principal"]')) {
@@ -445,6 +457,14 @@ export default function TvNav() {
     const onFocusIn = (e: FocusEvent) => {
       const el = e.target as HTMLElement | null;
       if (!el || el === document.body) return;
+
+      // Si el elemento no es focusable para TV (logo, reloj, skip), desenfocar al instante
+      if (!isFocusable(el)) {
+        el.blur();
+        el.classList.remove("tv-focused");
+        el.removeAttribute("data-tv-focused");
+        return;
+      }
 
       // Si el elemento enfocado está en SideNav, NO guardarlo como el destino de foco de la ruta
       if (el.closest('nav[aria-label="Principal"]')) {
