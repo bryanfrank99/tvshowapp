@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { fetchLiveSources, type LiveSource } from "@/lib/providers";
 import { RailSkeleton } from "@/components/Skeleton";
@@ -62,7 +62,11 @@ export default function LivePage() {
   const { lang } = useLang();
   const d = t(lang);
   const [q, setQ] = useState("");
-  const [current, setCurrent] = useState<{ name: string; url: string } | null>(null);
+  const [current, setCurrent] = useState<Item | null>(null);
+  const [playerSize, setPlayerSize] = useState<"normal" | "theater">("normal");
+  const [streamKey, setStreamKey] = useState(0);
+  const [isReloading, setIsReloading] = useState(false);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
   const [nowMap, setNowMap] = useState<Record<string, string>>({});
   const [guideMap, setGuideMap] = useState<Record<string, { now: { t: string; s: number; e: number; img?: string } | null }>>({});
   const [err, setErr] = useState(false);
@@ -113,9 +117,14 @@ export default function LivePage() {
       .catch(() => {});
   }, []);
 
-  const play = (name: string, url: string) => {
-    setCurrent({ name, url });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  const play = (item: Item) => {
+    setCurrent(item);
+    setTimeout(() => {
+      try {
+        const el = document.getElementById("tv-live-player-box");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch {}
+    }, 60);
   };
 
   // Control con mando a distancia para cerrar el reproductor en vivo con el botón Atrás
@@ -137,21 +146,45 @@ export default function LivePage() {
 
   // Lista plana de todos los canales filtrados para soporte de zapping rápido
   const allFilteredItems = sources.flatMap((s) => filt(s.items));
-  const currentIdx = current ? allFilteredItems.findIndex((it) => current.name.startsWith(it.name)) : -1;
+  const currentIdx = current ? allFilteredItems.findIndex((it) => it.key === current.key || it.name === current.name) : -1;
 
   const zapNext = () => {
     if (allFilteredItems.length === 0) return;
     const nextIdx = (currentIdx + 1) % allFilteredItems.length;
-    const it = allFilteredItems[nextIdx];
-    play(it.sub ? `${it.name} · ${it.sub}` : it.name, it.url);
+    play(allFilteredItems[nextIdx]);
   };
 
   const zapPrev = () => {
     if (allFilteredItems.length === 0) return;
     const prevIdx = (currentIdx - 1 + allFilteredItems.length) % allFilteredItems.length;
-    const it = allFilteredItems[prevIdx];
-    play(it.sub ? `${it.name} · ${it.sub}` : it.name, it.url);
+    play(allFilteredItems[prevIdx]);
   };
+
+  const reloadStream = () => {
+    setIsReloading(true);
+    setStreamKey((k) => k + 1);
+    setTimeout(() => setIsReloading(false), 600);
+  };
+
+  const toggleSize = () => {
+    setPlayerSize((prev) => (prev === "normal" ? "theater" : "normal"));
+  };
+
+  const toggleFullscreen = () => {
+    if (!playerContainerRef.current) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      playerContainerRef.current.requestFullscreen().catch(() => {});
+    }
+  };
+
+  const currentNow = current
+    ? (current.now ||
+       (current.key && nowMap[current.key]) ||
+       guideMap[normGuide(current.name)]?.now?.t ||
+       "")
+    : "";
 
   return (
     <>
@@ -163,47 +196,164 @@ export default function LivePage() {
         </form>
       </div>
       {current && (
-        <div id="tv-live-player-box" className="mb-6">
-          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-            <p className="text-sm font-semibold flex items-center gap-2">
-              <span className="text-red-400 font-bold inline-flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block" />
-                <span>● {d.en_vivo}</span>
-              </span>
-              <span className="text-zinc-500">·</span>
-              <span className="text-white">{current.name}</span>
-            </p>
-            {/* Barra de control TV para el reproductor en vivo */}
-            <div className="flex items-center gap-2">
-              <button
-                id="btn-live-prev"
-                onClick={zapPrev}
-                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-[#008CFF] text-xs font-semibold text-zinc-200 hover:text-white transition focus:ring-2 focus:ring-[#008CFF] outline-none"
-                title="Canal anterior"
-              >
-                ◀ Anterior
-              </button>
-              <button
-                id="btn-live-next"
-                onClick={zapNext}
-                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-[#008CFF] text-xs font-semibold text-zinc-200 hover:text-white transition focus:ring-2 focus:ring-[#008CFF] outline-none"
-                title="Canal siguiente"
-              >
-                Siguiente ▶
-              </button>
-              <button
-                id="btn-live-close"
-                onClick={() => setCurrent(null)}
-                className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500 border border-red-500/40 text-xs font-bold text-red-200 hover:text-white transition focus:ring-2 focus:ring-red-400 outline-none"
-                title="Cerrar reproducción"
-              >
-                ✕ Cerrar (Atrás)
-              </button>
+        <div
+          ref={playerContainerRef}
+          id="tv-live-player-box"
+          className={`w-full transition-all duration-300 mx-auto mb-8 ${
+            playerSize === "theater"
+              ? "max-w-6xl xl:max-w-7xl"
+              : "max-w-4xl lg:max-w-5xl"
+          }`}
+        >
+          <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-white/15 bg-zinc-950/95 shadow-[0_20px_60px_rgba(0,0,0,0.85)] ring-1 ring-white/10 flex flex-col">
+            {/* Header Glassmórfico de Metadatos y Acciones */}
+            <div className="flex items-center justify-between gap-3 p-3 sm:px-4 sm:py-3 bg-gradient-to-b from-white/10 via-white/5 to-transparent border-b border-white/10 flex-wrap">
+              <div className="flex items-center gap-3 min-w-0">
+                {current.image ? (
+                  <div className="w-10 h-8 sm:w-12 sm:h-9 bg-white/10 rounded-lg p-1 flex items-center justify-center shrink-0 border border-white/10 shadow-sm">
+                    <Image src={current.image} alt={current.name} width={48} height={36} className="max-h-full max-w-full object-contain" unoptimized />
+                  </div>
+                ) : (
+                  <div className="w-9 h-9 rounded-lg bg-[#008CFF]/20 border border-[#008CFF]/40 text-[#008CFF] flex items-center justify-center font-bold text-xs shrink-0">
+                    TV
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-extrabold text-sm sm:text-base text-white truncate max-w-[180px] sm:max-w-xs">{current.name}</span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping inline-block" />
+                      <span>● {d.en_vivo}</span>
+                    </span>
+                    {current.sub && (
+                      <span className="text-[11px] font-semibold text-zinc-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-md hidden sm:inline-block">
+                        {current.sub}
+                      </span>
+                    )}
+                  </div>
+                  {currentNow && (
+                    <p className="text-xs text-sky-300 font-medium truncate mt-0.5 max-w-sm sm:max-w-md flex items-center gap-1">
+                      <span className="text-zinc-500">·</span>
+                      <span className="truncate">{currentNow}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Toolbar de Controles */}
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap ml-auto">
+                {/* Zapping anterior */}
+                <button
+                  id="btn-live-prev"
+                  onClick={zapPrev}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-[#008CFF] text-xs font-semibold text-zinc-200 hover:text-white transition active:scale-95 focus:ring-2 focus:ring-[#008CFF] outline-none cursor-pointer"
+                  title="Canal anterior (◀)"
+                >
+                  ◀ {lang === "en" ? "Prev" : lang === "pt" ? "Anterior" : "Anterior"}
+                </button>
+
+                {/* Zapping siguiente */}
+                <button
+                  id="btn-live-next"
+                  onClick={zapNext}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-[#008CFF] text-xs font-semibold text-zinc-200 hover:text-white transition active:scale-95 focus:ring-2 focus:ring-[#008CFF] outline-none cursor-pointer"
+                  title="Canal siguiente (▶)"
+                >
+                  {lang === "en" ? "Next" : lang === "pt" ? "Próximo" : "Siguiente"} ▶
+                </button>
+
+                {/* Recargar stream */}
+                <button
+                  id="btn-live-reload"
+                  onClick={reloadStream}
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-200 hover:text-white transition active:scale-95 focus:ring-2 focus:ring-[#008CFF] outline-none cursor-pointer flex items-center gap-1"
+                  title="Recargar transmisión"
+                >
+                  <span className={isReloading ? "inline-block animate-spin" : ""}>🔄</span>
+                  <span className="hidden md:inline">{lang === "en" ? "Reload" : lang === "pt" ? "Recarregar" : "Recargar"}</span>
+                </button>
+
+                {/* Toggle de tamaño (Normal / Teatro) */}
+                <button
+                  id="btn-live-size"
+                  onClick={toggleSize}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-200 hover:text-white transition active:scale-95 focus:ring-2 focus:ring-[#008CFF] outline-none cursor-pointer flex items-center gap-1"
+                  title={playerSize === "theater" ? "Vista normal" : "Modo teatro"}
+                >
+                  <span>{playerSize === "theater" ? "🗗" : "🗖"}</span>
+                  <span className="hidden sm:inline">
+                    {playerSize === "theater"
+                      ? (lang === "en" ? "Normal" : "Normal")
+                      : (lang === "en" ? "Theater" : lang === "pt" ? "Teatro" : "Teatro")}
+                  </span>
+                </button>
+
+                {/* Pantalla completa */}
+                <button
+                  id="btn-live-fullscreen"
+                  onClick={toggleFullscreen}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-[#008CFF] text-xs font-semibold text-zinc-200 hover:text-white transition active:scale-95 focus:ring-2 focus:ring-[#008CFF] outline-none cursor-pointer flex items-center gap-1"
+                  title="Pantalla completa"
+                >
+                  <span>⛶</span>
+                  <span className="hidden md:inline">{d.fullscreen}</span>
+                </button>
+
+                {/* Cerrar reproductor */}
+                <button
+                  id="btn-live-close"
+                  onClick={() => setCurrent(null)}
+                  className="px-2.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500 border border-red-500/40 text-xs font-bold text-red-200 hover:text-white transition active:scale-95 focus:ring-2 focus:ring-red-400 outline-none cursor-pointer"
+                  title="Cerrar reproductor (Esc / Atrás)"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
-          </div>
-          <div className="rounded-2xl overflow-hidden border border-white/15 bg-black shadow-2xl">
-            <iframe key={current.url} src={current.url} className="w-full aspect-video bg-black block"
-              allowFullScreen allow="autoplay; encrypted-media; fullscreen; picture-in-picture" referrerPolicy="origin" />
+
+            {/* Marco de video proporcional con límites máximos */}
+            <div className={`relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center ${
+              playerSize === "theater" ? "max-h-[72vh]" : "max-h-[52vh] sm:max-h-[500px]"
+            }`}>
+              <iframe
+                key={`${current.url}-${streamKey}`}
+                src={current.url}
+                className="w-full h-full bg-black block border-0"
+                allowFullScreen
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                referrerPolicy="origin"
+              />
+            </div>
+
+            {/* Carrusel rápido de zapping bajo el reproductor */}
+            <div id="live-zapping-rail" className="p-2 sm:p-2.5 bg-zinc-950/80 border-t border-white/10 flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
+              <div className="shrink-0 flex items-center gap-1.5 px-2 text-[10px] font-black uppercase text-zinc-400 tracking-wider">
+                <span className="text-[#008CFF]">⚡</span>
+                <span className="hidden sm:inline">{lang === "pt" ? "Canais" : "Canales"}</span>
+              </div>
+              {allFilteredItems.map((chan) => {
+                const isSelected = current.key === chan.key || current.name === chan.name;
+                return (
+                  <button
+                    key={`quick-${chan.key}`}
+                    onClick={() => play(chan)}
+                    className={`shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition active:scale-95 focus:ring-2 focus:ring-[#008CFF] outline-none cursor-pointer border ${
+                      isSelected
+                        ? "bg-[#008CFF] border-[#008CFF] text-white shadow-md shadow-[#008CFF]/30 font-bold"
+                        : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:border-white/20"
+                    }`}
+                    title={chan.name}
+                  >
+                    {chan.image ? (
+                      <Image src={chan.image} alt={chan.name} width={20} height={16} className="h-4 w-5 object-contain" unoptimized />
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                    )}
+                    <span className="truncate max-w-[120px]">{chan.name}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -222,8 +372,8 @@ export default function LivePage() {
                 <button
                   key={c.key}
                   id={`live-chan-${c.key}`}
-                  onClick={() => play(c.sub ? `${c.name} · ${c.sub}` : c.name, c.url)}
-                  className={`bg-white/5 border rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#008CFF] focus:border-[#008CFF] focus:ring-2 focus:ring-[#008CFF] focus:bg-white/10 outline-none transition ${current?.name.startsWith(c.name) ? "border-[#008CFF] bg-[#008CFF]/15" : "border-white/10"}`}>
+                  onClick={() => play(c)}
+                  className={`bg-white/5 border rounded-xl p-4 flex flex-col items-center gap-2 hover:border-[#008CFF] focus:border-[#008CFF] focus:ring-2 focus:ring-[#008CFF] focus:bg-white/10 outline-none transition ${current?.key === c.key || current?.name === c.name ? "border-[#008CFF] bg-[#008CFF]/15" : "border-white/10"}`}>
                   {c.image
                     ? <Image src={c.image} alt={c.name} width={120} height={60} className="h-12 object-contain" loading="lazy" unoptimized />
                     : <span className="h-12 flex items-center font-black text-base text-center leading-tight">{c.name}</span>}
