@@ -136,8 +136,8 @@ export default function IframeSourcePlayer({
     // 3. Devolver foco a los controles de la aplicación TVShow
     setTimeout(() => {
       const btn =
-        document.getElementById("btn-focus-player") ||
-        document.getElementById("btn-fullscreen");
+        document.getElementById("btn-fullscreen") ||
+        document.getElementById("btn-focus-player");
       if (btn) {
         btn.focus();
         btn.classList.add("tv-focused");

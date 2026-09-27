@@ -42,10 +42,15 @@ function WatchInner() {
   }, [id, type, s, e, lang]);
 
   const goFullscreen = () => {
-    const el = frameBox.current as any;
-    if (!el) return;
-    if (el.requestFullscreen) el.requestFullscreen();
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    if (typeof (window as any).__enterPlayerMode === "function") {
+      (window as any).__enterPlayerMode();
+    } else {
+      const el = (document.querySelector<HTMLElement>("#tv-iframe-container, #tv-native-player, #tv-player-frame") || frameBox.current) as any;
+      if (!el) return;
+      if (el.focus) el.focus();
+      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    }
   };
 
   // Carga y resolución centralizada de fuentes desde /api/resolve
@@ -250,26 +255,6 @@ function WatchInner() {
           >
             <span>⛶</span>
             <span>{d.fullscreen}</span>
-          </button>
-
-          <button
-            id="btn-focus-player"
-            onClick={() => {
-              if (typeof (window as any).__enterPlayerMode === "function") {
-                (window as any).__enterPlayerMode();
-              } else {
-                const container = document.querySelector<HTMLElement>("#tv-iframe-container, #tv-native-player, #tv-player-frame");
-                if (container) {
-                  container.focus();
-                  if (container.requestFullscreen) container.requestFullscreen().catch(() => {});
-                }
-              }
-            }}
-            className="px-3.5 py-2 rounded-xl bg-[#008CFF]/20 border border-[#008CFF]/40 text-xs sm:text-sm font-bold text-[#008CFF] hover:bg-[#008CFF] hover:text-white active:scale-95 transition inline-flex items-center gap-2 touch-manipulation focus:ring-2 focus:ring-[#008CFF] outline-none shadow-sm"
-            title="Enfocar el reproductor con el mando y pantalla completa"
-          >
-            <span>🎮</span>
-            <span>{lang === "pt" ? "Focar Reprodutor" : "Enfocar Reproductor"}</span>
           </button>
 
           {sources.length > 1 && (

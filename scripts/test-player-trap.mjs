@@ -60,9 +60,9 @@ const mockContainer = {
   requestFullscreen: async () => { isFullscreen = true; },
 };
 
-const mockBtnFocusPlayer = {
-  id: "btn-focus-player",
-  focus: () => { focusedElement = mockBtnFocusPlayer; }
+const mockBtnFullscreen = {
+  id: "btn-fullscreen",
+  focus: () => { focusedElement = mockBtnFullscreen; }
 };
 
 const mockAndroidPlayerBridge = {
@@ -96,7 +96,7 @@ function exitPlayerMode() {
     hudTimer = null;
   }
   hudNotice = null;
-  mockBtnFocusPlayer.focus();
+  mockBtnFullscreen.focus();
 }
 
 function simulateAndroidKeyEvent(keyCode) {
@@ -196,7 +196,7 @@ assert.strictEqual(res.handled, true);
 assert.strictEqual(playerLocked, false, "Tecla Atrás debe desactivar playerLocked");
 assert.strictEqual(androidPlayerLocked, false, "Android debe desactivar playerLocked");
 assert.strictEqual(isFullscreen, false, "Tecla Atrás debe cerrar Pantalla Completa automáticamente");
-assert.strictEqual(focusedElement, mockBtnFocusPlayer, "El foco debe volver ordenadamente a btn-focus-player");
+assert.strictEqual(focusedElement, mockBtnFullscreen, "El foco debe volver ordenadamente a btn-fullscreen");
 assert.strictEqual(hudNotice, null, "El HUD debe estar limpio");
 console.log("  ✓ Tecla Atrás sale del modo bloqueado, cierra Pantalla Completa y devuelve el foco a TVShow");
 
