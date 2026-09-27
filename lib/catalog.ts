@@ -319,7 +319,6 @@ export async function getTop10ImdbWeek(): Promise<Media[]> {
     const d = await tmdb<{ results: Media[] }>("/trending/all/week", 3600);
     const ranked = [...d.results]
       .filter((x) => (x.title || x.name) && isPremiered(x))
-      .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
       .slice(0, 10)
       .map((x, i) => ({
         ...x,
@@ -329,15 +328,16 @@ export async function getTop10ImdbWeek(): Promise<Media[]> {
     const withIds = await withImdbIds(ranked, 10);
     return tagInTheaters(withIds);
   }, async () => {
-    // En modo free el rating IMDb es NATIVO (Cinemeta trae imdbRating real).
+    // En modo free, lista de populares
     const [m, s] = await Promise.all([free.cineCatalog("movie", "top", 8), free.cineCatalog("series", "top", 8)]);
     return [...m, ...s]
       .filter(isPremiered)
-      .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
       .slice(0, 10)
       .map((x, i) => ({ ...x, rank: i + 1 }));
   });
 }
+
+export const getTop10TmdbWeek = getTop10ImdbWeek;
 
 export async function searchAll(q: string, page = 1, per = 20): Promise<Page<Media>> {
   if (hasKey()) {
