@@ -206,8 +206,22 @@ export default function LivePage() {
           }`}
         >
           <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-white/15 bg-zinc-950/95 shadow-[0_20px_60px_rgba(0,0,0,0.85)] ring-1 ring-white/10 flex flex-col">
-            {/* Header Glassmórfico de Metadatos y Acciones */}
-            <div className="flex items-center justify-between gap-3 p-3 sm:px-4 sm:py-3 bg-gradient-to-b from-white/10 via-white/5 to-transparent border-b border-white/10 flex-wrap">
+            {/* Marco de video proporcional con límites máximos (arriba) */}
+            <div className={`relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center ${
+              playerSize === "theater" ? "max-h-[72vh]" : "max-h-[52vh] sm:max-h-[500px]"
+            }`}>
+              <iframe
+                key={`${current.url}-${streamKey}`}
+                src={current.url}
+                className="w-full h-full bg-black block border-0"
+                allowFullScreen
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                referrerPolicy="origin"
+              />
+            </div>
+
+            {/* Barra Inferior de Metadatos y Acciones (abajo del video) */}
+            <div className="flex items-center justify-between gap-3 p-3 sm:px-4 sm:py-3 bg-gradient-to-t from-white/10 via-white/5 to-transparent border-t border-white/10 flex-wrap">
               <div className="flex items-center gap-3 min-w-0">
                 {current.image ? (
                   <div className="w-10 h-8 sm:w-12 sm:h-9 bg-white/10 rounded-lg p-1 flex items-center justify-center shrink-0 border border-white/10 shadow-sm">
@@ -309,50 +323,6 @@ export default function LivePage() {
                   ✕
                 </button>
               </div>
-            </div>
-
-            {/* Marco de video proporcional con límites máximos */}
-            <div className={`relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center ${
-              playerSize === "theater" ? "max-h-[72vh]" : "max-h-[52vh] sm:max-h-[500px]"
-            }`}>
-              <iframe
-                key={`${current.url}-${streamKey}`}
-                src={current.url}
-                className="w-full h-full bg-black block border-0"
-                allowFullScreen
-                allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-                referrerPolicy="origin"
-              />
-            </div>
-
-            {/* Carrusel rápido de zapping bajo el reproductor */}
-            <div id="live-zapping-rail" className="p-2 sm:p-2.5 bg-zinc-950/80 border-t border-white/10 flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
-              <div className="shrink-0 flex items-center gap-1.5 px-2 text-[10px] font-black uppercase text-zinc-400 tracking-wider">
-                <span className="text-[#008CFF]">⚡</span>
-                <span className="hidden sm:inline">{lang === "pt" ? "Canais" : "Canales"}</span>
-              </div>
-              {allFilteredItems.map((chan) => {
-                const isSelected = current.key === chan.key || current.name === chan.name;
-                return (
-                  <button
-                    key={`quick-${chan.key}`}
-                    onClick={() => play(chan)}
-                    className={`shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition active:scale-95 focus:ring-2 focus:ring-[#008CFF] outline-none cursor-pointer border ${
-                      isSelected
-                        ? "bg-[#008CFF] border-[#008CFF] text-white shadow-md shadow-[#008CFF]/30 font-bold"
-                        : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:border-white/20"
-                    }`}
-                    title={chan.name}
-                  >
-                    {chan.image ? (
-                      <Image src={chan.image} alt={chan.name} width={20} height={16} className="h-4 w-5 object-contain" unoptimized />
-                    ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                    )}
-                    <span className="truncate max-w-[120px]">{chan.name}</span>
-                  </button>
-                );
-              })}
             </div>
           </div>
         </div>

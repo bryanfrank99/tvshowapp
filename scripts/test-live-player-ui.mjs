@@ -56,13 +56,18 @@ async function run() {
   assert.ok(livePage.includes('id="btn-live-close"'), "Falta botón de cierre btn-live-close");
   console.log("  ✅ Toolbar de controles completa (zapping, recarga, tamaño, fullscreen, cerrar)");
 
-  // 4. Verificar Carrusel Rápido de Zapping
-  console.log("\n4. Verificando carrusel rápido de zapping...");
-  assert.ok(
+  // 4. Verificar Orden (Video arriba, Controles abajo) y Eliminación del carrusel redundante
+  console.log("\n4. Verificando posición de video arriba, controles abajo y eliminación del riel...");
+  const iframeIdx = livePage.indexOf("<iframe");
+  const toolbarIdx = livePage.indexOf('id="btn-live-prev"');
+  assert.ok(iframeIdx > 0 && toolbarIdx > 0, "Iframe y toolbar deben estar presentes");
+  assert.ok(iframeIdx < toolbarIdx, "El marco de video debe posicionarse arriba de la barra de controles");
+  assert.equal(
     livePage.includes('id="live-zapping-rail"'),
-    "Debe existir el riel de zapping rápido 'live-zapping-rail' bajo el reproductor"
+    false,
+    "El riel de zapping horizontal 'live-zapping-rail' debe haber sido eliminado"
   );
-  console.log("  ✅ Carrusel de zapping rápido verificado");
+  console.log("  ✅ Disposición confirmada: Video arriba, controles abajo, riel inferior eliminado");
 
   // 5. Verificar control con mando a distancia y atajos
   console.log("\n5. Verificando soporte para mando a distancia...");
