@@ -13,7 +13,7 @@ import { t } from "@/lib/dict";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tvshowapp.net"),
-  title: "TVShow — Catálogo + Player",
+  title: "TVShow - Indexador",
   description: "TMDB + IMDb + multi-player",
   icons: { icon: "/favicon.png" },
 };

@@ -28,7 +28,7 @@ const fmtRuntime = (min: any) => {
 };
 
 export async function generateMetadata({ searchParams }: { searchParams: { type?: string; id?: string } }) {
-  const fallback = { title: "TVShow — Catálogo + Player" };
+  const fallback = { title: "TVShow - Indexador" };
   try {
     const type = searchParams.type === "tv" ? "tv" : "movie";
     const id = searchParams.id || "";

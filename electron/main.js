@@ -86,7 +86,7 @@ function createMainWindow() {
     minWidth: 960,
     minHeight: 600,
     backgroundColor: '#0b0d14',
-    title: 'TVShow',
+    title: 'TVShow - Indexador',
     icon: iconPath,
     autoHideMenuBar: true,
     show: false, // Esperar a 'ready-to-show' para evitar parpadeos

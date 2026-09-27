@@ -265,6 +265,25 @@ export async function getKids(page = 1, per = 24): Promise<Page<Media>> {
   });
 }
 
+export async function getTrendingToday(page = 1, per = 12): Promise<Page<Media>> {
+  return tmdbOr(async () => {
+    const d = await tmdb<Paged<{ results: Media[] }>>(`/trending/all/day?page=${page}`, 1800);
+    const raw = (d.results || [])
+      .filter((x) => (x.media_type === "movie" || x.media_type === "tv") && isPremiered(x))
+      .slice(0, per);
+    const items = await tagInTheaters(raw);
+    return { items, hasMore: page < (d.total_pages || 1) };
+  }, async () => {
+    const skip = (page - 1) * Math.ceil(per / 2);
+    const [m, s] = await Promise.all([
+      free.cineCatalog("movie", "top", Math.ceil(per / 2) + 1, skip),
+      free.cineCatalog("series", "top", Math.ceil(per / 2) + 1, skip),
+    ]);
+    const items = [...m, ...s].filter(isPremiered).slice(0, per);
+    return { items, hasMore: m.length + s.length > per };
+  });
+}
+
 export async function getTrending(page = 1, per = 20): Promise<Page<Media>> {
   return tmdbOr(async () => {
     const d = await tmdb<Paged<{ results: Media[] }>>(`/trending/all/week?page=${page}`, 600);
