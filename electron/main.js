@@ -177,7 +177,7 @@ function createMainWindow() {
     }
   });
 
-  // 5. Neutralizar scripts de popunders y popups en sub-frames al finalizar la carga
+  // 5. Neutralizar scripts de popunders, popups y banners invasivos en sub-frames al finalizar la carga
   mainWindow.webContents.on('did-frame-finish-load', (event, isMainFrame, frameProcessId, frameRoutingId) => {
     if (!isMainFrame) {
       try {
@@ -188,6 +188,46 @@ function createMainWindow() {
               window.open = function() { console.log('[AdBlock] window.open bloqueado dentro de iframe'); return null; };
               window.alert = function() { return null; };
               window.confirm = function() { return false; };
+
+              // Inyección de Filtrado Cosmético CSS para destruir banners sobre video
+              var adStyle = document.getElementById('tvshow-adblock-cosmetic');
+              if (!adStyle) {
+                adStyle = document.createElement('style');
+                adStyle.id = 'tvshow-adblock-cosmetic';
+                adStyle.textContent = \`
+                  [class*="banner"], [id*="banner"],
+                  [class*="overlay-ad"], [id*="overlay-ad"],
+                  [class*="video-ad"], [id*="video-ad"],
+                  [class*="fluid_ad"], [id*="fluid_ad"],
+                  [class*="vast-"], [id*="vast-"],
+                  [class*="ad-container"], [id*="ad-container"],
+                  [class*="ad_container"], [id*="ad_container"],
+                  [class*="floating-ad"], [id*="floating-ad"],
+                  [class*="ad-banner"], [id*="ad-banner"],
+                  [class*="ad-overlay"], [id*="ad-overlay"],
+                  [class*="ad_overlay"], [id*="ad_overlay"],
+                  [class*="ads-box"], [id*="ads-box"],
+                  a[href*="bc.game"], a[href*="bcgame"], a[href*="betano"], a[href*="casino"],
+                  iframe[src*="ad"], iframe[id*="ad"], iframe[class*="ad"] {
+                    display: none !important;
+                    visibility: hidden !important;
+                    opacity: 0 !important;
+                    pointer-events: none !important;
+                    width: 0 !important;
+                    height: 0 !important;
+                  }
+                \`;
+                (document.head || document.documentElement).appendChild(adStyle);
+              }
+
+              // Ocultamiento proactivo de elementos coincidentes que no contengan el reproductor de video
+              var adSelectors = 'a[href*="bc.game"], a[href*="bcgame"], div[class*="banner"], div[id*="banner"], div[class*="overlay-ad"], [class*="fluid_ad"]';
+              document.querySelectorAll(adSelectors).forEach(function(el) {
+                if (el && !el.querySelector('video')) {
+                  el.style.setProperty('display', 'none', 'important');
+                  el.style.setProperty('pointer-events', 'none', 'important');
+                }
+              });
             } catch(e) {}`
           ).catch(() => {});
         }

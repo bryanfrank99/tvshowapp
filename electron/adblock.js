@@ -40,6 +40,22 @@ function isBlocked(urlString) {
   }
 
   if (!hostname) return false;
+
+  const lowerUrl = urlString.toLowerCase();
+  // Patrones directos de redes de apuestas y banners invasivos en streamings
+  if (
+    lowerUrl.includes('bc.game') ||
+    lowerUrl.includes('bcgame') ||
+    lowerUrl.includes('magsrv.com') ||
+    lowerUrl.includes('syndication.exoclick.com') ||
+    lowerUrl.includes('/vast.') ||
+    lowerUrl.includes('/vpaid.') ||
+    lowerUrl.includes('/popads.') ||
+    lowerUrl.includes('ad_banner')
+  ) {
+    return true;
+  }
+
   if (BLOCKED_HOSTS.has(hostname)) return true;
 
   // Comprobar dominios padre (x.evil.com -> evil.com)

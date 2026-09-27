@@ -49,4 +49,30 @@ public class AdBlockWebViewClient extends BridgeWebViewClient {
         } catch (Exception ignored) {}
         return true;
     }
+
+    @Override
+    public void onPageFinished(WebView view, String url) {
+        super.onPageFinished(view, url);
+        try {
+            String cosmeticJs = "(function() {" +
+                "  try {" +
+                "    var st = document.getElementById('tvshow-adblock-cosmetic');" +
+                "    if (!st) {" +
+                "      st = document.createElement('style');" +
+                "      st.id = 'tvshow-adblock-cosmetic';" +
+                "      st.textContent = '[class*=\"banner\"],[id*=\"banner\"],[class*=\"overlay-ad\"],[id*=\"overlay-ad\"],[class*=\"video-ad\"],[class*=\"fluid_ad\"],[class*=\"vast\"],a[href*=\"bc.game\"],a[href*=\"bcgame\"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }';" +
+                "      (document.head || document.documentElement).appendChild(st);" +
+                "    }" +
+                "    var ads = document.querySelectorAll('a[href*=\"bc.game\"], a[href*=\"bcgame\"], div[class*=\"banner\"], div[id*=\"banner\"], div[class*=\"overlay-ad\"]');" +
+                "    for (var i = 0; i < ads.length; i++) {" +
+                "      if (!ads[i].querySelector('video')) {" +
+                "        ads[i].style.setProperty('display', 'none', 'important');" +
+                "        ads[i].style.setProperty('pointer-events', 'none', 'important');" +
+                "      }" +
+                "    }" +
+                "  } catch(e) {}" +
+                "})();";
+            view.evaluateJavascript(cosmeticJs, null);
+        } catch (Exception ignored) {}
+    }
 }

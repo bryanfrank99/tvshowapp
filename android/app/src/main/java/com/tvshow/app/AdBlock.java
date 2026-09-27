@@ -35,7 +35,16 @@ public final class AdBlock {
     }
 
     public static boolean isBlocked(String url) {
-        if (url == null || HOSTS.isEmpty()) return false;
+        if (url == null) return false;
+        String lowerUrl = url.toLowerCase();
+        if (lowerUrl.contains("bc.game") || lowerUrl.contains("bcgame") ||
+            lowerUrl.contains("magsrv.com") || lowerUrl.contains("syndication.exoclick") ||
+            lowerUrl.contains("/vast.") || lowerUrl.contains("/vpaid.") ||
+            lowerUrl.contains("/popads.") || lowerUrl.contains("ad_banner")) {
+            return true;
+        }
+
+        if (HOSTS.isEmpty()) return false;
         String host;
         try {
             host = Uri.parse(url).getHost();
