@@ -9,7 +9,12 @@ export async function GET(req: NextRequest) {
   if (deny) return deny;
   const { data, error } = await supa().from("live_sources").select("*").order("ord");
   if (error) return NextResponse.json({ error: "db" }, { status: 500 });
-  return NextResponse.json({ live: data });
+  const normalized = (data || []).map((x) => ({
+    ...x,
+    list: x.list_url || x.list || "",
+    list_url: x.list_url || x.list || "",
+  }));
+  return NextResponse.json({ live: normalized });
 }
 
 export async function PUT(req: NextRequest) {
@@ -17,12 +22,17 @@ export async function PUT(req: NextRequest) {
   if (deny) return deny;
   let b: any = {};
   try { b = await req.json(); } catch {}
-  if (!b.id || !b.name || !b.format || !b.list) {
+  const listUrl = String(b.list_url || b.list || "");
+  if (!b.id || !b.name || !b.format || !listUrl) {
     return NextResponse.json({ error: "params" }, { status: 400 });
   }
   const { error } = await supa().from("live_sources").upsert({
-    id: String(b.id), name: String(b.name), format: String(b.format),
-    list: String(b.list), active: b.active !== false, ord: Number(b.ord) || 0,
+    id: String(b.id).trim(),
+    name: String(b.name).trim(),
+    format: String(b.format).trim(),
+    list_url: listUrl,
+    active: b.active !== false,
+    ord: Number(b.ord) || 0,
   }, { onConflict: "id" });
   if (error) return NextResponse.json({ error: "db" }, { status: 500 });
   return NextResponse.json({ ok: true });
@@ -36,6 +46,9 @@ export async function PATCH(req: NextRequest) {
   if (!b.id) return NextResponse.json({ error: "params" }, { status: 400 });
   const patch: any = {};
   if (typeof b.active === "boolean") patch.active = b.active;
+  if (typeof b.ord === "number") patch.ord = b.ord;
+  if (typeof b.name === "string") patch.name = b.name;
+  if (b.list_url || b.list) patch.list_url = String(b.list_url || b.list);
   const { error } = await supa().from("live_sources").update(patch).eq("id", b.id);
   if (error) return NextResponse.json({ error: "db" }, { status: 500 });
   return NextResponse.json({ ok: true });

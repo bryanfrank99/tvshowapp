@@ -167,6 +167,12 @@
       "name": "Deportes ES",
       "format": "tvf90",
       "list": "https://tvf90.com/status.json"
+    },
+    {
+      "id": "reidoscanais",
+      "name": "Rei dos Canais BR",
+      "format": "reidoscanais",
+      "list": "https://api.reidoscanais.st/channels"
     }
   ]
 }

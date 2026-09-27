@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 // Proxy genérico para listas de canales (evita CORS). Solo hosts permitidos.
-const ALLOWED = ["streambetter.shop", "tvf90.com"];
+const ALLOWED = ["streambetter.shop", "tvf90.com", "reidoscanais.st", "rdcanais.net"];
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);

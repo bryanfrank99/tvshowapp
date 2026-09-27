@@ -85,9 +85,37 @@ type Live = {
   name: string;
   format: string;
   list: string;
+  list_url?: string;
   active: boolean;
   ord: number;
 };
+
+const LIVE_FORMATS = [
+  {
+    id: "reidoscanais",
+    name: "Rei dos Canais",
+    country: "🇧🇷 Brasil",
+    desc: "API JSON con EPG, eventos y embeds (rdcanais.net)",
+    defaultUrl: "https://api.reidoscanais.st/channels",
+    badgeBg: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  },
+  {
+    id: "streambetter",
+    name: "StreamBetter",
+    country: "🇵🇹 Portugal",
+    desc: "API JSON pública con canales y embeds de StreamBetter",
+    defaultUrl: "https://streambetter.shop/api/channels?limit=60",
+    badgeBg: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  },
+  {
+    id: "tvf90",
+    name: "TVF90",
+    country: "🇪🇸 España / Deportes",
+    desc: "JSON por categorías con enlaces de streaming deportivo",
+    defaultUrl: "https://tvf90.com/status.json",
+    badgeBg: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  },
+];
 
 const api = (p: string, init?: RequestInit) =>
   fetch(`/api/admin/${p}`, { ...init, cache: "no-store" });
@@ -234,6 +262,29 @@ export default function AdminPage() {
       );
     } finally {
       setIsCheckingHealth(false);
+    }
+  };
+
+  // Health check y monitoreo de canales en vivo
+  const [liveHealthData, setLiveHealthData] = useState<Record<string, { status: string; latencyMs: number; error?: string }> | null>(null);
+  const [isCheckingLiveHealth, setIsCheckingLiveHealth] = useState(false);
+
+  const runLiveHealthCheck = async () => {
+    setIsCheckingLiveHealth(true);
+    setMsg(lang === "en" ? "Testing live channels..." : lang === "pt" ? "Testando canais ao vivo..." : "Diagnosticando canales en vivo...");
+    try {
+      const r = await api(`live/health-check?_t=${Date.now()}`);
+      if (!r.ok) {
+        setMsg(lang === "en" ? "Error diagnosing channels" : lang === "pt" ? "Erro ao diagnosticar canais" : "Error diagnosticando canales");
+        return;
+      }
+      const j = await r.json();
+      setLiveHealthData(j.results || {});
+      setMsg(lang === "en" ? "Channel diagnostics completed" : lang === "pt" ? "Diagnóstico de canais concluído" : "Diagnóstico de canales completado");
+    } catch {
+      setMsg(lang === "en" ? "Network error in diagnostics" : lang === "pt" ? "Erro de rede no diagnóstico" : "Error de red en el diagnóstico");
+    } finally {
+      setIsCheckingLiveHealth(false);
     }
   };
 
@@ -801,14 +852,15 @@ export default function AdminPage() {
   };
 
   const saveLive = async () => {
-    if (!editLive?.id || !editLive?.name || !editLive?.format || !editLive?.list) {
+    const listVal = editLive?.list_url || editLive?.list;
+    if (!editLive?.id || !editLive?.name || !editLive?.format || !listVal) {
       setMsg(lang === "en" ? "Please complete all fields" : lang === "pt" ? "Preencha todos os campos" : "Completa todos los campos");
       return;
     }
     const r = await api("live", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editLive),
+      body: JSON.stringify({ ...editLive, list: listVal, list_url: listVal }),
     });
     if (r.ok) {
       setEditLive(null);
@@ -2109,101 +2161,282 @@ export default function AdminPage() {
         </>
       )}
 
-      {/* PESTAÑA 4: LIVE TV (Solo Super Admin) */}
+      {/* PESTAÑA 4: LIVE TV / CANALES (Solo Super Admin) */}
       {tab === "live" && isSuperAdmin && (
         <>
-          <button
-            onClick={() =>
-              setEditLive({ _new: true, active: true, format: "tvf90", ord: live.length } as any)
-            }
-            className="mb-4 px-4 py-2 rounded-xl bg-[#008CFF] font-bold text-sm text-white shadow-lg shadow-[#008CFF]/20 cursor-pointer"
-          >
-            {d.live_new}
-          </button>
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <button
+              onClick={() =>
+                setEditLive({
+                  _new: true,
+                  id: "reidoscanais",
+                  name: "Rei dos Canais BR",
+                  format: "reidoscanais",
+                  list: "https://api.reidoscanais.st/channels",
+                  list_url: "https://api.reidoscanais.st/channels",
+                  active: true,
+                  ord: live.length + 1,
+                } as any)
+              }
+              className="px-4 py-2 rounded-xl bg-[#008CFF] font-bold text-sm text-white shadow-lg shadow-[#008CFF]/20 cursor-pointer"
+            >
+              {d.live_new}
+            </button>
+            <button
+              onClick={runLiveHealthCheck}
+              disabled={isCheckingLiveHealth}
+              className={`${btn} bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 font-semibold flex items-center gap-1.5`}
+            >
+              <span>{isCheckingLiveHealth ? "⏳" : "⚡"}</span>
+              <span>
+                {isCheckingLiveHealth
+                  ? (lang === "en" ? "Diagnosing..." : lang === "pt" ? "Diagnosticando..." : "Diagnosticando...")
+                  : (lang === "en" ? "Diagnose Channels" : lang === "pt" ? "Diagnosticar Canais" : "Diagnosticar Canales")}
+              </span>
+            </button>
+          </div>
+
           <div className="space-y-2">
-            {live.map((l) => (
-              <div
-                key={l.id}
-                className="p-3.5 rounded-2xl border border-white/10 bg-white/5 flex items-center justify-between gap-3 flex-wrap"
-              >
-                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <b className="text-sm text-white">{l.name}</b>
-                  <code className="text-xs text-zinc-400">
-                    {l.id} · {l.format}
-                  </code>
-                  {!l.active && (
-                    <span className="text-xs bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded">
-                      {d.prov_inactive}
+            {live.map((l) => {
+              const h = liveHealthData?.[l.id] || liveHealthData?.[l.id.toLowerCase().trim()];
+              const fmtMeta = LIVE_FORMATS.find((f) => f.id === l.format);
+              return (
+                <div
+                  key={l.id}
+                  className="p-3.5 rounded-2xl border border-white/10 bg-white/5 flex items-center justify-between gap-3 flex-wrap"
+                >
+                  <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                    <span className="text-xs text-zinc-500 w-6">#{l.ord}</span>
+                    <b className="text-sm text-white">
+                      {l.name}{" "}
+                      <span className="text-xs text-[#008CFF] font-mono font-normal">
+                        ({l.id})
+                      </span>
+                    </b>
+
+                    {/* Badge de diagnóstico de salud */}
+                    {isCheckingLiveHealth ? (
+                      <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                        <span>{lang === "en" ? "Testing..." : lang === "pt" ? "Testando..." : "Probando..."}</span>
+                      </span>
+                    ) : h ? (
+                      h.status === "healthy" ? (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          <span>{d.prov_healthy(h.latencyMs)}</span>
+                        </span>
+                      ) : h.status === "slow" ? (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                          <span>{d.prov_slow(h.latencyMs)}</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1" title={h.error}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                          <span>{d.prov_down}</span>
+                        </span>
+                      )
+                    ) : liveHealthData ? (
+                      <span className="text-[10px] bg-zinc-500/20 text-zinc-400 border border-zinc-500/30 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+                        <span>{lang === "en" ? "No data" : lang === "pt" ? "Sem dados" : "Sin datos"}</span>
+                      </span>
+                    ) : null}
+
+                    {/* Badge de formato */}
+                    <span className={`text-[11px] px-2 py-0.5 rounded-md border font-medium ${fmtMeta?.badgeBg || "bg-white/10 text-zinc-300 border-white/10"}`}>
+                      {fmtMeta ? `${fmtMeta.country} · ${fmtMeta.name}` : l.format}
                     </span>
-                  )}
+
+                    {!l.active && (
+                      <span className="text-xs bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded">
+                        {d.prov_inactive}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t border-white/5 sm:border-0">
+                    <button
+                      onClick={() =>
+                        api("live", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ id: l.id, active: !l.active }),
+                        }).then(load)
+                      }
+                      className={btn}
+                    >
+                      {l.active ? d.prov_deactivate : d.prov_activate}
+                    </button>
+                    <button onClick={() => setEditLive({ ...l, list: l.list_url || l.list })} className={btn}>
+                      {d.prov_edit}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(lang === "en" ? `Delete ${l.name}?` : lang === "pt" ? `Excluir ${l.name}?` : `¿Borrar ${l.name}?`))
+                          api(`live?id=${l.id}`, { method: "DELETE" }).then(load);
+                      }}
+                      className={`${btn} hover:!border-red-500 hover:text-red-400`}
+                    >
+                      {d.prov_delete}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t border-white/5 sm:border-0">
-                  <button
-                    onClick={() =>
-                      api("live", {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ id: l.id, active: !l.active }),
-                      }).then(load)
-                    }
-                    className={btn}
-                  >
-                    {l.active ? d.prov_deactivate : d.prov_activate}
-                  </button>
-                  <button onClick={() => setEditLive({ ...l })} className={btn}>
-                    {d.prov_edit}
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm(lang === "en" ? `Delete ${l.name}?` : lang === "pt" ? `Excluir ${l.name}?` : `¿Borrar ${l.name}?`))
-                        api(`live?id=${l.id}`, { method: "DELETE" }).then(load);
-                    }}
-                    className={`${btn} hover:!border-red-500 hover:text-red-400`}
-                  >
-                    {d.prov_delete}
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {editLive && (
-            <div className="mt-4 p-4 sm:p-5 rounded-2xl border border-[#008CFF]/40 bg-black/70 space-y-3 shadow-2xl">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="mt-4 p-4 sm:p-5 rounded-2xl border border-[#008CFF]/40 bg-black/70 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <h3 className="font-bold text-base text-white flex items-center gap-2">
+                  <span>📺</span>
+                  <span>
+                    {editLive._new
+                      ? (lang === "en" ? "New Live Channels Source" : lang === "pt" ? "Nova Fonte de Canais" : "Nueva Fuente de Canales")
+                      : `${lang === "en" ? "Edit Source" : lang === "pt" ? "Editar Fonte" : "Editar Fuente"}: ${editLive.name || editLive.id}`}
+                  </span>
+                </h3>
+                {editLive.format && (
+                  <span className="text-xs text-[#008CFF] font-mono">
+                    formato: {editLive.format}
+                  </span>
+                )}
+              </div>
+
+              {/* Botones de Preconfiguración Rápida / Presets */}
+              {editLive._new && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-semibold text-zinc-400 block">
+                    {lang === "en" ? "Quick Presets:" : lang === "pt" ? "Predefinições Rápidas:" : "Plantillas Rápidas:"}
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {LIVE_FORMATS.map((fmt) => (
+                      <button
+                        key={fmt.id}
+                        type="button"
+                        onClick={() => {
+                          setEditLive({
+                            ...editLive,
+                            id: fmt.id,
+                            name: fmt.id === "reidoscanais" ? "Rei dos Canais BR" : fmt.id === "streambetter" ? "StreamBetter PT" : "Deportes ES",
+                            format: fmt.id,
+                            list: fmt.defaultUrl,
+                            list_url: fmt.defaultUrl,
+                          });
+                        }}
+                        className="p-2.5 rounded-xl border border-white/10 bg-white/5 hover:border-[#008CFF] hover:bg-white/10 text-left transition-all cursor-pointer"
+                      >
+                        <div className="font-bold text-xs text-white">{fmt.country}</div>
+                        <div className="text-[11px] text-[#008CFF] font-medium">{fmt.name}</div>
+                        <div className="text-[10px] text-zinc-400 truncate mt-0.5">{fmt.defaultUrl}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-zinc-400 block mb-1">ID Único</label>
+                  <input
+                    value={editLive.id || ""}
+                    disabled={!editLive._new}
+                    onChange={(e) => setEditLive({ ...editLive, id: e.target.value })}
+                    placeholder="ej: reidoscanais"
+                    className={inp}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-zinc-400 block mb-1">Nombre Descriptivo</label>
+                  <input
+                    value={editLive.name || ""}
+                    onChange={(e) => setEditLive({ ...editLive, name: e.target.value })}
+                    placeholder="ej: Rei dos Canais BR"
+                    className={inp}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-zinc-400 block mb-1">Orden (#)</label>
+                  <input
+                    value={editLive.ord ?? 0}
+                    onChange={(e) => setEditLive({ ...editLive, ord: Number(e.target.value) })}
+                    placeholder="1"
+                    inputMode="numeric"
+                    className={inp}
+                  />
+                </div>
+              </div>
+
+              {/* Selector Visual de Formato */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-300 block">
+                  Formato de API / Extracción
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {LIVE_FORMATS.map((fmt) => {
+                    const isSelected = editLive.format === fmt.id;
+                    return (
+                      <button
+                        key={fmt.id}
+                        type="button"
+                        onClick={() => {
+                          setEditLive({
+                            ...editLive,
+                            format: fmt.id,
+                            list: editLive.list || fmt.defaultUrl,
+                            list_url: editLive.list || fmt.defaultUrl,
+                          });
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? "bg-[#008CFF]/20 border-[#008CFF] text-white shadow-md shadow-[#008CFF]/10 ring-1 ring-[#008CFF]"
+                            : "bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:border-white/20"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                            {isSelected && <span className="text-[#008CFF]">✓</span>}
+                            <span>{fmt.country}</span>
+                          </span>
+                          <span className="text-[10px] font-mono opacity-70">{fmt.id}</span>
+                        </div>
+                        <div className="text-[11px] text-zinc-300 font-semibold mt-1">{fmt.name}</div>
+                        <div className="text-[10px] text-zinc-400 mt-0.5 leading-tight">{fmt.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* URL del listado */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-zinc-400 block">
+                  URL del Endpoint / Lista de Canales
+                </label>
                 <input
-                  value={editLive.id || ""}
-                  disabled={!editLive._new}
-                  onChange={(e) => setEditLive({ ...editLive, id: e.target.value })}
-                  placeholder="id"
-                  className={inp}
-                />
-                <input
-                  value={editLive.name || ""}
-                  onChange={(e) => setEditLive({ ...editLive, name: e.target.value })}
-                  placeholder="Nombre"
-                  className={inp}
-                />
-                <input
-                  value={editLive.format || ""}
-                  onChange={(e) => setEditLive({ ...editLive, format: e.target.value })}
-                  placeholder="format: streambetter|tvf90"
-                  className={inp}
-                />
-                <input
-                  value={editLive.ord ?? 0}
-                  onChange={(e) => setEditLive({ ...editLive, ord: Number(e.target.value) })}
-                  placeholder="orden"
-                  inputMode="numeric"
-                  className={inp}
+                  value={editLive.list_url || editLive.list || ""}
+                  onChange={(e) => setEditLive({ ...editLive, list: e.target.value, list_url: e.target.value })}
+                  placeholder="https://..."
+                  className={`${inp} font-mono text-xs`}
                 />
               </div>
-              <input
-                value={editLive.list || ""}
-                onChange={(e) => setEditLive({ ...editLive, list: e.target.value })}
-                placeholder={d.live_url_ph}
-                className={`${inp} font-mono`}
-              />
-              <div className="flex gap-2 pt-2">
+
+              {/* Estado Activo / Inactivo */}
+              <div className="flex items-center gap-2 pt-1">
+                <label className="flex items-center gap-2 text-xs font-medium text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editLive.active !== false}
+                    onChange={(e) => setEditLive({ ...editLive, active: e.target.checked })}
+                    className="accent-[#008CFF] w-4 h-4 rounded"
+                  />
+                  <span>Canal / Fuente habilitada para usuarios</span>
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-white/10">
                 <button
                   onClick={saveLive}
                   className="px-5 py-2.5 rounded-xl bg-[#008CFF] font-bold text-sm text-white shadow-lg shadow-[#008CFF]/20 cursor-pointer"

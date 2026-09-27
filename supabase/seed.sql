@@ -15,4 +15,5 @@ insert into providers (id,name,movie_tpl,tv_tpl,needs_tmdb,tv_ok,entry_key,activ
 insert into providers (id,name,movie_tpl,tv_tpl,needs_tmdb,tv_ok,entry_key,active,ord) values ('megaembed','MegaEmbed','https://megaembed.com/embed/{id}','https://megaembed.com/embed/{id}/{s}/{e}',false,true,'',true,14) on conflict (id) do nothing;
 insert into live_sources (id,name,format,list_url,active,ord) values ('streambetter','Streambetter PT','streambetter','https://streambetter.shop/api/channels?limit=60',true,1) on conflict (id) do nothing;
 insert into live_sources (id,name,format,list_url,active,ord) values ('tvf90','Deportes ES','tvf90','https://tvf90.com/status.json',true,2) on conflict (id) do nothing;
-insert into config (key,value) values ('providers_version','6') on conflict (key) do update set value=excluded.value;
+insert into live_sources (id,name,format,list_url,active,ord) values ('reidoscanais','Rei dos Canais BR','reidoscanais','https://api.reidoscanais.st/channels',true,3) on conflict (id) do nothing;
+insert into config (key,value) values ('providers_version','7') on conflict (key) do update set value=excluded.value;

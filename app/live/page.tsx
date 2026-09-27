@@ -7,7 +7,7 @@ import { IconSignal, IconBall } from "@/components/Icons";
 import { useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 
-type Item = { key: string; name: string; sub: string; image: string; url: string; live: boolean };
+type Item = { key: string; name: string; sub: string; image: string; url: string; live: boolean; now?: string };
 
 const slug = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -29,6 +29,21 @@ async function loadSource(src: LiveSource): Promise<Item[]> {
       url: c.url?.startsWith("http") ? c.url : `https://streambetter.shop/canal/${slug(c.name)}`,
       live: true,
     }));
+  }
+  if (src.format === "reidoscanais") {
+    const list = Array.isArray(j.data) ? j.data : (j.channels || []);
+    return list.map((c: any) => {
+      const embedUrl = c.embeds?.[0]?.embed_url || c.url || `https://rdcanais.net/${c.id || slug(c.name)}`;
+      return {
+        key: `rdc-${c.id || slug(c.name)}`,
+        name: c.name,
+        sub: c.category || "",
+        image: c.logo_url || c.image || "",
+        url: embedUrl,
+        live: true,
+        now: c.epg?.current?.title || "",
+      };
+    });
   }
   // tvf90: { CATEGORIA: [{ Canal, Estado, Link }] }
   const out: Item[] = [];
@@ -218,7 +233,9 @@ export default function LivePage() {
                     {c.live ? `● ${d.en_vivo}` : "○"}
                   </span>
                   {(() => {
-                    const txt = (src.id === "streambetter" && nowMap[c.key])
+                    const txt = c.now
+                      ? c.now
+                      : (src.id === "streambetter" && nowMap[c.key])
                       ? nowMap[c.key]
                       : (g?.now ? g.now.t : "");
                     return txt ? <span className="text-xs text-zinc-300 truncate w-full text-center">{txt}</span> : null;

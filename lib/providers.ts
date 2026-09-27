@@ -345,8 +345,8 @@ export async function fetchProviders(): Promise<{ list: Provider[]; version: str
 }
 
 // ---- Fuentes de TV en vivo (también configurables en el mismo JSON) ----
-// Esquema: "live": [{ "id": "tvf90", "name": "Agenda deportiva", "format": "tvf90"|"streambetter", "list": "https://..." }]
-export type LiveSource = { id: string; name: string; format: "streambetter" | "tvf90"; list: string };
+// Esquema: "live": [{ "id": "reidoscanais", "name": "Rei dos Canais", "format": "reidoscanais", "list": "https://..." }]
+export type LiveSource = { id: string; name: string; format: "streambetter" | "tvf90" | "reidoscanais" | string; list: string; active?: boolean; ord?: number };
 
 const LS_LIVE = "tvshow_live_cache_v2"; // legacy, sin uso
 
