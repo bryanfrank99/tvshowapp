@@ -64,12 +64,27 @@ export default function LivePage() {
   const [q, setQ] = useState("");
   const [current, setCurrent] = useState<Item | null>(null);
   const [playerSize, setPlayerSize] = useState<"normal" | "theater">("normal");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [streamKey, setStreamKey] = useState(0);
   const [isReloading, setIsReloading] = useState(false);
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const [nowMap, setNowMap] = useState<Record<string, string>>({});
   const [guideMap, setGuideMap] = useState<Record<string, { now: { t: string; s: number; e: number; img?: string } | null }>>({});
   const [err, setErr] = useState(false);
+
+  // Escuchar cambios de fullscreen del navegador
+  useEffect(() => {
+    const onFsChange = () => {
+      const doc = document as any;
+      setIsFullscreen(Boolean(doc.fullscreenElement || doc.webkitFullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    document.addEventListener("webkitfullscreenchange", onFsChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFsChange);
+      document.removeEventListener("webkitfullscreenchange", onFsChange);
+    };
+  }, []);
 
   useEffect(() => {
     fetchLiveSources().then(async (list) => {
@@ -134,7 +149,13 @@ export default function LivePage() {
       const k = e.keyCode;
       if (e.key === "GoBack" || k === 4 || k === 27 || e.key === "Escape") {
         e.preventDefault();
-        setCurrent(null);
+        const doc = document as any;
+        if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+          if (doc.exitFullscreen) doc.exitFullscreen().catch(() => {});
+          else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+        } else {
+          setCurrent(null);
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -171,11 +192,15 @@ export default function LivePage() {
   };
 
   const toggleFullscreen = () => {
-    if (!playerContainerRef.current) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
+    const box = playerContainerRef.current as any;
+    if (!box) return;
+    const doc = document as any;
+    if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+      if (doc.exitFullscreen) doc.exitFullscreen().catch(() => {});
+      else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
     } else {
-      playerContainerRef.current.requestFullscreen().catch(() => {});
+      if (box.requestFullscreen) box.requestFullscreen().catch(() => {});
+      else if (box.webkitRequestFullscreen) box.webkitRequestFullscreen();
     }
   };
 
@@ -199,16 +224,26 @@ export default function LivePage() {
         <div
           ref={playerContainerRef}
           id="tv-live-player-box"
-          className={`w-full transition-all duration-300 mx-auto mb-8 ${
-            playerSize === "theater"
-              ? "max-w-6xl xl:max-w-7xl"
-              : "max-w-4xl lg:max-w-5xl"
+          className={`w-full transition-all duration-300 mx-auto ${
+            isFullscreen
+              ? "fixed inset-0 z-[9999] w-screen h-screen max-w-none max-h-none rounded-none m-0 p-0 bg-black flex flex-col"
+              : `mb-8 ${
+                  playerSize === "theater"
+                    ? "max-w-6xl xl:max-w-7xl"
+                    : "max-w-4xl lg:max-w-5xl"
+                }`
           }`}
         >
-          <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-white/15 bg-zinc-950/95 shadow-[0_20px_60px_rgba(0,0,0,0.85)] ring-1 ring-white/10 flex flex-col">
+          <div className={`overflow-hidden bg-zinc-950 flex flex-col ${
+            isFullscreen
+              ? "w-full h-full rounded-none border-0 shadow-none"
+              : "rounded-2xl sm:rounded-3xl border border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.85)] ring-1 ring-white/10"
+          }`}>
             {/* Marco de video proporcional con límites máximos (arriba) */}
-            <div className={`relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center ${
-              playerSize === "theater" ? "max-h-[72vh]" : "max-h-[52vh] sm:max-h-[500px]"
+            <div className={`relative w-full bg-black overflow-hidden flex items-center justify-center ${
+              isFullscreen
+                ? "flex-1 w-full h-full max-h-none aspect-auto"
+                : `aspect-video ${playerSize === "theater" ? "max-h-[72vh]" : "max-h-[52vh] sm:max-h-[500px]"}`
             }`}>
               <iframe
                 key={`${current.url}-${streamKey}`}
@@ -221,7 +256,9 @@ export default function LivePage() {
             </div>
 
             {/* Barra Inferior de Metadatos y Acciones (abajo del video) */}
-            <div className="flex items-center justify-between gap-3 p-3 sm:px-4 sm:py-3 bg-gradient-to-t from-white/10 via-white/5 to-transparent border-t border-white/10 flex-wrap">
+            <div className={`shrink-0 flex items-center justify-between gap-3 p-3 sm:px-4 sm:py-3 bg-gradient-to-t from-white/10 via-white/5 to-transparent border-t border-white/10 flex-wrap ${
+              isFullscreen ? "bg-black/95 z-10" : ""
+            }`}>
               <div className="flex items-center gap-3 min-w-0">
                 {current.image ? (
                   <div className="w-10 h-8 sm:w-12 sm:h-9 bg-white/10 rounded-lg p-1 flex items-center justify-center shrink-0 border border-white/10 shadow-sm">
@@ -287,36 +324,45 @@ export default function LivePage() {
                   <span className="hidden md:inline">{lang === "en" ? "Reload" : lang === "pt" ? "Recarregar" : "Recargar"}</span>
                 </button>
 
-                {/* Toggle de tamaño (Normal / Teatro) */}
-                <button
-                  id="btn-live-size"
-                  onClick={toggleSize}
-                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-200 hover:text-white transition active:scale-95 focus:ring-2 focus:ring-[#008CFF] outline-none cursor-pointer flex items-center gap-1"
-                  title={playerSize === "theater" ? "Vista normal" : "Modo teatro"}
-                >
-                  <span>{playerSize === "theater" ? "🗗" : "🗖"}</span>
-                  <span className="hidden sm:inline">
-                    {playerSize === "theater"
-                      ? (lang === "en" ? "Normal" : "Normal")
-                      : (lang === "en" ? "Theater" : lang === "pt" ? "Teatro" : "Teatro")}
-                  </span>
-                </button>
+                {/* Toggle de tamaño (Normal / Teatro) - oculto si está en pantalla completa */}
+                {!isFullscreen && (
+                  <button
+                    id="btn-live-size"
+                    onClick={toggleSize}
+                    className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-200 hover:text-white transition active:scale-95 focus:ring-2 focus:ring-[#008CFF] outline-none cursor-pointer flex items-center gap-1"
+                    title={playerSize === "theater" ? "Vista normal" : "Modo teatro"}
+                  >
+                    <span>{playerSize === "theater" ? "🗗" : "🗖"}</span>
+                    <span className="hidden sm:inline">
+                      {playerSize === "theater"
+                        ? (lang === "en" ? "Normal" : "Normal")
+                        : (lang === "en" ? "Theater" : lang === "pt" ? "Teatro" : "Teatro")}
+                    </span>
+                  </button>
+                )}
 
                 {/* Pantalla completa */}
                 <button
                   id="btn-live-fullscreen"
                   onClick={toggleFullscreen}
                   className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-[#008CFF] text-xs font-semibold text-zinc-200 hover:text-white transition active:scale-95 focus:ring-2 focus:ring-[#008CFF] outline-none cursor-pointer flex items-center gap-1"
-                  title="Pantalla completa"
+                  title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
                 >
-                  <span>⛶</span>
-                  <span className="hidden md:inline">{d.fullscreen}</span>
+                  <span>{isFullscreen ? "🗗" : "⛶"}</span>
+                  <span className="hidden md:inline">{isFullscreen ? (lang === "en" ? "Exit" : lang === "pt" ? "Sair" : "Salir") : d.fullscreen}</span>
                 </button>
 
                 {/* Cerrar reproductor */}
                 <button
                   id="btn-live-close"
-                  onClick={() => setCurrent(null)}
+                  onClick={() => {
+                    if (isFullscreen) {
+                      const doc = document as any;
+                      if (doc.exitFullscreen) doc.exitFullscreen().catch(() => {});
+                      else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+                    }
+                    setCurrent(null);
+                  }}
                   className="px-2.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500 border border-red-500/40 text-xs font-bold text-red-200 hover:text-white transition active:scale-95 focus:ring-2 focus:ring-red-400 outline-none cursor-pointer"
                   title="Cerrar reproductor (Esc / Atrás)"
                 >
@@ -334,7 +380,10 @@ export default function LivePage() {
         if (!list.length) return null;
         return (
           <section key={src.id} className="mb-8">
-            <h2 className="text-xl font-extrabold mb-3 inline-flex items-center gap-2">{src.id === "tvf90" ? <IconBall className="text-emerald-400" /> : <IconSignal className="text-red-400" />}{src.id === "tvf90" ? d.agenda : src.format === "streambetter" ? d.canales : src.name}</h2>
+            <h2 className="text-xl font-extrabold mb-3 inline-flex items-center gap-2">
+              {src.id === "tvf90" ? <IconBall className="text-emerald-400" /> : <IconSignal className="text-red-400" />}
+              {src.name || (src.id === "tvf90" ? "Deportes ES" : src.format === "streambetter" ? d.canales : "Canales")}
+            </h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
               {list.map((c) => {
                 const g = guideMap[normGuide(c.name)];
