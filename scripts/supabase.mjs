@@ -26,24 +26,6 @@ if (cmd === "ping") {
     console.log(`${tbl}: HTTP ${r.status} ${r.ok ? "OK" : await r.text().then((t) => t.slice(0, 120))}`);
   }
 } else if (cmd === "seed") {
-  const j = JSON.parse(readFileSync(join(root, "public", "providers.json"), "utf8"));
-  for (const p of j.providers || []) {
-    const r = await fetch(`${url}/rest/v1/providers`, {
-      method: "POST", headers: { ...h, Prefer: "resolution=merge-duplicates" },
-      body: JSON.stringify({ id: p.id, name: p.name, movie_tpl: p.movie, tv_tpl: p.tv, needs_tmdb: !!p.needsTmdb, tv_ok: !!p.tvOk, entry_key: p.key || "", active: true, ord: 0 }),
-    });
-    console.log(`provider ${p.id}: ${r.status}`);
-  }
-  for (const l of j.live || []) {
-    const r = await fetch(`${url}/rest/v1/live_sources`, {
-      method: "POST", headers: { ...h, Prefer: "resolution=merge-duplicates" },
-      body: JSON.stringify({ id: l.id, name: l.name, format: l.format, list_url: l.list, active: true, ord: 0 }),
-    });
-    console.log(`live ${l.id}: ${r.status}`);
-  }
-  await fetch(`${url}/rest/v1/config`, {
-    method: "POST", headers: { ...h, Prefer: "resolution=merge-duplicates" },
-    body: JSON.stringify({ key: "providers_version", value: String(j.version || "1") }),
-  });
-  console.log("seed done");
+  console.log("ℹ️ public/providers.json ha sido retirado. Los datos se gestionan directamente en Supabase.");
+  console.log("Para inicializar tablas o esquemas, ejecuta el contenido de supabase/seed.sql en el SQL Editor de Supabase.");
 }

@@ -19,17 +19,14 @@ async function run() {
   );
   console.log("  ✅ Tipo LiveSource actualizado con 'reidoscanais'");
 
-  // 2. Verificar public/providers.json
-  console.log("\n2. Verificando public/providers.json...");
-  const rawCatalog = JSON.parse(readFileSync(join(root, "public", "providers.json"), "utf8"));
-  assert.ok(Array.isArray(rawCatalog.live), "public/providers.json debe tener un array live");
-  const reiEntry = rawCatalog.live.find((c) => c.id === "reidoscanais");
-  assert.ok(reiEntry, "Falta 'reidoscanais' en public/providers.json");
-  assert.ok(reiEntry.name.includes("Rei dos Canais"), "El nombre debe incluir 'Rei dos Canais'");
-  assert.equal(reiEntry.format, "reidoscanais");
-  assert.equal(reiEntry.list, "https://api.reidoscanais.st/channels");
-  assert.ok(reiEntry.active !== false);
-  console.log("  ✅ Entrada en public/providers.json verificada");
+  // 2. Verificar que public/providers.json fue eliminado (eliminación del sistema JSON)
+  console.log("\n2. Verificando que public/providers.json no existe...");
+  assert.equal(
+    existsSync(join(root, "public", "providers.json")),
+    false,
+    "public/providers.json no debe existir (sistema basado en json eliminado)"
+  );
+  console.log("  ✅ public/providers.json eliminado correctamente");
 
   // 3. Verificar supabase/seed.sql
   console.log("\n3. Verificando supabase/seed.sql...");

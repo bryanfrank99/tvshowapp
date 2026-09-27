@@ -28,19 +28,11 @@ export async function GET(req: NextRequest) {
     } catch {}
 
     if (!sources.length) {
-      // Fallback a public/providers.json
-      try {
-        const fs = await import("fs/promises");
-        const path = await import("path");
-        const raw = await fs.readFile(path.join(process.cwd(), "public/providers.json"), "utf8");
-        const parsed = JSON.parse(raw);
-        sources = (parsed.live || []).map((l: any, i: number) => ({
-          ...l,
-          list_url: l.list,
-          ord: l.ord || i + 1,
-          active: l.active !== false,
-        }));
-      } catch {}
+      return NextResponse.json({
+        success: true,
+        timestamp: Date.now(),
+        results: {},
+      });
     }
 
     const checkPromises = sources.map(async (s: any) => {

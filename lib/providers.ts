@@ -275,10 +275,6 @@ export const DEFAULT_PROVIDER = "vidcore";
 const LS_CACHE = "tvshow_providers_cache_v3";
 const TTL = 3600 * 1000;
 
-export function providersUrl() {
-  return "/providers.json"; // legacy, ya no se usa como fuente
-}
-
 type Catalog = { providers: any[]; live: any[]; version: string };
 let inflight: Promise<Catalog> | null = null;
 
