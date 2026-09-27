@@ -46,6 +46,9 @@ function isBlocked(urlString) {
   if (
     lowerUrl.includes('bc.game') ||
     lowerUrl.includes('bcgame') ||
+    lowerUrl.includes('betano') ||
+    lowerUrl.includes('lactamclaes') ||
+    lowerUrl.includes('waust.at') ||
     lowerUrl.includes('magsrv.com') ||
     lowerUrl.includes('syndication.exoclick.com') ||
     lowerUrl.includes('/vast.') ||

@@ -185,9 +185,38 @@ function createMainWindow() {
           mainWindow.webContents.executeJavaScriptInFrame(
             [frameProcessId, frameRoutingId],
             `try {
+              // Neutralizar apertura de ventanas y alertas invasivas
               window.open = function() { console.log('[AdBlock] window.open bloqueado dentro de iframe'); return null; };
               window.alert = function() { return null; };
               window.confirm = function() { return false; };
+
+              // Defusers específicos para reproductores y redes agresivas
+              window.rfShouldCheckAdblock = function() { return false; };
+              window.openExternalAd = function() { return false; };
+              window.triggerExternalAd = function() { return false; };
+              window.armExternalClickHitbox = function() {};
+              window.externalAdUrl = '';
+
+              // Eliminar hitbox invisible que secuestra el clic del reproductor
+              var purgeHitbox = function() {
+                var hb = document.getElementById('player-external-click-hitbox');
+                if (hb) {
+                  hb.style.setProperty('display', 'none', 'important');
+                  hb.style.setProperty('pointer-events', 'none', 'important');
+                  if (hb.parentNode) hb.parentNode.removeChild(hb);
+                }
+                var banners = document.querySelectorAll('a[href*="bc.game"], a[href*="bcgame"], a[href*="betano"], a[href*="lactamclaes"]');
+                banners.forEach(function(b) {
+                  if (b && !b.querySelector('video')) {
+                    b.style.setProperty('display', 'none', 'important');
+                    b.style.setProperty('pointer-events', 'none', 'important');
+                  }
+                });
+              };
+
+              purgeHitbox();
+              var purgeInterval = setInterval(purgeHitbox, 400);
+              setTimeout(function() { clearInterval(purgeInterval); }, 25000);
 
               // Inyección de Filtrado Cosmético CSS para destruir banners sobre video
               var adStyle = document.getElementById('tvshow-adblock-cosmetic');
@@ -200,15 +229,12 @@ function createMainWindow() {
                   [class*="video-ad"], [id*="video-ad"],
                   [class*="fluid_ad"], [id*="fluid_ad"],
                   [class*="vast-"], [id*="vast-"],
-                  [class*="ad-container"], [id*="ad-container"],
-                  [class*="ad_container"], [id*="ad_container"],
                   [class*="floating-ad"], [id*="floating-ad"],
-                  [class*="ad-banner"], [id*="ad-banner"],
                   [class*="ad-overlay"], [id*="ad-overlay"],
                   [class*="ad_overlay"], [id*="ad_overlay"],
-                  [class*="ads-box"], [id*="ads-box"],
-                  a[href*="bc.game"], a[href*="bcgame"], a[href*="betano"], a[href*="casino"],
-                  iframe[src*="ad"], iframe[id*="ad"], iframe[class*="ad"] {
+                  #player-external-click-hitbox,
+                  a[href*="bc.game"], a[href*="bcgame"], a[href*="betano"], a[href*="casino"], a[href*="lactamclaes"],
+                  iframe[src*="lactamclaes"], iframe[src*="waust"] {
                     display: none !important;
                     visibility: hidden !important;
                     opacity: 0 !important;
@@ -219,15 +245,6 @@ function createMainWindow() {
                 \`;
                 (document.head || document.documentElement).appendChild(adStyle);
               }
-
-              // Ocultamiento proactivo de elementos coincidentes que no contengan el reproductor de video
-              var adSelectors = 'a[href*="bc.game"], a[href*="bcgame"], div[class*="banner"], div[id*="banner"], div[class*="overlay-ad"], [class*="fluid_ad"]';
-              document.querySelectorAll(adSelectors).forEach(function(el) {
-                if (el && !el.querySelector('video')) {
-                  el.style.setProperty('display', 'none', 'important');
-                  el.style.setProperty('pointer-events', 'none', 'important');
-                }
-              });
             } catch(e) {}`
           ).catch(() => {});
         }

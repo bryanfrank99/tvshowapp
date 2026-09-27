@@ -24,6 +24,8 @@ const testAdUrls = [
   "https://cdn.tracker.info/popads.js",
   "https://betano.com/landing",
   "https://popcash.net/script.js",
+  "https://eb.lactamclaes.com/iZrpnEtg2l2Rb/137837",
+  "https://waust.at/d.js",
   "https://monetag.com/push",
 ];
 
@@ -42,18 +44,20 @@ console.log("  ✓ Hosts legítimos de streaming permanecen permitidos");
 const electronHosts = fs.readFileSync(path.join(root, "electron", "adhosts.txt"), "utf8");
 const androidHosts = fs.readFileSync(path.join(root, "android", "app", "src", "main", "assets", "adhosts.txt"), "utf8");
 
-for (const requiredDomain of ["bc.game", "magsrv.com", "adport.io", "richads.co", "betano.com"]) {
+for (const requiredDomain of ["bc.game", "magsrv.com", "adport.io", "richads.co", "betano.com", "lactamclaes.com", "waust.at"]) {
   assert.ok(electronHosts.includes(requiredDomain), `Electron adhosts debe contener ${requiredDomain}`);
   assert.ok(androidHosts.includes(requiredDomain), `Android adhosts debe contener ${requiredDomain}`);
 }
 console.log("  ✓ Listas adhosts.txt sincronizadas y contienen dominios de apuestas y banners");
 
-// 3. Verificar inyección de CSS cosmético en Electron main.js
+// 3. Verificar inyección de CSS cosmético y defusers en Electron main.js
 const electronMain = fs.readFileSync(path.join(root, "electron", "main.js"), "utf8");
 assert.ok(electronMain.includes("tvshow-adblock-cosmetic"), "electron/main.js debe inyectar CSS cosmético");
 assert.ok(electronMain.includes('[class*="banner"]'), "electron/main.js debe incluir selector de banners");
 assert.ok(electronMain.includes('a[href*="bc.game"]'), "electron/main.js debe incluir selectores de bc.game");
-console.log("  ✓ Filtrado cosmético validado en electron/main.js");
+assert.ok(electronMain.includes("player-external-click-hitbox"), "electron/main.js debe neutralizar el hitbox");
+assert.ok(electronMain.includes("openExternalAd"), "electron/main.js debe defusar openExternalAd");
+console.log("  ✓ Filtrado cosmético y defusers validados en electron/main.js");
 
 // 4. Verificar filtrado en Android WebViewClient
 const androidClient = fs.readFileSync(path.join(root, "android", "app", "src", "main", "java", "com", "tvshow", "app", "AdBlockWebViewClient.java"), "utf8");
@@ -64,7 +68,14 @@ console.log("  ✓ Inyección cosmética validada en Android AdBlockWebViewClien
 // 5. Verificar AdBlock.java pattern matching
 const androidAdBlock = fs.readFileSync(path.join(root, "android", "app", "src", "main", "java", "com", "tvshow", "app", "AdBlock.java"), "utf8");
 assert.ok(androidAdBlock.includes("bc.game"), "AdBlock.java debe comprobar bc.game");
+assert.ok(androidAdBlock.includes("lactamclaes"), "AdBlock.java debe comprobar lactamclaes");
 assert.ok(androidAdBlock.includes("magsrv.com"), "AdBlock.java debe comprobar magsrv.com");
 console.log("  ✓ Patrones de apuestas y VAST validados en AdBlock.java");
+
+// 6. Verificar Sandbox seguro por defecto en IframeSourcePlayer.tsx
+const playerCode = fs.readFileSync(path.join(root, "components", "player", "IframeSourcePlayer.tsx"), "utf8");
+assert.ok(playerCode.includes('allow-scripts allow-same-origin allow-forms allow-presentation'), "IframeSourcePlayer debe tener sandbox restrictivo por defecto");
+assert.ok(!playerCode.includes('allow-popups'), "IframeSourcePlayer no debe otorgar allow-popups");
+console.log("  ✓ Sandbox defensivo validado en IframeSourcePlayer.tsx");
 
 console.log("🎉 ¡Todas las pruebas de Bloqueo de Popads y Banners pasaron satisfactoriamente!");

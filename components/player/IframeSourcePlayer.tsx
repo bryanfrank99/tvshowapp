@@ -233,7 +233,7 @@ export default function IframeSourcePlayer({
         className="w-full h-full border-0 bg-black block"
         allowFullScreen
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-        sandbox={source.sandbox || undefined}
+        sandbox={source.sandbox || "allow-scripts allow-same-origin allow-forms allow-presentation"}
         onLoad={() => {
           setLoading(false);
           onLoad?.();

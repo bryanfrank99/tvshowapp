@@ -79,7 +79,7 @@
       },
       {
         "id": "annoyances-overlays",
-        "enabled": false,
+        "enabled": true,
         "path": "/rulesets/main/annoyances-overlays.json"
       },
       {
@@ -94,7 +94,7 @@
       },
       {
         "id": "annoyances-others",
-        "enabled": false,
+        "enabled": true,
         "path": "/rulesets/main/annoyances-others.json"
       },
       {
@@ -264,12 +264,12 @@
       },
       {
         "id": "spa-0",
-        "enabled": false,
+        "enabled": true,
         "path": "/rulesets/main/spa-0.json"
       },
       {
         "id": "spa-1",
-        "enabled": false,
+        "enabled": true,
         "path": "/rulesets/main/spa-1.json"
       },
       {
