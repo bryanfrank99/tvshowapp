@@ -79,10 +79,9 @@ assert.ok(androidAdBlock.includes("a-ads"), "AdBlock.java debe comprobar a-ads")
 assert.ok(androidAdBlock.includes("magsrv.com"), "AdBlock.java debe comprobar magsrv.com");
 console.log("  ✓ Patrones de apuestas y VAST validados en AdBlock.java");
 
-// 6. Verificar Sandbox seguro por defecto en IframeSourcePlayer.tsx
+// 6. Verificar Sandbox condicional en IframeSourcePlayer.tsx (para evitar romper servidores como S2 Embos)
 const playerCode = fs.readFileSync(path.join(root, "components", "player", "IframeSourcePlayer.tsx"), "utf8");
-assert.ok(playerCode.includes('allow-scripts allow-same-origin allow-forms allow-presentation'), "IframeSourcePlayer debe tener sandbox restrictivo por defecto");
-assert.ok(!playerCode.includes('allow-popups'), "IframeSourcePlayer no debe otorgar allow-popups");
-console.log("  ✓ Sandbox defensivo validado en IframeSourcePlayer.tsx");
+assert.ok(playerCode.includes('sandbox={source.sandbox || undefined}'), "IframeSourcePlayer debe usar sandbox condicional para no romper servidores como S2");
+console.log("  ✓ Sandbox condicional validado en IframeSourcePlayer.tsx");
 
 console.log("🎉 ¡Todas las pruebas de Bloqueo de Popads y Banners pasaron satisfactoriamente!");
