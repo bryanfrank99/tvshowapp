@@ -68,7 +68,30 @@ assert.strictEqual(
   true,
   "TvNav.tsx debe contemplar la exclusión de header-clock"
 );
-console.log("  ✓ Verificación estática exitosa: Logo y Reloj están excluidos y Clock es no-interactivo");
+
+// TvNav NO debe interceptar k === 66 (KeyB) como Enter
+assert.strictEqual(
+  tvNavCode.includes("k === 66"),
+  false,
+  "TvNav.tsx NO debe interceptar k === 66 (corresponde a la tecla física 'B')"
+);
+
+// TvNav debe proteger inputs y textareas de hijack en Enter/OK
+assert.strictEqual(
+  tvNavCode.includes('ae.tagName === "INPUT" || ae.tagName === "TEXTAREA"'),
+  true,
+  "TvNav.tsx debe evitar interceptar Enter/OK cuando el usuario escribe en un input o textarea"
+);
+
+// NativeSourcePlayer NO debe interceptar k === 66 como play/pause
+const nativePlayerCode = fs.readFileSync(path.join(process.cwd(), "components/player/NativeSourcePlayer.tsx"), "utf8");
+assert.strictEqual(
+  nativePlayerCode.includes("k === 66"),
+  false,
+  "NativeSourcePlayer.tsx NO debe interceptar k === 66 como play/pause"
+);
+
+console.log("  ✓ Verificación estática exitosa: Logo y Reloj están excluidos, Clock es no-interactivo y tecla B (k=66) no es secuestrada");
 
 // -------------------------------------------------------------
 // 1. Simulación de entorno DOM para pruebas dinámicas
@@ -630,5 +653,75 @@ setVisualFocus(headerClock);
 assert.strictEqual(headerClock.focused, false, "headerClock no debe poder recibir foco visual");
 assert.strictEqual(headerClock.classList.contains("tv-focused"), false, "headerClock no debe tener clase tv-focused");
 console.log("  ✓ setVisualFocus protege el sistema impidiendo enfocar el logo o la hora");
+
+console.log("\n[TEST 7] Simulación de Eventos de Teclado (Tecla 'B' e Inputs)");
+
+// Simulación del handler onKeyDown de TvNav
+function simulateTvNavKeyDown(event, currentElement) {
+  let defaultPrevented = false;
+  let clicked = false;
+  const e = {
+    ...event,
+    preventDefault: () => { defaultPrevented = true; }
+  };
+  const k = e.keyCode;
+
+  // Botón Atrás
+  if (e.key === "GoBack" || k === 4 || k === 27 || k === 10009 || k === 461) {
+    e.preventDefault();
+    return { handled: true, defaultPrevented, clicked };
+  }
+
+  // Botón D-Pad Center / OK (Android keycode 23, Enter 13)
+  if (k === 23 || k === 13 || e.key === "Enter" || e.key === "Select") {
+    const ae = currentElement;
+    if (ae && ae.tagName !== "BODY") {
+      if (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA") {
+        return { handled: false, defaultPrevented, clicked };
+      }
+      ae.click();
+      clicked = true;
+      e.preventDefault();
+      return { handled: true, defaultPrevented, clicked };
+    }
+  }
+
+  return { handled: false, defaultPrevented, clicked };
+}
+
+const searchInput = new MockDOMElement("input", "search-input");
+
+// 1. Presionar la tecla 'B' física (keyCode: 66, key: 'b' o 'B') en un input
+let res = simulateTvNavKeyDown({ keyCode: 66, key: "b" }, searchInput);
+assert.strictEqual(res.defaultPrevented, false, "Pulsar 'b' (keyCode 66) en un input NO debe ejecutar preventDefault()");
+assert.strictEqual(res.clicked, false, "Pulsar 'b' (keyCode 66) NO debe simular click en el input");
+
+res = simulateTvNavKeyDown({ keyCode: 66, key: "B" }, searchInput);
+assert.strictEqual(res.defaultPrevented, false, "Pulsar 'B' (keyCode 66 con mayúscula) en un input NO debe ejecutar preventDefault()");
+assert.strictEqual(res.clicked, false, "Pulsar 'B' NO debe simular click");
+
+// 2. Presionar la tecla 'B' física en un botón
+res = simulateTvNavKeyDown({ keyCode: 66, key: "b" }, heroPlayBtn);
+assert.strictEqual(res.defaultPrevented, false, "Pulsar 'b' en un botón NO debe ejecutar preventDefault()");
+assert.strictEqual(res.clicked, false, "Pulsar 'b' en un botón NO debe activar el botón");
+
+// 3. Presionar Enter en un input (debe permitir submit/búsqueda nativa sin preventDefault de TvNav)
+res = simulateTvNavKeyDown({ keyCode: 13, key: "Enter" }, searchInput);
+assert.strictEqual(res.defaultPrevented, false, "Pulsar Enter en un input NO debe ser bloqueado con preventDefault() por TvNav");
+
+// 4. Presionar Enter o D-Pad Center (23) en un botón enfocado (debe ejecutar click y preventDefault)
+heroPlayBtn.clicked = false;
+res = simulateTvNavKeyDown({ keyCode: 13, key: "Enter" }, heroPlayBtn);
+assert.strictEqual(res.defaultPrevented, true, "Pulsar Enter en un botón debe ejecutar preventDefault()");
+assert.strictEqual(heroPlayBtn.clicked, true, "Pulsar Enter en un botón debe ejecutar click()");
+
+heroPlayBtn.clicked = false;
+res = simulateTvNavKeyDown({ keyCode: 23, key: "Select" }, heroPlayBtn);
+assert.strictEqual(res.defaultPrevented, true, "Pulsar D-Pad Center (23) en un botón debe ejecutar preventDefault()");
+assert.strictEqual(heroPlayBtn.clicked, true, "Pulsar D-Pad Center (23) en un botón debe ejecutar click()");
+
+console.log("  ✓ Tecla física 'B' (keyCode 66) no es interceptada y funciona en inputs y botones");
+console.log("  ✓ Enter en campos de texto (input/textarea) no es secuestrado por TvNav");
+console.log("  ✓ Enter y D-Pad Center en botones funcionan correctamente");
 
 console.log("\n=== TODAS LAS PRUEBAS DE NAVEGACIÓN Y EXCLUSIONES PASARON CON ÉXITO ===");

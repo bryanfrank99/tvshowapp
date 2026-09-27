@@ -390,10 +390,14 @@ export default function TvNav() {
         return;
       }
 
-      // Botón D-Pad Center / OK (Android keycode 23, Enter 13 o 66)
-      if (k === 23 || k === 13 || k === 66 || e.key === "Enter") {
+      // Botón D-Pad Center / OK (Android keycode 23, Enter 13)
+      if (k === 23 || k === 13 || e.key === "Enter" || e.key === "Select") {
         const ae = (document.querySelector(".tv-focused") || document.activeElement) as HTMLElement | null;
         if (ae && ae !== document.body) {
+          // Si el elemento es un input o textarea, NO interceptar Enter para permitir escribir/buscar nativamente
+          if (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA") {
+            return;
+          }
           // Si es un enlace o botón, ejecutar clic
           ae.click();
           e.preventDefault();

@@ -111,8 +111,8 @@ export default function NativeSourcePlayer({
 
       const k = e.keyCode;
 
-      // Play / Pause: DPAD_CENTER (23), Enter (13, 66), Space (32), MediaPlayPause (179)
-      if (k === 23 || k === 13 || k === 66 || k === 32 || k === 179 || e.key === "MediaPlayPause") {
+      // Play / Pause: DPAD_CENTER (23), Enter (13), Space (32), MediaPlayPause (179)
+      if (k === 23 || k === 13 || k === 32 || k === 179 || e.key === "MediaPlayPause") {
         // Solo interceptar si el foco está en el reproductor o la ventana
         if (!target || target === document.body || containerRef.current?.contains(target)) {
           e.preventDefault();
