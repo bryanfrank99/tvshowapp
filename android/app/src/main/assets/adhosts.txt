@@ -296,4 +296,7 @@ bc.game
 bcgame.im
 bcgame.ph
 bcgame.com
+a-ads.com
+acceptable.a-ads.com
+ad.a-ads.com
 

@@ -17,14 +17,45 @@ public class AdBlockWebViewClient extends BridgeWebViewClient {
         super(bridge);
     }
 
+    private static final byte[] BLANK_HTML = "<!DOCTYPE html><html><head><style>html,body{background:transparent!important;overflow:hidden;display:none!important;margin:0;padding:0;}</style></head><body></body></html>".getBytes();
+
     @Override
     public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
         try {
-            if (AdBlock.isBlocked(request.getUrl().toString())) {
-                return new WebResourceResponse("text/plain", "utf-8", new ByteArrayInputStream(new byte[0]));
+            if (request != null && request.getUrl() != null) {
+                String url = request.getUrl().toString();
+                if (AdBlock.isBlocked(url)) {
+                    // Retornar HTML transparente y colapsado para evitar pantalla de error "Webpage not available"
+                    return new WebResourceResponse("text/html", "UTF-8", new ByteArrayInputStream(BLANK_HTML));
+                }
             }
         } catch (Exception ignored) {}
         return super.shouldInterceptRequest(view, request);
+    }
+
+    @Override
+    public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) {
+        try {
+            if (request != null && request.getUrl() != null) {
+                String url = request.getUrl().toString();
+                if (AdBlock.isBlocked(url) || url.contains("a-ads") || url.contains("banner") || url.contains("lactamclaes")) {
+                    // Suprimir la página de error nativa "Webpage not available" para iframes publicitarios
+                    return;
+                }
+            }
+        } catch (Exception ignored) {}
+        super.onReceivedError(view, request, error);
+    }
+
+    @Override
+    public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+        try {
+            if (failingUrl != null && (AdBlock.isBlocked(failingUrl) || failingUrl.contains("a-ads") || failingUrl.contains("banner") || failingUrl.contains("lactamclaes"))) {
+                // Suprimir error para navegaciones de anuncios
+                return;
+            }
+        } catch (Exception ignored) {}
+        super.onReceivedError(view, errorCode, description, failingUrl);
     }
 
     private static boolean isAllowedHost(String host) {
@@ -60,10 +91,10 @@ public class AdBlockWebViewClient extends BridgeWebViewClient {
                 "    if (!st) {" +
                 "      st = document.createElement('style');" +
                 "      st.id = 'tvshow-adblock-cosmetic';" +
-                "      st.textContent = '[class*=\"banner\"],[id*=\"banner\"],[class*=\"overlay-ad\"],[id*=\"overlay-ad\"],[class*=\"video-ad\"],[class*=\"fluid_ad\"],[class*=\"vast\"],a[href*=\"bc.game\"],a[href*=\"bcgame\"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }';" +
+                "      st.textContent = '[class*=\"banner\"],[id*=\"banner\"],[class*=\"overlay-ad\"],[id*=\"overlay-ad\"],[class*=\"video-ad\"],[class*=\"fluid_ad\"],[class*=\"vast\"],iframe[src*=\"a-ads.com\"],iframe[src*=\"a-ads\"],[id*=\"a-ads\"],a[href*=\"bc.game\"],a[href*=\"bcgame\"] { display: none !important; visibility: hidden !important; width: 0 !important; height: 0 !important; pointer-events: none !important; }';" +
                 "      (document.head || document.documentElement).appendChild(st);" +
                 "    }" +
-                "    var ads = document.querySelectorAll('a[href*=\"bc.game\"], a[href*=\"bcgame\"], div[class*=\"banner\"], div[id*=\"banner\"], div[class*=\"overlay-ad\"]');" +
+                "    var ads = document.querySelectorAll('a[href*=\"bc.game\"], a[href*=\"bcgame\"], div[class*=\"banner\"], div[id*=\"banner\"], div[class*=\"overlay-ad\"], iframe[src*=\"a-ads\"]');" +
                 "    for (var i = 0; i < ads.length; i++) {" +
                 "      if (!ads[i].querySelector('video')) {" +
                 "        ads[i].style.setProperty('display', 'none', 'important');" +

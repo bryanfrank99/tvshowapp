@@ -39,6 +39,7 @@ public final class AdBlock {
         String lowerUrl = url.toLowerCase();
         if (lowerUrl.contains("bc.game") || lowerUrl.contains("bcgame") ||
             lowerUrl.contains("lactamclaes") || lowerUrl.contains("waust.at") ||
+            lowerUrl.contains("a-ads.com") || lowerUrl.contains("a-ads") ||
             lowerUrl.contains("magsrv.com") || lowerUrl.contains("syndication.exoclick") ||
             lowerUrl.contains("/vast.") || lowerUrl.contains("/vpaid.") ||
             lowerUrl.contains("/popads.") || lowerUrl.contains("ad_banner")) {

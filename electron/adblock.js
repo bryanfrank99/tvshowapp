@@ -49,6 +49,8 @@ function isBlocked(urlString) {
     lowerUrl.includes('betano') ||
     lowerUrl.includes('lactamclaes') ||
     lowerUrl.includes('waust.at') ||
+    lowerUrl.includes('a-ads.com') ||
+    lowerUrl.includes('a-ads') ||
     lowerUrl.includes('magsrv.com') ||
     lowerUrl.includes('syndication.exoclick.com') ||
     lowerUrl.includes('/vast.') ||

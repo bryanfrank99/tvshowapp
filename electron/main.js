@@ -205,11 +205,13 @@ function createMainWindow() {
                   hb.style.setProperty('pointer-events', 'none', 'important');
                   if (hb.parentNode) hb.parentNode.removeChild(hb);
                 }
-                var banners = document.querySelectorAll('a[href*="bc.game"], a[href*="bcgame"], a[href*="betano"], a[href*="lactamclaes"]');
+                var banners = document.querySelectorAll('a[href*="bc.game"], a[href*="bcgame"], a[href*="betano"], a[href*="lactamclaes"], iframe[src*="a-ads"], [id*="a-ads"]');
                 banners.forEach(function(b) {
                   if (b && !b.querySelector('video')) {
                     b.style.setProperty('display', 'none', 'important');
                     b.style.setProperty('pointer-events', 'none', 'important');
+                    b.style.setProperty('width', '0', 'important');
+                    b.style.setProperty('height', '0', 'important');
                   }
                 });
               };
@@ -234,6 +236,7 @@ function createMainWindow() {
                   [class*="ad_overlay"], [id*="ad_overlay"],
                   #player-external-click-hitbox,
                   a[href*="bc.game"], a[href*="bcgame"], a[href*="betano"], a[href*="casino"], a[href*="lactamclaes"],
+                  iframe[src*="a-ads.com"], iframe[src*="a-ads"], [id*="a-ads"], [class*="a-ads"],
                   iframe[src*="lactamclaes"], iframe[src*="waust"] {
                     display: none !important;
                     visibility: hidden !important;
