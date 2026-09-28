@@ -36,10 +36,12 @@ for (const url of testAdUrls) {
 }
 console.log("  ✓ Todas las URLs de redes de apuestas, a-ads y banners VAST fueron bloqueadas correctamente");
 
-// Verificar que hosts legítimos no estén bloqueados
 assert.strictEqual(isAllowedHost("tvshowapp.net"), true);
 assert.strictEqual(isAllowedHost("pipocacine.lat"), true);
 assert.strictEqual(isAllowedHost("redeflixapi.store"), true);
+assert.strictEqual(isAllowedHost("watchplay.shop"), true);
+assert.strictEqual(isAllowedHost("v1.watchplay.shop"), true);
+assert.strictEqual(isAllowedHost("vid7102402.hclod.qzz.io"), true);
 console.log("  ✓ Hosts legítimos de streaming permanecen permitidos");
 
 // 2. Verificar sincronización de listas en Android y Electron
@@ -65,14 +67,28 @@ assert.ok(electronMain.includes("automatic"), "electron/main.js debe usar modo a
 assert.ok(electronMain.includes("dns.adguard-dns.com"), "electron/main.js debe usar plantilla de AdGuard DoH");
 console.log("  ✓ Filtrado cosmético, defusers y AdGuard DoH automático validados en electron/main.js");
 
-// 4. Verificar filtrado y supresión de error en Android WebViewClient
+// 4. Verificar filtrado, defusers y paridad con Electron en Android WebViewClient
 const androidClient = fs.readFileSync(path.join(root, "android", "app", "src", "main", "java", "com", "tvshow", "app", "AdBlockWebViewClient.java"), "utf8");
 assert.ok(androidClient.includes("onPageFinished"), "AdBlockWebViewClient debe tener onPageFinished");
 assert.ok(androidClient.includes("tvshow-adblock-cosmetic"), "AdBlockWebViewClient debe inyectar estilo cosmético");
 assert.ok(androidClient.includes("onReceivedError"), "AdBlockWebViewClient debe suprimir onReceivedError para ads");
 assert.ok(androidClient.includes("background:transparent"), "AdBlockWebViewClient debe devolver HTML transparente");
 assert.ok(androidClient.includes("iframe[src*=\\\"a-ads"), "AdBlockWebViewClient debe colapsar iframes de a-ads");
-console.log("  ✓ Inyección cosmética y supresión de error validadas en Android AdBlockWebViewClient.java");
+// Paridad con Electron: defusers
+assert.ok(androidClient.includes("openExternalAd"), "AdBlockWebViewClient debe defusar openExternalAd");
+assert.ok(androidClient.includes("triggerExternalAd"), "AdBlockWebViewClient debe defusar triggerExternalAd");
+assert.ok(androidClient.includes("rfShouldCheckAdblock"), "AdBlockWebViewClient debe defusar rfShouldCheckAdblock");
+assert.ok(androidClient.includes("armExternalClickHitbox"), "AdBlockWebViewClient debe defusar armExternalClickHitbox");
+assert.ok(androidClient.includes("player-external-click-hitbox"), "AdBlockWebViewClient debe purgar el click hitbox");
+// Paridad con Electron: purga periódica y MutationObserver
+assert.ok(androidClient.includes("setInterval(purge, 400)"), "AdBlockWebViewClient debe purgar DOM periódicamente");
+assert.ok(androidClient.includes("MutationObserver"), "AdBlockWebViewClient debe usar MutationObserver para ads dinámicos");
+assert.ok(androidClient.includes("Object.defineProperty"), "AdBlockWebViewClient debe congelar propiedades de ad con defineProperty");
+// Paridad con Electron: selectores CSS completos
+assert.ok(androidClient.includes("floating-ad"), "AdBlockWebViewClient debe tener selector floating-ad");
+assert.ok(androidClient.includes("ad-overlay"), "AdBlockWebViewClient debe tener selector ad-overlay");
+assert.ok(androidClient.includes("adsbygoogle"), "AdBlockWebViewClient debe colapsar Google Adsense");
+console.log("  ✓ Inyección cosmética, defusers, MutationObserver y purga DOM validados en Android (paridad Electron)");
 
 // 5. Verificar AdBlock.java pattern matching
 const androidAdBlock = fs.readFileSync(path.join(root, "android", "app", "src", "main", "java", "com", "tvshow", "app", "AdBlock.java"), "utf8");
@@ -80,7 +96,8 @@ assert.ok(androidAdBlock.includes("bc.game"), "AdBlock.java debe comprobar bc.ga
 assert.ok(androidAdBlock.includes("lactamclaes"), "AdBlock.java debe comprobar lactamclaes");
 assert.ok(androidAdBlock.includes("a-ads"), "AdBlock.java debe comprobar a-ads");
 assert.ok(androidAdBlock.includes("magsrv.com"), "AdBlock.java debe comprobar magsrv.com");
-console.log("  ✓ Patrones de apuestas y VAST validados en AdBlock.java");
+assert.ok(androidAdBlock.includes("betano"), "AdBlock.java debe comprobar betano");
+console.log("  ✓ Patrones de apuestas, VAST y betano validados en AdBlock.java");
 
 // 6. Verificar Sandbox condicional en IframeSourcePlayer.tsx (para evitar romper servidores como S2 Embos)
 const playerCode = fs.readFileSync(path.join(root, "components", "player", "IframeSourcePlayer.tsx"), "utf8");

@@ -42,7 +42,8 @@ public final class AdBlock {
             lowerUrl.contains("a-ads.com") || lowerUrl.contains("a-ads") ||
             lowerUrl.contains("magsrv.com") || lowerUrl.contains("syndication.exoclick") ||
             lowerUrl.contains("/vast.") || lowerUrl.contains("/vpaid.") ||
-            lowerUrl.contains("/popads.") || lowerUrl.contains("ad_banner")) {
+            lowerUrl.contains("/popads.") || lowerUrl.contains("ad_banner") ||
+            lowerUrl.contains("betano")) {
             return true;
         }
 
