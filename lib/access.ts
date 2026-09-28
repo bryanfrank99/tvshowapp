@@ -195,6 +195,130 @@ export async function checkDeviceEligibility(
   return { eligible: true };
 }
 
+// Determina el estado de acceso de un dispositivo: activo, renovación (expirado/desactivado) o nuevo/eliminado
+export async function getDeviceAccessStatus(
+  deviceId?: string,
+  refCode?: string
+): Promise<{
+  status: "active" | "renewal" | "new_or_deleted";
+  reason?: "expired" | "revoked" | "not_found";
+  canEnterCode: boolean;
+  codeId?: string;
+  refCode?: string;
+  label?: string;
+  expiresAt?: string;
+}> {
+  const cleanDevId = (deviceId || "").trim().toUpperCase();
+  const cleanRef = (refCode || "").trim().toUpperCase();
+  const sb = supa();
+
+  // 1. Si no hay deviceId ni refCode, es un dispositivo nuevo sin registros
+  if (!cleanDevId && !cleanRef) {
+    return { status: "new_or_deleted", reason: "not_found", canEnterCode: true };
+  }
+
+  let codeRow: any = null;
+
+  try {
+    // 2. Buscar por device_id en bindings si está disponible
+    if (cleanDevId && cleanDevId !== "DEV-SERVER") {
+      if (hasDeviceBindingsTable !== false) {
+        try {
+          const { data: binding } = await sb
+            .from("device_bindings")
+            .select("code_id, access_codes(id, label, ref_code, expires_at, revoked, suspended_by_billing)")
+            .eq("device_id", cleanDevId)
+            .order("last_seen_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (binding && binding.access_codes) {
+            codeRow = binding.access_codes;
+          }
+        } catch {}
+      }
+
+      // Fallback a tabla config (dev_bind:<id>)
+      if (!codeRow) {
+        try {
+          const configKey = `dev_bind:${cleanDevId}`;
+          const { data: configRow } = await sb.from("config").select("value").eq("key", configKey).maybeSingle();
+          if (configRow && configRow.value) {
+            const parsed = JSON.parse(configRow.value);
+            if (parsed.codeId) {
+              const { data: c } = await sb
+                .from("access_codes")
+                .select("id, label, ref_code, expires_at, revoked, suspended_by_billing")
+                .eq("id", parsed.codeId)
+                .maybeSingle();
+              if (c) codeRow = c;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // 3. Si no se encontró por deviceId, buscar por refCode en access_codes
+    if (!codeRow && cleanRef) {
+      const { data: c } = await sb
+        .from("access_codes")
+        .select("id, label, ref_code, expires_at, revoked, suspended_by_billing")
+        .eq("ref_code", cleanRef)
+        .maybeSingle();
+      if (c) codeRow = c;
+    }
+  } catch (err) {
+    console.warn("getDeviceAccessStatus error:", err);
+  }
+
+  // 4. Si la clave no se encontró en la BD (porque fue eliminada o nunca existió):
+  if (!codeRow) {
+    return {
+      status: "new_or_deleted",
+      reason: "not_found",
+      canEnterCode: true,
+    };
+  }
+
+  // 5. La clave existe en la BD. Determinar si está en modo renovación o activa:
+  const isRevoked = codeRow.revoked === true || codeRow.suspended_by_billing === true;
+  const isExpired = new Date(codeRow.expires_at).getTime() <= Date.now();
+
+  if (isRevoked) {
+    return {
+      status: "renewal",
+      reason: "revoked",
+      canEnterCode: false,
+      codeId: codeRow.id,
+      refCode: codeRow.ref_code,
+      label: codeRow.label,
+      expiresAt: codeRow.expires_at,
+    };
+  }
+
+  if (isExpired) {
+    return {
+      status: "renewal",
+      reason: "expired",
+      canEnterCode: false,
+      codeId: codeRow.id,
+      refCode: codeRow.ref_code,
+      label: codeRow.label,
+      expiresAt: codeRow.expires_at,
+    };
+  }
+
+  // 6. Clave activa (ej. recién renovada por el admin en el panel)
+  return {
+    status: "active",
+    canEnterCode: false,
+    codeId: codeRow.id,
+    refCode: codeRow.ref_code,
+    label: codeRow.label,
+    expiresAt: codeRow.expires_at,
+  };
+}
+
 export async function bindDeviceToCode(
   deviceId: string,
   codeId: string,
