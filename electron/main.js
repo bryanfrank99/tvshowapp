@@ -7,8 +7,10 @@ const { desktopUpdater } = require('./updater');
 // Inicializar base de datos de hosts de anuncios
 initAdBlock();
 
-// Habilitar características de extensiones Manifest V3 en Chromium
-app.commandLine.appendSwitch('enable-features', 'ExtensionManifestV3,ExtensionServiceWorker');
+// Habilitar características de extensiones Manifest V3 y DNS-over-HTTPS (AdGuard DoH con fallback automático al DNS del sistema)
+app.commandLine.appendSwitch('enable-features', 'DnsOverHttps,ExtensionManifestV3,ExtensionServiceWorker');
+app.commandLine.appendSwitch('dns-over-https-mode', 'automatic');
+app.commandLine.appendSwitch('dns-over-https-templates', 'https://dns.adguard-dns.com/dns-query{?dns}');
 
 // Carga automática de extensiones Chromium por defecto (uBlock Origin Lite)
 async function loadDefaultExtensions() {

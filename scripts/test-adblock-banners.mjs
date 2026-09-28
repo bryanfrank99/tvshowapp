@@ -59,8 +59,11 @@ assert.ok(electronMain.includes('[class*="banner"]'), "electron/main.js debe inc
 assert.ok(electronMain.includes('a[href*="bc.game"]'), "electron/main.js debe incluir selectores de bc.game");
 assert.ok(electronMain.includes('iframe[src*="a-ads.com"]'), "electron/main.js debe incluir selector de colapso para a-ads.com");
 assert.ok(electronMain.includes("player-external-click-hitbox"), "electron/main.js debe neutralizar el hitbox");
-assert.ok(electronMain.includes("openExternalAd"), "electron/main.js debe defusar openExternalAd");
-console.log("  ✓ Filtrado cosmético y defusers validados en electron/main.js");
+assert.ok(electronMain.includes("DnsOverHttps"), "electron/main.js debe habilitar DnsOverHttps");
+assert.ok(electronMain.includes("dns-over-https-mode"), "electron/main.js debe configurar dns-over-https-mode");
+assert.ok(electronMain.includes("automatic"), "electron/main.js debe usar modo automatic para fallback al DNS del sistema");
+assert.ok(electronMain.includes("dns.adguard-dns.com"), "electron/main.js debe usar plantilla de AdGuard DoH");
+console.log("  ✓ Filtrado cosmético, defusers y AdGuard DoH automático validados en electron/main.js");
 
 // 4. Verificar filtrado y supresión de error en Android WebViewClient
 const androidClient = fs.readFileSync(path.join(root, "android", "app", "src", "main", "java", "com", "tvshow", "app", "AdBlockWebViewClient.java"), "utf8");
