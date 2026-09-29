@@ -104,6 +104,56 @@ export async function PUT(req: NextRequest) {
     b = await req.json();
   } catch {}
 
+  // Acción 0: Probar URL o lista de disponibilidad de catálogo
+  if (b.action === "test_availability") {
+    const url = String(b.url || "").trim();
+    const type = b.type === "tv" ? "tv" : "movie";
+    const tmdbId = String(b.tmdbId || (type === "tv" ? "1396" : "969681")).trim();
+    const s = b.season ? parseInt(b.season, 10) : 1;
+    const e = b.episode ? parseInt(b.episode, 10) : 1;
+
+    if (!url) {
+      return NextResponse.json({ error: "Falta la URL para probar" }, { status: 400 });
+    }
+
+    try {
+      const { isRedeflixAvailable, isProbeUrl, interpolateProbeUrl } = await import("@/lib/redeflix-availability");
+
+      const probe = isProbeUrl(url);
+      const effectiveUrl = probe
+        ? interpolateProbeUrl(url, { id: tmdbId, season: s, episode: e })
+        : url;
+
+      const isAvail = await isRedeflixAvailable({
+        type,
+        tmdbId,
+        season: s,
+        episode: e,
+        movieListUrl: type === "movie" ? url : undefined,
+        tvListUrl: type === "tv" ? url : undefined,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        available: isAvail,
+        isProbe: probe,
+        testedUrl: effectiveUrl,
+        type,
+        tmdbId,
+        season: type === "tv" ? s : undefined,
+        episode: type === "tv" ? e : undefined,
+      });
+    } catch (err: any) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: err?.message || "Error al verificar disponibilidad",
+        },
+        { status: 500 }
+      );
+    }
+  }
+
   // Acción 1A: Guardar sistema multicapa de prioridades por idioma
   if (b.action === "save_priorities_by_lang" || b.provider_priorities_by_lang) {
     const payload = b.provider_priorities_by_lang || {};

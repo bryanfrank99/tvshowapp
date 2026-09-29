@@ -479,6 +479,16 @@ export default function AdminPage() {
   const [healthData, setHealthData] = useState<Record<string, { status: string; latencyMs: number; error?: string }> | null>(null);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
+  // Comprobación de disponibilidad de catálogo en tiempo real
+  const [testingAvail, setTestingAvail] = useState<string | null>(null);
+  const [testAvailResult, setTestAvailResult] = useState<{
+    url: string;
+    available?: boolean;
+    error?: string;
+    testedUrl?: string;
+    isProbe?: boolean;
+  } | null>(null);
+
   const runHealthCheck = async () => {
     setIsCheckingHealth(true);
     setMsg(d.prov_diagnosing);
@@ -531,6 +541,47 @@ export default function AdminPage() {
       );
     } finally {
       setIsCheckingHealth(false);
+    }
+  };
+
+  const testAvailabilityUrl = async (url: string, type: "movie" | "tv") => {
+    if (!url) return;
+    setTestingAvail(url);
+    setTestAvailResult(null);
+    try {
+      const res = await api("providers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test_availability",
+          url,
+          type,
+          tmdbId: type === "tv" ? "1396" : "969681",
+          season: 1,
+          episode: 1,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setTestAvailResult({
+          url,
+          available: !!data.available,
+          testedUrl: data.testedUrl,
+          isProbe: !!data.isProbe,
+        });
+      } else {
+        setTestAvailResult({
+          url,
+          error: data?.error || "Error al verificar disponibilidad",
+        });
+      }
+    } catch (e: any) {
+      setTestAvailResult({
+        url,
+        error: e?.message || "Error de conexión",
+      });
+    } finally {
+      setTestingAvail(null);
     }
   };
 
@@ -2469,40 +2520,141 @@ export default function AdminPage() {
                 className={`${inp} font-mono`}
               />
 
-              {/* Listas de Disponibilidad de Catálogo (Opcional) */}
-              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-2.5">
-                <div className="flex items-center justify-between">
+              {/* Comprobación de Disponibilidad de Catálogo (Opcional) */}
+              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="font-bold text-xs text-white flex items-center gap-1.5">
                     <span>📋</span>
-                    <span>Listas de Disponibilidad de Catálogo (Opcional)</span>
+                    <span>Comprobación de Disponibilidad de Catálogo (Opcional)</span>
                   </span>
-                  <span className="text-[10px] text-zinc-400">Verificación dinámica de IDs</span>
+                  <span className="text-[10px] bg-blue-500/15 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-medium">
+                    Listas en lote, JSON completo, APIs o Links de comprobación
+                  </span>
                 </div>
-                <p className="text-[11px] text-zinc-400">
-                  Si se configuran, el servidor solo aparecerá al usuario cuando el contenido esté presente en estas listas:
-                </p>
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Películas (TXT con IDs TMDB):</label>
+                <div className="text-[11px] text-zinc-400 space-y-1">
+                  <p>
+                    Configura cómo verificar si el servidor dispone de un título antes de mostrarlo a los usuarios. Se admiten:
+                  </p>
+                  <ul className="list-disc pl-4 space-y-0.5 text-zinc-400">
+                    <li>
+                      <b className="text-zinc-300">Link de comprobación puntual (Probe URL / API):</b> ej. <code className="text-[#008CFF] font-mono text-[10px]">https://v2.watchplay.shop/movie/&#123;id&#125;</code> y <code className="text-[#008CFF] font-mono text-[10px]">https://v2.watchplay.shop/tvshow/&#123;id&#125;/&#123;s&#125;/&#123;e&#125;</code> (o con IDs de ejemplo como <code className="text-zinc-300 font-mono text-[10px]">.../movie/969681</code>).
+                    </li>
+                    <li>
+                      <b className="text-zinc-300">Lista completa en lote (TXT / JSON):</b> ej. <code className="text-[#008CFF] font-mono text-[10px]">https://redeflixapi.store/list-movie-ids.txt</code> (archivos con líneas de IDs o JSON con arrays/objetos de catálogo).
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="space-y-3 pt-1">
+                  {/* Campo Películas */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-zinc-400 font-medium">
+                        URL Disponibilidad Películas (Probe URL o lista TXT/JSON):
+                      </label>
+                      {edit.movie_list_url && (
+                        <button
+                          type="button"
+                          disabled={testingAvail === edit.movie_list_url}
+                          onClick={() => testAvailabilityUrl(edit.movie_list_url!, "movie")}
+                          className="text-[10px] text-[#008CFF] hover:underline font-bold cursor-pointer disabled:opacity-50"
+                        >
+                          {testingAvail === edit.movie_list_url ? "⏳ Probando..." : "🔍 Probar Película (969681)"}
+                        </button>
+                      )}
+                    </div>
                     <input
                       value={edit.movie_list_url || ""}
-                      onChange={(e) => setEdit({ ...edit, movie_list_url: e.target.value })}
-                      placeholder="https://servidor.com/list-movie-ids.txt"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEdit({ ...edit, movie_list_url: val });
+                        if (testAvailResult?.url !== val) setTestAvailResult(null);
+                      }}
+                      placeholder="https://v2.watchplay.shop/movie/{id} o https://servidor.com/list-movie-ids.txt"
                       className={`${inp} font-mono text-xs`}
                     />
+                    {testAvailResult && testAvailResult.url === edit.movie_list_url && (
+                      <div className={`p-2 rounded-lg text-[11px] font-medium border flex items-center justify-between gap-2 ${
+                        testAvailResult.error
+                          ? "bg-red-500/10 border-red-500/30 text-red-300"
+                          : testAvailResult.available
+                          ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                          : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                      }`}>
+                        <div>
+                          {testAvailResult.error ? (
+                            <span>✕ Error al probar: {testAvailResult.error}</span>
+                          ) : testAvailResult.available ? (
+                            <span>✓ Título disponible ({testAvailResult.isProbe ? "Probe HTTP 200 OK" : "Encontrado en catálogo"})</span>
+                          ) : (
+                            <span>✕ No disponible ({testAvailResult.isProbe ? "Probe HTTP 404 / No encontrado" : "No encontrado en catálogo"})</span>
+                          )}
+                          {testAvailResult.testedUrl && (
+                            <div className="text-[10px] opacity-75 font-mono truncate max-w-md mt-0.5">
+                              Probado: {testAvailResult.testedUrl}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Series (JSON con IDs y episodios):</label>
+
+                  {/* Campo Series */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-zinc-400 font-medium">
+                        URL Disponibilidad Series (Probe URL {`{id}/{s}/{e}`} o lista JSON/TXT):
+                      </label>
+                      {edit.tv_list_url && (
+                        <button
+                          type="button"
+                          disabled={testingAvail === edit.tv_list_url}
+                          onClick={() => testAvailabilityUrl(edit.tv_list_url!, "tv")}
+                          className="text-[10px] text-[#008CFF] hover:underline font-bold cursor-pointer disabled:opacity-50"
+                        >
+                          {testingAvail === edit.tv_list_url ? "⏳ Probando..." : "🔍 Probar Serie (1396/1/1)"}
+                        </button>
+                      )}
+                    </div>
                     <input
                       value={edit.tv_list_url || ""}
-                      onChange={(e) => setEdit({ ...edit, tv_list_url: e.target.value })}
-                      placeholder="https://servidor.com/list-tv-ids.txt"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEdit({ ...edit, tv_list_url: val });
+                        if (testAvailResult?.url !== val) setTestAvailResult(null);
+                      }}
+                      placeholder="https://v2.watchplay.shop/tvshow/{id}/{s}/{e} o https://servidor.com/list-tv-ids.txt"
                       className={`${inp} font-mono text-xs`}
                     />
+                    {testAvailResult && testAvailResult.url === edit.tv_list_url && (
+                      <div className={`p-2 rounded-lg text-[11px] font-medium border flex items-center justify-between gap-2 ${
+                        testAvailResult.error
+                          ? "bg-red-500/10 border-red-500/30 text-red-300"
+                          : testAvailResult.available
+                          ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                          : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                      }`}>
+                        <div>
+                          {testAvailResult.error ? (
+                            <span>✕ Error al probar: {testAvailResult.error}</span>
+                          ) : testAvailResult.available ? (
+                            <span>✓ Episodio disponible ({testAvailResult.isProbe ? "Probe HTTP 200 OK" : "Encontrado en catálogo"})</span>
+                          ) : (
+                            <span>✕ No disponible ({testAvailResult.isProbe ? "Probe HTTP 404 / No encontrado" : "No encontrado en catálogo"})</span>
+                          )}
+                          {testAvailResult.testedUrl && (
+                            <div className="text-[10px] opacity-75 font-mono truncate max-w-md mt-0.5">
+                              Probado: {testAvailResult.testedUrl}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Animes (JSON, opcional):</label>
+                      <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Animes (JSON/TXT, opcional):</label>
                       <input
                         value={edit.anime_list_url || ""}
                         onChange={(e) => setEdit({ ...edit, anime_list_url: e.target.value })}
@@ -2511,7 +2663,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Doramas (JSON, opcional):</label>
+                      <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Doramas (JSON/TXT, opcional):</label>
                       <input
                         value={edit.dorama_list_url || ""}
                         onChange={(e) => setEdit({ ...edit, dorama_list_url: e.target.value })}
