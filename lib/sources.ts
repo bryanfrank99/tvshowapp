@@ -104,23 +104,41 @@ export function scoreSourceForUser(
 
 /**
  * Ordena las fuentes de mayor a menor prioridad según el idioma del usuario y la preferencia administrativa.
- * Si el administrador definió un servidor prioritario para userLang, este recibe la posición 1.
+ * Si el administrador definió una lista de prioridades para userLang ([p1, p2, p3...]), se ordenan según su posición.
+ * Soporta tanto string individual como array multicapa de prioridades.
  * Garantiza estabilidad de orden si las puntuaciones son iguales.
  */
 export function sortSourcesByPriority(
   sources: Source[],
   userLang: string,
-  primaryByLang?: Record<string, string>
+  primaryByLang?: Record<string, string> | Record<string, string[] | string>
 ): Source[] {
   const cleanLang = (userLang || "").toLowerCase().trim();
-  const primaryProviderId = primaryByLang?.[cleanLang] || "";
+  const rawPreference = primaryByLang?.[cleanLang];
+
+  const priorityList: string[] = Array.isArray(rawPreference)
+    ? rawPreference
+    : typeof rawPreference === "string" && rawPreference.trim()
+    ? [rawPreference.trim()]
+    : [];
+
+  const rankMap = new Map<string, number>();
+  priorityList.forEach((pid, idx) => {
+    if (pid && !rankMap.has(pid)) {
+      rankMap.set(pid, idx);
+    }
+  });
 
   return [...sources].sort((a, b) => {
-    // 0. Si el administrador definió un servidor prioritario explícito para este idioma
-    if (primaryProviderId) {
-      const isAPrimary = (a.providerId || a.id) === primaryProviderId;
-      const isBPrimary = (b.providerId || b.id) === primaryProviderId;
-      if (isAPrimary !== isBPrimary) {
+    // 0. Si el administrador definió una o más prioridades explícitas para este idioma
+    if (rankMap.size > 0) {
+      const idA = a.providerId || a.id;
+      const idB = b.providerId || b.id;
+      const rankA = rankMap.has(idA) ? rankMap.get(idA)! : Infinity;
+      const rankB = rankMap.has(idB) ? rankMap.get(idB)! : Infinity;
+
+      if (rankA !== rankB) {
+        const isAPrimary = rankA < rankB;
         return isAPrimary ? -1 : 1;
       }
     }
@@ -146,7 +164,7 @@ export function sortSourcesByPriority(
 export function findBestSource(
   sources: Source[],
   userLang: string,
-  primaryByLang?: Record<string, string>
+  primaryByLang?: Record<string, string> | Record<string, string[] | string>
 ): Source | undefined {
   if (!sources || sources.length === 0) return undefined;
   const sorted = sortSourcesByPriority(sources, userLang, primaryByLang);

@@ -158,125 +158,257 @@ function isLifetime(dateStr?: string | null): boolean {
   return new Date(dateStr).getFullYear() >= 2099;
 }
 
-function PrimaryServerSelect({
-  langKey,
-  langLabel,
-  value,
-  onChange,
+function LanguagePriorityManager({
+  prioritiesByLang,
+  onChangePriorities,
   provs,
+  lang,
 }: {
-  langKey: "es" | "pt" | "en";
-  langLabel: string;
-  value: string;
-  onChange: (val: string) => void;
+  prioritiesByLang: { es: string[]; pt: string[]; en: string[] };
+  onChangePriorities: (next: { es: string[]; pt: string[]; en: string[] }) => void;
   provs: Prov[];
+  lang: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    if (open) {
-      document.addEventListener("mousedown", handleOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open]);
+  const [activeTab, setActiveTab] = useState<"es" | "pt" | "en">("es");
+  const [selectedToAdd, setSelectedToAdd] = useState<string>("");
 
   const activeProvs = provs.filter((p) => p.active);
-  const selectedProv = activeProvs.find((p) => p.id === value);
+  const currentList = prioritiesByLang[activeTab] || [];
+
+  // Proveedores que aún no están en la lista de prioridades de este idioma
+  const unprioritizedProvs = activeProvs.filter((p) => !currentList.includes(p.id));
+
+  const handleMove = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= currentList.length) return;
+    const nextList = [...currentList];
+    const [moved] = nextList.splice(fromIndex, 1);
+    nextList.splice(toIndex, 0, moved);
+    onChangePriorities({
+      ...prioritiesByLang,
+      [activeTab]: nextList,
+    });
+  };
+
+  const handleRemove = (index: number) => {
+    const nextList = currentList.filter((_, i) => i !== index);
+    onChangePriorities({
+      ...prioritiesByLang,
+      [activeTab]: nextList,
+    });
+  };
+
+  const handleAdd = () => {
+    if (!selectedToAdd) return;
+    if (currentList.includes(selectedToAdd)) return;
+    const nextList = [...currentList, selectedToAdd];
+    onChangePriorities({
+      ...prioritiesByLang,
+      [activeTab]: nextList,
+    });
+    setSelectedToAdd("");
+  };
+
+  const handleClear = () => {
+    onChangePriorities({
+      ...prioritiesByLang,
+      [activeTab]: [],
+    });
+  };
+
+  const langTabs = [
+    { key: "es" as const, label: "Español (ES)" },
+    { key: "pt" as const, label: "Português (PT)" },
+    { key: "en" as const, label: "English (EN)" },
+  ];
 
   return (
-    <div ref={ref} className="relative p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2 hover:border-white/20 transition">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FlagIcon lang={langKey} className="w-5 h-3.5 rounded-sm border border-white/20 shadow-xs" />
-          <span className="text-xs font-bold text-white tracking-wide">{langLabel}</span>
-        </div>
-        {value ? (
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
-            Fijado
-          </span>
-        ) : (
-          <span className="text-[10px] text-zinc-500 font-medium">Auto</span>
+    <div className="space-y-4">
+      {/* Selector de pestañas por idioma */}
+      <div className="flex items-center gap-2 border-b border-white/10 pb-2 flex-wrap">
+        {langTabs.map((t) => {
+          const count = (prioritiesByLang[t.key] || []).length;
+          const isActive = activeTab === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => {
+                setActiveTab(t.key);
+                setSelectedToAdd("");
+              }}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                isActive
+                  ? "bg-[#008CFF] text-white border-[#008CFF] shadow-sm shadow-[#008CFF]/20"
+                  : "bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <FlagIcon lang={t.key} className="w-4 h-3 rounded-xs border border-white/20" />
+              <span>{t.label}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                  isActive ? "bg-white/20 text-white" : "bg-white/10 text-zinc-400"
+                }`}
+              >
+                {count > 0 ? `${count} ${lang === "en" ? "ranked" : "priorizados"}` : "Auto"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Explicación contextual del idioma seleccionado */}
+      <div className="flex items-center justify-between gap-2 text-xs text-zinc-400 flex-wrap">
+        <span>
+          {lang === "en"
+            ? `Configured priority order for ${activeTab.toUpperCase()}: Server #1 plays first. If unavailable or failing, next priorities are used automatically.`
+            : lang === "pt"
+            ? `Ordem de prioridade para ${activeTab.toUpperCase()}: O servidor #1 toca primeiro; se indisponível ou falhar, o sistema passa automaticamente para os seguintes.`
+            : `Orden de prioridad para ${activeTab.toUpperCase()}: El servidor #1 se reproducirá primero; si no dispone del contenido o falla, pasará automáticamente a los siguientes.`}
+        </span>
+        {currentList.length > 0 && (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="text-[11px] text-zinc-500 hover:text-red-400 transition cursor-pointer shrink-0"
+          >
+            {lang === "en" ? "Reset to Auto" : lang === "pt" ? "Restaurar para Auto" : "Restablecer a Auto"}
+          </button>
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-[#12121c] hover:bg-[#181826] border border-white/15 hover:border-white/30 text-left text-xs transition cursor-pointer group focus:outline-none focus:ring-2 focus:ring-[#008CFF]"
-      >
-        <span className="truncate flex items-center gap-2">
-          {selectedProv ? (
-            <>
-              <span className="font-mono font-bold text-[#008CFF] bg-[#008CFF]/15 px-1.5 py-0.5 rounded text-[11px]">
-                {selectedProv.simulated_name || `S${selectedProv.ord}`}
-              </span>
-              <span className="font-bold text-white">{selectedProv.real_name || selectedProv.name}</span>
-            </>
-          ) : (
-            <span className="text-zinc-400 italic">Predeterminado (Automático por afinidad)</span>
-          )}
-        </span>
-        <span className="text-zinc-400 text-xs group-hover:text-white transition ml-2 shrink-0">
-          {open ? "▲" : "▼"}
-        </span>
-      </button>
+      {/* Lista ordenada de servidores priorizados */}
+      {currentList.length === 0 ? (
+        <div className="p-4 rounded-xl border border-dashed border-white/15 bg-white/[0.02] text-center text-xs text-zinc-500">
+          <p>
+            {lang === "en"
+              ? "No manual priority list defined for this language. Servers will be ordered automatically by affinity and stability."
+              : lang === "pt"
+              ? "Nenhuma prioridade manual configurada para este idioma. Os servidores serão ordenados automaticamente por afinidade e estabilidade."
+              : "Sin lista de prioridades manual para este idioma. Los servidores se ordenarán automáticamente según afinidad lingüística y estabilidad."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {currentList.map((provId, index) => {
+            const p = activeProvs.find((x) => x.id === provId) || provs.find((x) => x.id === provId);
+            const isFirst = index === 0;
+            const isLast = index === currentList.length - 1;
+            const simName = p?.simulated_name || (p?.ord ? `S${p.ord}` : "S-");
 
-      {open && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl bg-[#141420] border border-white/20 shadow-2xl p-1.5 max-h-60 overflow-y-auto space-y-1">
-          {/* Opción predeterminada */}
-          <button
-            type="button"
-            onClick={() => {
-              onChange("");
-              setOpen(false);
-            }}
-            className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition text-left cursor-pointer ${
-              !value
-                ? "bg-[#008CFF]/20 text-white font-bold border border-[#008CFF]/40"
-                : "text-zinc-300 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-zinc-400">⚡</span>
-              <span>Predeterminado (Automático por afinidad)</span>
-            </div>
-            {!value && <span className="text-[#008CFF] font-bold">✓</span>}
-          </button>
-
-          {/* Opciones de servidores */}
-          {activeProvs.map((p) => {
-            const isSelected = p.id === value;
             return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  onChange(p.id);
-                  setOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition text-left cursor-pointer ${
-                  isSelected
-                    ? "bg-[#008CFF]/20 text-white font-bold border border-[#008CFF]/40"
-                    : "text-zinc-300 hover:bg-white/10 hover:text-white"
-                }`}
+              <div
+                key={provId}
+                className="flex items-center justify-between p-3 rounded-xl bg-[#12121c] border border-white/10 hover:border-white/20 transition gap-3"
               >
-                <div className="flex items-center gap-2 truncate">
-                  <span className="font-mono font-bold text-[#008CFF] bg-[#008CFF]/15 px-1.5 py-0.5 rounded text-[10px]">
-                    {p.simulated_name || `S${p.ord}`}
+                <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+                  <span
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black tracking-wide shrink-0 ${
+                      index === 0
+                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                        : index === 1
+                        ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
+                        : "bg-white/10 text-zinc-300 border border-white/15"
+                    }`}
+                  >
+                    #{index + 1} {lang === "en" ? `Priority ${index + 1}` : lang === "pt" ? `Prioridade ${index + 1}` : `Prioridad ${index + 1}`}
                   </span>
-                  <span className="text-white truncate font-medium">{p.real_name || p.name}</span>
+                  <span className="font-mono font-bold text-[#008CFF] bg-[#008CFF]/15 px-2 py-0.5 rounded text-xs shrink-0">
+                    {simName}
+                  </span>
+                  <b className="text-white text-xs truncate">
+                    {p?.real_name || p?.name || provId}
+                  </b>
+                  {p?.lang && (
+                    <span className="text-[10px] text-zinc-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 uppercase shrink-0">
+                      {p.lang}
+                    </span>
+                  )}
+                  {index === 0 && (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold shrink-0">
+                      ⭐ {lang === "en" ? "Top 1" : "Principal"}
+                    </span>
+                  )}
                 </div>
-                {isSelected && <span className="text-[#008CFF] font-bold">✓</span>}
-              </button>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    disabled={isFirst}
+                    onClick={() => handleMove(index, index - 1)}
+                    className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-xs text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer flex items-center justify-center font-bold"
+                    title={lang === "en" ? "Move up" : lang === "pt" ? "Subir prioridade" : "Subir prioridad"}
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isLast}
+                    onClick={() => handleMove(index, index + 1)}
+                    className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-xs text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer flex items-center justify-center font-bold"
+                    title={lang === "en" ? "Move down" : lang === "pt" ? "Descer prioridade" : "Bajar prioridad"}
+                  >
+                    ▼
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(index)}
+                    className="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-xs text-red-300 hover:text-red-200 transition cursor-pointer flex items-center justify-center font-bold ml-1"
+                    title={lang === "en" ? "Remove" : lang === "pt" ? "Remover" : "Quitar de prioridades"}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
+      )}
+
+      {/* Control para agregar servidores a la lista de prioridades */}
+      {unprioritizedProvs.length > 0 ? (
+        <div className="flex items-center gap-2 pt-1 flex-wrap">
+          <select
+            value={selectedToAdd}
+            onChange={(e) => setSelectedToAdd(e.target.value)}
+            className="flex-1 min-w-[200px] bg-[#12121c] border border-white/15 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#008CFF] transition"
+          >
+            <option value="" className="bg-[#141420] text-zinc-400">
+              {lang === "en"
+                ? "-- Select server to add to priority list --"
+                : lang === "pt"
+                ? "-- Selecionar servidor para adicionar à prioridade --"
+                : "-- Seleccionar servidor para añadir a la prioridad --"}
+            </option>
+            {unprioritizedProvs.map((p) => (
+              <option key={p.id} value={p.id} className="bg-[#141420] text-white">
+                {p.simulated_name || `S${p.ord}`} - {p.real_name || p.name} ({p.lang || "multi"})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={!selectedToAdd}
+            className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer flex items-center gap-1.5"
+          >
+            <span>+</span>
+            <span>
+              {lang === "en"
+                ? "Add Server"
+                : lang === "pt"
+                ? "Adicionar Servidor"
+                : "Añadir a Prioridades"}
+            </span>
+          </button>
+        </div>
+      ) : (
+        <p className="text-[11px] text-zinc-500 italic pt-1">
+          ✓ {lang === "en"
+            ? "All active servers have been added to this language's priority order."
+            : lang === "pt"
+            ? "Todos os servidores ativos foram adicionados à ordem de prioridade deste idioma."
+            : "Todos los servidores activos han sido añadidos al orden de prioridad de este idioma."}
+        </p>
       )}
     </div>
   );
@@ -324,6 +456,11 @@ export default function AdminPage() {
 
   const [provs, setProvs] = useState<Prov[]>([]);
   const [primaryByLang, setPrimaryByLang] = useState<{ es: string; pt: string; en: string }>({ es: "", pt: "", en: "" });
+  const [prioritiesByLang, setPrioritiesByLang] = useState<{ es: string[]; pt: string[]; en: string[] }>({
+    es: [],
+    pt: [],
+    en: [],
+  });
   const [savingPrimary, setSavingPrimary] = useState(false);
   const [savedPrimaryMsg, setSavedPrimaryMsg] = useState("");
   const [live, setLive] = useState<Live[]>([]);
@@ -498,6 +635,19 @@ export default function AdminPage() {
         if (p) {
           setProvs(p.providers || []);
           setVersion(p.version || "");
+          if (p.provider_priorities_by_lang) {
+            setPrioritiesByLang({
+              es: Array.isArray(p.provider_priorities_by_lang.es) ? p.provider_priorities_by_lang.es : [],
+              pt: Array.isArray(p.provider_priorities_by_lang.pt) ? p.provider_priorities_by_lang.pt : [],
+              en: Array.isArray(p.provider_priorities_by_lang.en) ? p.provider_priorities_by_lang.en : [],
+            });
+          } else if (p.primary_providers_by_lang) {
+            setPrioritiesByLang({
+              es: p.primary_providers_by_lang.es ? [p.primary_providers_by_lang.es] : [],
+              pt: p.primary_providers_by_lang.pt ? [p.primary_providers_by_lang.pt] : [],
+              en: p.primary_providers_by_lang.en ? [p.primary_providers_by_lang.en] : [],
+            });
+          }
           if (p.primary_providers_by_lang) {
             setPrimaryByLang({
               es: p.primary_providers_by_lang.es || "",
@@ -990,7 +1140,7 @@ export default function AdminPage() {
     } else setMsg(lang === "en" ? "Error saving server" : lang === "pt" ? "Erro ao salvar servidor" : "Error guardando servidor");
   };
 
-  const savePrimaryByLang = async () => {
+  const savePrioritiesByLang = async () => {
     setSavingPrimary(true);
     setSavedPrimaryMsg("");
     try {
@@ -998,17 +1148,17 @@ export default function AdminPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "save_primary_by_lang",
-          primary_providers_by_lang: primaryByLang,
+          action: "save_priorities_by_lang",
+          provider_priorities_by_lang: prioritiesByLang,
         }),
       });
       if (r.ok) {
         setSavedPrimaryMsg(
           lang === "en"
-            ? "Primary servers saved!"
+            ? "Server priorities saved successfully!"
             : lang === "pt"
-            ? "Servidores prioritários salvos!"
-            : "¡Servidores prioritarios guardados!"
+            ? "Prioridades de servidores salvas com sucesso!"
+            : "¡Prioridades de servidores guardadas con éxito!"
         );
         setTimeout(() => setSavedPrimaryMsg(""), 3500);
       } else {
@@ -1022,6 +1172,8 @@ export default function AdminPage() {
       setSavingPrimary(false);
     }
   };
+
+  const savePrimaryByLang = savePrioritiesByLang;
 
   const saveLive = async () => {
     const listVal = editLive?.list_url || editLive?.list;
@@ -2060,9 +2212,9 @@ export default function AdminPage() {
               </div>
               <button
                 type="button"
-                onClick={savePrimaryByLang}
+                onClick={savePrioritiesByLang}
                 disabled={savingPrimary}
-                className="px-3.5 py-1.5 rounded-xl bg-[#008CFF] hover:bg-[#0070cc] text-white text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-[#008CFF] hover:bg-[#0070cc] text-white text-xs font-bold transition shadow-md shadow-[#008CFF]/20 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
                 <span>{savingPrimary ? "⏳" : "💾"}</span>
                 <span>
@@ -2083,29 +2235,12 @@ export default function AdminPage() {
               </p>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <PrimaryServerSelect
-                langKey="es"
-                langLabel="Español (ES)"
-                value={primaryByLang.es || ""}
-                onChange={(val) => setPrimaryByLang({ ...primaryByLang, es: val })}
-                provs={provs}
-              />
-              <PrimaryServerSelect
-                langKey="pt"
-                langLabel="Português (PT)"
-                value={primaryByLang.pt || ""}
-                onChange={(val) => setPrimaryByLang({ ...primaryByLang, pt: val })}
-                provs={provs}
-              />
-              <PrimaryServerSelect
-                langKey="en"
-                langLabel="English (EN)"
-                value={primaryByLang.en || ""}
-                onChange={(val) => setPrimaryByLang({ ...primaryByLang, en: val })}
-                provs={provs}
-              />
-            </div>
+            <LanguagePriorityManager
+              prioritiesByLang={prioritiesByLang}
+              onChangePriorities={setPrioritiesByLang}
+              provs={provs}
+              lang={lang}
+            />
           </div>
 
           <div className="space-y-2">

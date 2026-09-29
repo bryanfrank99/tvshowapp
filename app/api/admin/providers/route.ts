@@ -4,16 +4,17 @@ import { supa } from "@/lib/supa";
 import { needAdmin, needSuperAdmin } from "@/lib/access";
 import { parseLangs, parseSubs } from "@/lib/providers";
 
-// GET lista completa (con templates, URLs de disponibilidad y prioridad por idioma) · PUT upsert · PATCH toggle · DELETE
+// GET lista completa (con templates, URLs de disponibilidad y prioridades por idioma) · PUT upsert · PATCH toggle · DELETE
 export async function GET(req: NextRequest) {
   const deny = await needAdmin(req);
   if (deny) return deny;
   const sb = supa();
-  const [p, c, primaryRes, availRes] = await Promise.all([
+  const [p, c, primaryRes, availRes, prioritiesRes] = await Promise.all([
     sb.from("providers").select("*").order("ord"),
     sb.from("config").select("value").eq("key", "providers_version").maybeSingle(),
     sb.from("config").select("value").eq("key", "primary_providers_by_lang").maybeSingle(),
     sb.from("config").select("value").eq("key", "provider_availability_urls").maybeSingle(),
+    sb.from("config").select("value").eq("key", "provider_priorities_by_lang").maybeSingle(),
   ]);
   if (p.error) return NextResponse.json({ error: "db" }, { status: 500 });
 
@@ -28,6 +29,22 @@ export async function GET(req: NextRequest) {
   try {
     if (primaryRes.data?.value) {
       primaryByLang = { ...primaryByLang, ...JSON.parse(primaryRes.data.value) };
+    }
+  } catch {}
+
+  let prioritiesByLang: Record<string, string[]> = {
+    es: primaryByLang.es ? [primaryByLang.es] : [],
+    pt: primaryByLang.pt ? [primaryByLang.pt] : [],
+    en: primaryByLang.en ? [primaryByLang.en] : [],
+  };
+  try {
+    if (prioritiesRes.data?.value) {
+      const parsed = JSON.parse(prioritiesRes.data.value);
+      prioritiesByLang = {
+        es: Array.isArray(parsed.es) ? parsed.es : prioritiesByLang.es,
+        pt: Array.isArray(parsed.pt) ? parsed.pt : prioritiesByLang.pt,
+        en: Array.isArray(parsed.en) ? parsed.en : prioritiesByLang.en,
+      };
     }
   } catch {}
 
@@ -75,6 +92,7 @@ export async function GET(req: NextRequest) {
     providers: enriched,
     version: c.data?.value || "",
     primary_providers_by_lang: primaryByLang,
+    provider_priorities_by_lang: prioritiesByLang,
   });
 }
 
@@ -86,7 +104,46 @@ export async function PUT(req: NextRequest) {
     b = await req.json();
   } catch {}
 
-  // Acción 1: Guardar servidor prioritario por idioma
+  // Acción 1A: Guardar sistema multicapa de prioridades por idioma
+  if (b.action === "save_priorities_by_lang" || b.provider_priorities_by_lang) {
+    const payload = b.provider_priorities_by_lang || {};
+    const cleanPriorities = {
+      es: Array.isArray(payload.es) ? payload.es.map(String).map((s) => s.trim()).filter(Boolean) : [],
+      pt: Array.isArray(payload.pt) ? payload.pt.map(String).map((s) => s.trim()).filter(Boolean) : [],
+      en: Array.isArray(payload.en) ? payload.en.map(String).map((s) => s.trim()).filter(Boolean) : [],
+    };
+    const cleanPrimary = {
+      es: cleanPriorities.es[0] || "",
+      pt: cleanPriorities.pt[0] || "",
+      en: cleanPriorities.en[0] || "",
+    };
+    try {
+      await Promise.all([
+        supa()
+          .from("config")
+          .upsert(
+            { key: "provider_priorities_by_lang", value: JSON.stringify(cleanPriorities) },
+            { onConflict: "key" }
+          ),
+        supa()
+          .from("config")
+          .upsert(
+            { key: "primary_providers_by_lang", value: JSON.stringify(cleanPrimary) },
+            { onConflict: "key" }
+          ),
+      ]);
+      await bump();
+      return NextResponse.json({
+        ok: true,
+        provider_priorities_by_lang: cleanPriorities,
+        primary_providers_by_lang: cleanPrimary,
+      });
+    } catch {
+      return NextResponse.json({ error: "db" }, { status: 500 });
+    }
+  }
+
+  // Acción 1B: Guardar servidor prioritario individual por idioma (retrocompatibilidad)
   if (b.action === "save_primary_by_lang" || b.primary_providers_by_lang) {
     const payload = b.primary_providers_by_lang || {};
     const cleanPrimary = {
@@ -94,15 +151,32 @@ export async function PUT(req: NextRequest) {
       pt: String(payload.pt || "").trim(),
       en: String(payload.en || "").trim(),
     };
+    const cleanPriorities = {
+      es: cleanPrimary.es ? [cleanPrimary.es] : [],
+      pt: cleanPrimary.pt ? [cleanPrimary.pt] : [],
+      en: cleanPrimary.en ? [cleanPrimary.en] : [],
+    };
     try {
-      await supa()
-        .from("config")
-        .upsert(
-          { key: "primary_providers_by_lang", value: JSON.stringify(cleanPrimary) },
-          { onConflict: "key" }
-        );
+      await Promise.all([
+        supa()
+          .from("config")
+          .upsert(
+            { key: "primary_providers_by_lang", value: JSON.stringify(cleanPrimary) },
+            { onConflict: "key" }
+          ),
+        supa()
+          .from("config")
+          .upsert(
+            { key: "provider_priorities_by_lang", value: JSON.stringify(cleanPriorities) },
+            { onConflict: "key" }
+          ),
+      ]);
       await bump();
-      return NextResponse.json({ ok: true, primary_providers_by_lang: cleanPrimary });
+      return NextResponse.json({
+        ok: true,
+        primary_providers_by_lang: cleanPrimary,
+        provider_priorities_by_lang: cleanPriorities,
+      });
     } catch {
       return NextResponse.json({ error: "db" }, { status: 500 });
     }

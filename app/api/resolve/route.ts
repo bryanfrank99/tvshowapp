@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
     const sb = supa();
 
     // 2. Consulta de proveedores, versión y preferencias de prioridad lingüística
-    const [provRes, verRes, primaryRes, availRes] = await Promise.all([
+    const [provRes, verRes, primaryRes, availRes, prioritiesRes] = await Promise.all([
       sb
         .from("providers")
         .select("*")
@@ -107,6 +107,7 @@ export async function GET(req: NextRequest) {
       sb.from("config").select("value").eq("key", "providers_version").maybeSingle(),
       sb.from("config").select("value").eq("key", "primary_providers_by_lang").maybeSingle(),
       sb.from("config").select("value").eq("key", "provider_availability_urls").maybeSingle(),
+      sb.from("config").select("value").eq("key", "provider_priorities_by_lang").maybeSingle(),
     ]);
 
     if (provRes.error || !provRes.data) {
@@ -116,9 +117,11 @@ export async function GET(req: NextRequest) {
     const providersData = provRes.data;
     const version = (verRes.data as any)?.value || "1.0";
 
-    let primaryByLang: Record<string, string> = {};
+    let primaryByLang: Record<string, string[] | string> = {};
     try {
-      if (primaryRes.data?.value) {
+      if (prioritiesRes?.data?.value) {
+        primaryByLang = JSON.parse(prioritiesRes.data.value);
+      } else if (primaryRes.data?.value) {
         primaryByLang = JSON.parse(primaryRes.data.value);
       }
     } catch {}
