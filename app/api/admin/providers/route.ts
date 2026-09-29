@@ -104,14 +104,20 @@ export async function PUT(req: NextRequest) {
     b = await req.json();
   } catch {}
 
-  // Acción 0: Probar URL o lista de disponibilidad de catálogo
+  // Acción 0: Probar URL o lista de disponibilidad de catálogo (modo válido o inválido)
   if (b.action === "test_availability") {
     const url = String(b.url || "").trim();
-    const type = b.type === "tv" ? "tv" : "movie";
-    const tmdbId = String(b.tmdbId || (type === "tv" ? "1396" : "969681")).trim();
-    const imdbId = String(b.imdbId || (type === "tv" ? "tt0903747" : "tt6263850")).trim();
-    const s = b.season ? parseInt(b.season, 10) : 1;
-    const e = b.episode ? parseInt(b.episode, 10) : 1;
+    const type = b.type === "movie" ? "movie" : "tv";
+    const mode: "valid" | "invalid" = b.mode === "invalid" ? "invalid" : "valid";
+    const defaultTmdb = mode === "invalid" ? "999999999" : (type === "tv" ? "1396" : "969681");
+    const defaultImdb = mode === "invalid" ? "tt999999999" : (type === "tv" ? "tt0903747" : "tt6263850");
+    const defaultSeason = mode === "invalid" ? 99 : 1;
+    const defaultEpisode = mode === "invalid" ? 99 : 1;
+
+    const tmdbId = String(b.tmdbId || defaultTmdb).trim();
+    const imdbId = String(b.imdbId || defaultImdb).trim();
+    const s = b.season ? parseInt(b.season, 10) : defaultSeason;
+    const e = b.episode ? parseInt(b.episode, 10) : defaultEpisode;
 
     if (!url) {
       return NextResponse.json({ error: "Falta la URL para probar" }, { status: 400 });
@@ -138,6 +144,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         available: isAvail,
+        mode,
         isProbe: probe,
         testedUrl: effectiveUrl,
         type,

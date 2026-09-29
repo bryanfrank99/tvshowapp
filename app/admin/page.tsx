@@ -480,9 +480,10 @@ export default function AdminPage() {
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
   // Comprobación de disponibilidad de catálogo en tiempo real
-  const [testingAvail, setTestingAvail] = useState<string | null>(null);
+  const [testingAvail, setTestingAvail] = useState<{ url: string; mode: "valid" | "invalid" } | null>(null);
   const [testAvailResult, setTestAvailResult] = useState<{
     url: string;
+    mode: "valid" | "invalid";
     available?: boolean;
     error?: string;
     testedUrl?: string;
@@ -544,9 +545,9 @@ export default function AdminPage() {
     }
   };
 
-  const testAvailabilityUrl = async (url: string, type: "movie" | "tv") => {
+  const testAvailabilityUrl = async (url: string, type: "movie" | "tv", mode: "valid" | "invalid" = "valid") => {
     if (!url) return;
-    setTestingAvail(url);
+    setTestingAvail({ url, mode });
     setTestAvailResult(null);
     try {
       const res = await api("providers", {
@@ -556,16 +557,18 @@ export default function AdminPage() {
           action: "test_availability",
           url,
           type,
-          tmdbId: type === "tv" ? "1396" : "969681",
-          imdbId: type === "tv" ? "tt0903747" : "tt6263850",
-          season: 1,
-          episode: 1,
+          mode,
+          tmdbId: mode === "invalid" ? "999999999" : (type === "tv" ? "1396" : "969681"),
+          imdbId: mode === "invalid" ? "tt999999999" : (type === "tv" ? "tt0903747" : "tt6263850"),
+          season: mode === "invalid" ? 99 : 1,
+          episode: mode === "invalid" ? 99 : 1,
         }),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
         setTestAvailResult({
           url,
+          mode,
           available: !!data.available,
           testedUrl: data.testedUrl,
           isProbe: !!data.isProbe,
@@ -573,12 +576,14 @@ export default function AdminPage() {
       } else {
         setTestAvailResult({
           url,
+          mode,
           error: data?.error || "Error al verificar disponibilidad",
         });
       }
     } catch (e: any) {
       setTestAvailResult({
         url,
+        mode,
         error: e?.message || "Error de conexión",
       });
     } finally {
@@ -2549,19 +2554,43 @@ export default function AdminPage() {
                 <div className="space-y-3 pt-1">
                   {/* Campo Películas */}
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <label className="text-[10px] text-zinc-400 font-medium">
                         URL Disponibilidad Películas (Probe URL o lista TXT/JSON):
                       </label>
                       {edit.movie_list_url && (
-                        <button
-                          type="button"
-                          disabled={testingAvail === edit.movie_list_url}
-                          onClick={() => testAvailabilityUrl(edit.movie_list_url!, "movie")}
-                          className="text-[10px] text-[#008CFF] hover:underline font-bold cursor-pointer disabled:opacity-50"
-                        >
-                          {testingAvail === edit.movie_list_url ? "⏳ Probando..." : "🔍 Probar Película (TMDB / IMDb)"}
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            disabled={!!testingAvail}
+                            onClick={() => testAvailabilityUrl(edit.movie_list_url!, "movie", "valid")}
+                            className="px-2 py-0.5 rounded-md text-[10px] font-bold border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1"
+                            title="Probar con película real (TMDB 969681 / IMDb tt6263850)"
+                          >
+                            {testingAvail?.url === edit.movie_list_url && testingAvail?.mode === "valid" ? (
+                              "⏳ Probando..."
+                            ) : (
+                              <>
+                                <span>✓</span> Test Válido
+                              </>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!!testingAvail}
+                            onClick={() => testAvailabilityUrl(edit.movie_list_url!, "movie", "invalid")}
+                            className="px-2 py-0.5 rounded-md text-[10px] font-bold border border-rose-500/40 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1"
+                            title="Probar con película ficticia inexistente (TMDB 999999999 / IMDb tt999999999)"
+                          >
+                            {testingAvail?.url === edit.movie_list_url && testingAvail?.mode === "invalid" ? (
+                              "⏳ Probando..."
+                            ) : (
+                              <>
+                                <span>✕</span> Test Inválido
+                              </>
+                            )}
+                          </button>
+                        </div>
                       )}
                     </div>
                     <input
@@ -2575,24 +2604,36 @@ export default function AdminPage() {
                       className={`${inp} font-mono text-xs`}
                     />
                     {testAvailResult && testAvailResult.url === edit.movie_list_url && (
-                      <div className={`p-2 rounded-lg text-[11px] font-medium border flex items-center justify-between gap-2 ${
+                      <div className={`p-2.5 rounded-lg text-[11px] font-medium border flex items-center justify-between gap-2 ${
                         testAvailResult.error
                           ? "bg-red-500/10 border-red-500/30 text-red-300"
-                          : testAvailResult.available
+                          : testAvailResult.mode === "valid"
+                          ? testAvailResult.available
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                            : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                          : !testAvailResult.available
                           ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                          : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                          : "bg-rose-500/15 border-rose-500/30 text-rose-300"
                       }`}>
                         <div>
                           {testAvailResult.error ? (
                             <span>✕ Error al probar: {testAvailResult.error}</span>
-                          ) : testAvailResult.available ? (
-                            <span>✓ Título disponible ({testAvailResult.isProbe ? "Probe HTTP 200 OK" : "Encontrado en catálogo"})</span>
+                          ) : testAvailResult.mode === "valid" ? (
+                            testAvailResult.available ? (
+                              <span>✓ Test Válido Exitoso: Título disponible ({testAvailResult.isProbe ? "Probe HTTP 200 OK" : "Encontrado en catálogo"})</span>
+                            ) : (
+                              <span>✕ Test Válido Falló: No disponible ({testAvailResult.isProbe ? "Probe HTTP 404 / No encontrado" : "No encontrado en catálogo"})</span>
+                            )
                           ) : (
-                            <span>✕ No disponible ({testAvailResult.isProbe ? "Probe HTTP 404 / No encontrado" : "No encontrado en catálogo"})</span>
+                            !testAvailResult.available ? (
+                              <span>✓ Test Inválido Exitoso: El servidor reportó correctamente que el ID ficticio NO existe ({testAvailResult.isProbe ? "Probe HTTP 404 / Rechazado" : "No encontrado en catálogo"})</span>
+                            ) : (
+                              <span>⚠️ Test Inválido con Alerta: El servidor reportó como disponible un ID inexistente ({testAvailResult.isProbe ? "Probe HTTP 200 inesperado" : "Encontrado en catálogo"})</span>
+                            )
                           )}
                           {testAvailResult.testedUrl && (
                             <div className="text-[10px] opacity-75 font-mono truncate max-w-md mt-0.5">
-                              Probado: {testAvailResult.testedUrl}
+                              Probado [{testAvailResult.mode === "valid" ? "Caso Válido" : "Caso Inválido"}]: {testAvailResult.testedUrl}
                             </div>
                           )}
                         </div>
@@ -2602,19 +2643,43 @@ export default function AdminPage() {
 
                   {/* Campo Series */}
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <label className="text-[10px] text-zinc-400 font-medium">
                         URL Disponibilidad Series (Probe URL {`{id}/{s}/{e}`} o lista JSON/TXT):
                       </label>
                       {edit.tv_list_url && (
-                        <button
-                          type="button"
-                          disabled={testingAvail === edit.tv_list_url}
-                          onClick={() => testAvailabilityUrl(edit.tv_list_url!, "tv")}
-                          className="text-[10px] text-[#008CFF] hover:underline font-bold cursor-pointer disabled:opacity-50"
-                        >
-                          {testingAvail === edit.tv_list_url ? "⏳ Probando..." : "🔍 Probar Serie (TMDB / IMDb)"}
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            disabled={!!testingAvail}
+                            onClick={() => testAvailabilityUrl(edit.tv_list_url!, "tv", "valid")}
+                            className="px-2 py-0.5 rounded-md text-[10px] font-bold border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1"
+                            title="Probar con serie real (Breaking Bad T1E1, TMDB 1396 / IMDb tt0903747)"
+                          >
+                            {testingAvail?.url === edit.tv_list_url && testingAvail?.mode === "valid" ? (
+                              "⏳ Probando..."
+                            ) : (
+                              <>
+                                <span>✓</span> Test Válido
+                              </>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!!testingAvail}
+                            onClick={() => testAvailabilityUrl(edit.tv_list_url!, "tv", "invalid")}
+                            className="px-2 py-0.5 rounded-md text-[10px] font-bold border border-rose-500/40 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1"
+                            title="Probar con serie ficticia inexistente (TMDB 999999999 T99E99)"
+                          >
+                            {testingAvail?.url === edit.tv_list_url && testingAvail?.mode === "invalid" ? (
+                              "⏳ Probando..."
+                            ) : (
+                              <>
+                                <span>✕</span> Test Inválido
+                              </>
+                            )}
+                          </button>
+                        </div>
                       )}
                     </div>
                     <input
@@ -2628,24 +2693,36 @@ export default function AdminPage() {
                       className={`${inp} font-mono text-xs`}
                     />
                     {testAvailResult && testAvailResult.url === edit.tv_list_url && (
-                      <div className={`p-2 rounded-lg text-[11px] font-medium border flex items-center justify-between gap-2 ${
+                      <div className={`p-2.5 rounded-lg text-[11px] font-medium border flex items-center justify-between gap-2 ${
                         testAvailResult.error
                           ? "bg-red-500/10 border-red-500/30 text-red-300"
-                          : testAvailResult.available
+                          : testAvailResult.mode === "valid"
+                          ? testAvailResult.available
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                            : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                          : !testAvailResult.available
                           ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                          : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                          : "bg-rose-500/15 border-rose-500/30 text-rose-300"
                       }`}>
                         <div>
                           {testAvailResult.error ? (
                             <span>✕ Error al probar: {testAvailResult.error}</span>
-                          ) : testAvailResult.available ? (
-                            <span>✓ Episodio disponible ({testAvailResult.isProbe ? "Probe HTTP 200 OK" : "Encontrado en catálogo"})</span>
+                          ) : testAvailResult.mode === "valid" ? (
+                            testAvailResult.available ? (
+                              <span>✓ Test Válido Exitoso: Episodio disponible ({testAvailResult.isProbe ? "Probe HTTP 200 OK" : "Encontrado en catálogo"})</span>
+                            ) : (
+                              <span>✕ Test Válido Falló: No disponible ({testAvailResult.isProbe ? "Probe HTTP 404 / No encontrado" : "No encontrado en catálogo"})</span>
+                            )
                           ) : (
-                            <span>✕ No disponible ({testAvailResult.isProbe ? "Probe HTTP 404 / No encontrado" : "No encontrado en catálogo"})</span>
+                            !testAvailResult.available ? (
+                              <span>✓ Test Inválido Exitoso: El servidor reportó correctamente que el ID ficticio NO existe ({testAvailResult.isProbe ? "Probe HTTP 404 / Rechazado" : "No encontrado en catálogo"})</span>
+                            ) : (
+                              <span>⚠️ Test Inválido con Alerta: El servidor reportó como disponible un ID ficticio ({testAvailResult.isProbe ? "Probe HTTP 200 inesperado" : "Encontrado en catálogo"})</span>
+                            )
                           )}
                           {testAvailResult.testedUrl && (
                             <div className="text-[10px] opacity-75 font-mono truncate max-w-md mt-0.5">
-                              Probado: {testAvailResult.testedUrl}
+                              Probado [{testAvailResult.mode === "valid" ? "Caso Válido" : "Caso Inválido"}]: {testAvailResult.testedUrl}
                             </div>
                           )}
                         </div>
@@ -2654,23 +2731,122 @@ export default function AdminPage() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Animes (JSON/TXT, opcional):</label>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        <label className="block text-[10px] text-zinc-400 font-medium">URL Lista Animes (JSON/TXT, opcional):</label>
+                        {edit.anime_list_url && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              disabled={!!testingAvail}
+                              onClick={() => testAvailabilityUrl(edit.anime_list_url!, "tv", "valid")}
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
+                              title="Test Válido"
+                            >
+                              ✓ Válido
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!!testingAvail}
+                              onClick={() => testAvailabilityUrl(edit.anime_list_url!, "tv", "invalid")}
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-rose-500/40 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
+                              title="Test Inválido"
+                            >
+                              ✕ Inválido
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <input
                         value={edit.anime_list_url || ""}
-                        onChange={(e) => setEdit({ ...edit, anime_list_url: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEdit({ ...edit, anime_list_url: val });
+                          if (testAvailResult?.url !== val) setTestAvailResult(null);
+                        }}
                         placeholder="https://servidor.com/list-anime-ids.txt"
                         className={`${inp} font-mono text-xs`}
                       />
+                      {testAvailResult && testAvailResult.url === edit.anime_list_url && (
+                        <div className={`p-2 rounded-lg text-[10px] font-medium border ${
+                          testAvailResult.error
+                            ? "bg-red-500/10 border-red-500/30 text-red-300"
+                            : testAvailResult.mode === "valid"
+                            ? testAvailResult.available
+                              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                              : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                            : !testAvailResult.available
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                            : "bg-rose-500/15 border-rose-500/30 text-rose-300"
+                        }`}>
+                          {testAvailResult.error ? (
+                            <span>✕ Error: {testAvailResult.error}</span>
+                          ) : testAvailResult.mode === "valid" ? (
+                            <span>{testAvailResult.available ? "✓ Test Válido: Disponible" : "✕ Test Válido: No encontrado"}</span>
+                          ) : (
+                            <span>{!testAvailResult.available ? "✓ Test Inválido: ID ficticio rechazado" : "⚠️ Test Inválido: ID ficticio reportado disponible"}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Doramas (JSON/TXT, opcional):</label>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        <label className="block text-[10px] text-zinc-400 font-medium">URL Lista Doramas (JSON/TXT, opcional):</label>
+                        {edit.dorama_list_url && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              disabled={!!testingAvail}
+                              onClick={() => testAvailabilityUrl(edit.dorama_list_url!, "tv", "valid")}
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
+                              title="Test Válido"
+                            >
+                              ✓ Válido
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!!testingAvail}
+                              onClick={() => testAvailabilityUrl(edit.dorama_list_url!, "tv", "invalid")}
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-rose-500/40 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
+                              title="Test Inválido"
+                            >
+                              ✕ Inválido
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <input
                         value={edit.dorama_list_url || ""}
-                        onChange={(e) => setEdit({ ...edit, dorama_list_url: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEdit({ ...edit, dorama_list_url: val });
+                          if (testAvailResult?.url !== val) setTestAvailResult(null);
+                        }}
                         placeholder="https://servidor.com/list-dorama-ids.txt"
                         className={`${inp} font-mono text-xs`}
                       />
+                      {testAvailResult && testAvailResult.url === edit.dorama_list_url && (
+                        <div className={`p-2 rounded-lg text-[10px] font-medium border ${
+                          testAvailResult.error
+                            ? "bg-red-500/10 border-red-500/30 text-red-300"
+                            : testAvailResult.mode === "valid"
+                            ? testAvailResult.available
+                              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                              : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                            : !testAvailResult.available
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                            : "bg-rose-500/15 border-rose-500/30 text-rose-300"
+                        }`}>
+                          {testAvailResult.error ? (
+                            <span>✕ Error: {testAvailResult.error}</span>
+                          ) : testAvailResult.mode === "valid" ? (
+                            <span>{testAvailResult.available ? "✓ Test Válido: Disponible" : "✕ Test Válido: No encontrado"}</span>
+                          ) : (
+                            <span>{!testAvailResult.available ? "✓ Test Inválido: ID ficticio rechazado" : "⚠️ Test Inválido: ID ficticio reportado disponible"}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
