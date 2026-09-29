@@ -2632,7 +2632,7 @@ export default function AdminPage() {
                             )
                           )}
                           {testAvailResult.testedUrl && (
-                            <div className="text-[10px] opacity-75 font-mono truncate max-w-md mt-0.5">
+                            <div className="text-[10px] opacity-75 font-mono break-all mt-0.5">
                               Probado [{testAvailResult.mode === "valid" ? "Caso Válido" : "Caso Inválido"}]: {testAvailResult.testedUrl}
                             </div>
                           )}
@@ -2721,7 +2721,7 @@ export default function AdminPage() {
                             )
                           )}
                           {testAvailResult.testedUrl && (
-                            <div className="text-[10px] opacity-75 font-mono truncate max-w-md mt-0.5">
+                            <div className="text-[10px] opacity-75 font-mono break-all mt-0.5">
                               Probado [{testAvailResult.mode === "valid" ? "Caso Válido" : "Caso Inválido"}]: {testAvailResult.testedUrl}
                             </div>
                           )}

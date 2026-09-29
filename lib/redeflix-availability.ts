@@ -205,61 +205,150 @@ export async function probeUrlAvailability(targetUrl: string, timeoutMs: number 
 
   const promise = (async () => {
     try {
-      // 1. Intentar primero con HEAD para máxima velocidad
-      let res: Response | null = null;
-      try {
-        const headRes = await fetchWithTimeout(targetUrl, timeoutMs, "HEAD");
-        if (headRes.status === 200) {
-          probeCache.set(targetUrl, { available: true, lastCheck: Date.now() });
-          return true;
-        }
-        if (headRes.status === 404) {
-          probeCache.set(targetUrl, { available: false, lastCheck: Date.now() });
-          return false;
-        }
-        if (headRes.status !== 405) {
-          res = headRes;
-        }
-      } catch {
-        // En caso de fallo o bloqueo de HEAD, intentamos GET
-      }
-
-      if (!res || res.status === 405) {
-        res = await fetchWithTimeout(targetUrl, timeoutMs, "GET");
-      }
+      // Realizamos GET para inspeccionar código HTTP y cuerpo de respuesta (JSON / texto)
+      const res = await fetchWithTimeout(targetUrl, timeoutMs, "GET");
 
       if (res.status === 404) {
         probeCache.set(targetUrl, { available: false, lastCheck: Date.now() });
         return false;
       }
 
-      if (res.ok) {
-        const text = await res.text();
-        const lowerText = text.toLowerCase();
-        const notFoundMarkers = [
-          "filme não encontrado",
-          "série não encontrada",
-          "episódio não encontrado",
-          "não encontrado",
-          "not found",
-          "content not found",
-          "\"status\":404",
-          "\"found\":false",
-          "\"available\":false",
-          "\"success\":false",
-        ];
-        const isNotFound = notFoundMarkers.some((marker) => lowerText.includes(marker));
-        const isAvail = !isNotFound;
-        probeCache.set(targetUrl, { available: isAvail, lastCheck: Date.now() });
-        return isAvail;
+      if (!res.ok) {
+        probeCache.set(targetUrl, { available: false, lastCheck: Date.now() });
+        return false;
       }
 
-      probeCache.set(targetUrl, { available: false, lastCheck: Date.now() });
-      return false;
+      const text = await res.text();
+      const trimmed = text.trim();
+      const lowerText = trimmed.toLowerCase();
+
+      // 1. Detección y análisis estructurado si la respuesta es JSON
+      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+        try {
+          const json = JSON.parse(trimmed);
+
+          if (Array.isArray(json)) {
+            const avail = json.length > 0;
+            probeCache.set(targetUrl, { available: avail, lastCheck: Date.now() });
+            return avail;
+          }
+
+          if (json && typeof json === "object") {
+            const statusStr = String(json.status ?? "").toLowerCase().trim();
+
+            // Errores o rechazos explícitos
+            if (["failed", "fail", "error", "not_found", "404", "false"].includes(statusStr)) {
+              probeCache.set(targetUrl, { available: false, lastCheck: Date.now() });
+              return false;
+            }
+
+            // Banderas de disponibilidad booleanas explícitas
+            if (
+              json.success === false ||
+              json.success === "false" ||
+              json.success === 0 ||
+              json.available === false ||
+              json.available === "false" ||
+              json.found === false ||
+              json.found === "false" ||
+              json.exists === false ||
+              json.exists === "false" ||
+              json.has === false ||
+              json.has === "false"
+            ) {
+              probeCache.set(targetUrl, { available: false, lastCheck: Date.now() });
+              return false;
+            }
+
+            // Mensajes textuales descriptivos (ej: megaembedapi "This movie hasn't in our database")
+            const msg = String(json.msg || json.message || json.error || json.description || json.detail || "").toLowerCase();
+            if (
+              msg.includes("hasn't") ||
+              msg.includes("has not") ||
+              msg.includes("not in our database") ||
+              msg.includes("not in database") ||
+              msg.includes("not found") ||
+              msg.includes("não encontrado") ||
+              msg.includes("no encontrado") ||
+              msg.includes("doesn't exist") ||
+              msg.includes("does not exist") ||
+              msg.includes("required") ||
+              msg.includes("invalid") ||
+              msg.includes("no results")
+            ) {
+              probeCache.set(targetUrl, { available: false, lastCheck: Date.now() });
+              return false;
+            }
+
+            // Si tiene status de éxito explícito
+            if (
+              ["success", "ok", "200", "true"].includes(statusStr) ||
+              json.success === true ||
+              json.success === "true" ||
+              json.success === 1 ||
+              json.available === true ||
+              json.available === "true" ||
+              json.found === true ||
+              json.found === "true" ||
+              json.exists === true ||
+              json.exists === "true" ||
+              json.has === true ||
+              json.has === "true"
+            ) {
+              probeCache.set(targetUrl, { available: true, lastCheck: Date.now() });
+              return true;
+            }
+
+            // Si data o results vienen vacíos
+            if (json.data === null || (Array.isArray(json.data) && json.data.length === 0)) {
+              probeCache.set(targetUrl, { available: false, lastCheck: Date.now() });
+              return false;
+            }
+            if (json.results === null || (Array.isArray(json.results) && json.results.length === 0)) {
+              probeCache.set(targetUrl, { available: false, lastCheck: Date.now() });
+              return false;
+            }
+          }
+        } catch {
+          // Si el JSON falla al parsear, continúa a la verificación textual
+        }
+      }
+
+      // 2. Marcadores textuales en HTML o texto plano
+      const notFoundMarkers = [
+        "filme não encontrado",
+        "série não encontrada",
+        "episódio não encontrado",
+        "não encontrado",
+        "not found",
+        "content not found",
+        "no encontrado",
+        "no disponible",
+        "hasn't in our database",
+        "has not in our database",
+        "not in our database",
+        "not in database",
+        "\"status\":\"failed\"",
+        "\"status\": \"failed\"",
+        "\"status\":\"error\"",
+        "\"status\": \"error\"",
+        "\"status\":404",
+        "\"status\": 404",
+        "\"found\":false",
+        "\"found\": false",
+        "\"available\":false",
+        "\"available\": false",
+        "\"success\":false",
+        "\"success\": false",
+      ];
+
+      const isNotFound = notFoundMarkers.some((marker) => lowerText.includes(marker));
+      const isAvail = !isNotFound;
+      probeCache.set(targetUrl, { available: isAvail, lastCheck: Date.now() });
+      return isAvail;
     } catch (err: any) {
       console.warn(`[ProbeAvailability] Error comprobando ${targetUrl}:`, err?.message || err);
-      // Fallback resiliente: no bloquear el servidor si ocurre error temporal de conexión
-      return true;
+      return false;
     } finally {
       probePromises.delete(targetUrl);
     }

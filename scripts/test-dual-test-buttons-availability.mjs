@@ -107,6 +107,56 @@ const invalidTvAvail = await checkCatalogAvailability({
 console.log("  [Test Inválido] Serie 999999999 T99E99 disponible:", invalidTvAvail);
 assert.strictEqual(invalidTvAvail, false, "El caso inválido para serie debe retornar disponible=false (404)");
 
+// 3. Prueba específica con API JSON de MegaEmbed (el caso del usuario)
+console.log("\n3. Probando Probe URL API JSON (MegaEmbed) en Películas y Series...");
+
+const megaembedMovieUrl = "https://megaembedapi.site/api/status?imdb={imdb}&type=movie";
+
+// Test Válido MegaEmbed Película
+const megaValidMovie = await isRedeflixAvailable({
+  type: "movie",
+  tmdbId: "969681",
+  imdbId: "tt6263850",
+  movieListUrl: megaembedMovieUrl,
+});
+console.log("  [MegaEmbed Movie Válido] tt6263850 disponible:", megaValidMovie);
+assert.strictEqual(megaValidMovie, true, "MegaEmbed con tt6263850 debe retornar disponible=true");
+
+// Test Inválido MegaEmbed Película
+const megaInvalidMovie = await isRedeflixAvailable({
+  type: "movie",
+  tmdbId: "999999999",
+  imdbId: "tt999999999",
+  movieListUrl: megaembedMovieUrl,
+});
+console.log("  [MegaEmbed Movie Inválido] tt999999999 disponible:", megaInvalidMovie);
+assert.strictEqual(megaInvalidMovie, false, "MegaEmbed con tt999999999 debe retornar disponible=false");
+
+// Test Válido e Inválido MegaEmbed Serie
+const megaembedTvUrl = "https://megaembedapi.site/api/status?imdb={imdb}&type=tv&sea={s}&epi={e}";
+
+const megaValidTv = await checkCatalogAvailability({
+  type: "tv",
+  tmdbId: "1396",
+  imdbId: "tt0903747",
+  season: 1,
+  episode: 1,
+  tvListUrl: megaembedTvUrl,
+});
+console.log("  [MegaEmbed TV Válido] tt0903747 S1E1 disponible:", megaValidTv);
+assert.strictEqual(megaValidTv, true, "MegaEmbed TV con Breaking Bad S1E1 debe retornar disponible=true");
+
+const megaInvalidTv = await checkCatalogAvailability({
+  type: "tv",
+  tmdbId: "999999999",
+  imdbId: "tt999999999",
+  season: 99,
+  episode: 99,
+  tvListUrl: megaembedTvUrl,
+});
+console.log("  [MegaEmbed TV Inválido] tt999999999 S99E99 disponible:", megaInvalidTv);
+assert.strictEqual(megaInvalidTv, false, "MegaEmbed TV con ID ficticio debe retornar disponible=false");
+
 console.log("\n==========================================================================");
-console.log("✅ AMBOS BOTONES DE TEST (VÁLIDO E INVÁLIDO) VERIFICADOS CON ÉXITO!");
+console.log("✅ AMBOS BOTONES DE TEST (VÁLIDO E INVÁLIDO) Y JSON API VERIFICADOS CON ÉXITO!");
 console.log("==========================================================================");
