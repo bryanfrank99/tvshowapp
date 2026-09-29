@@ -1,9 +1,10 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getProviderLangMeta, PROVIDER_LANGS, SUBTITLE_LANGS } from "@/lib/providers";
 import { useLang } from "@/hooks/useLang";
 import { getAdminDict, type AdminDict } from "@/lib/admin-dict";
 import LangMenu from "@/components/LangMenu";
+import { FlagIcon } from "@/components/icons/FlagIcon";
 
 // Panel admin moderno: KPIs de estado, dispositivos (máx 3), sesiones, servidores + live + multi-admin.
 type DeviceInfo = {
@@ -155,6 +156,130 @@ function formatRelativeTime(dateStr?: string | null, d?: AdminDict, lang: string
 function isLifetime(dateStr?: string | null): boolean {
   if (!dateStr) return false;
   return new Date(dateStr).getFullYear() >= 2099;
+}
+
+function PrimaryServerSelect({
+  langKey,
+  langLabel,
+  value,
+  onChange,
+  provs,
+}: {
+  langKey: "es" | "pt" | "en";
+  langLabel: string;
+  value: string;
+  onChange: (val: string) => void;
+  provs: Prov[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) {
+      document.addEventListener("mousedown", handleOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  const activeProvs = provs.filter((p) => p.active);
+  const selectedProv = activeProvs.find((p) => p.id === value);
+
+  return (
+    <div ref={ref} className="relative p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2 hover:border-white/20 transition">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FlagIcon lang={langKey} className="w-5 h-3.5 rounded-sm border border-white/20 shadow-xs" />
+          <span className="text-xs font-bold text-white tracking-wide">{langLabel}</span>
+        </div>
+        {value ? (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+            Fijado
+          </span>
+        ) : (
+          <span className="text-[10px] text-zinc-500 font-medium">Auto</span>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-[#12121c] hover:bg-[#181826] border border-white/15 hover:border-white/30 text-left text-xs transition cursor-pointer group focus:outline-none focus:ring-2 focus:ring-[#008CFF]"
+      >
+        <span className="truncate flex items-center gap-2">
+          {selectedProv ? (
+            <>
+              <span className="font-mono font-bold text-[#008CFF] bg-[#008CFF]/15 px-1.5 py-0.5 rounded text-[11px]">
+                {selectedProv.simulated_name || `S${selectedProv.ord}`}
+              </span>
+              <span className="font-bold text-white">{selectedProv.real_name || selectedProv.name}</span>
+            </>
+          ) : (
+            <span className="text-zinc-400 italic">Predeterminado (Automático por afinidad)</span>
+          )}
+        </span>
+        <span className="text-zinc-400 text-xs group-hover:text-white transition ml-2 shrink-0">
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl bg-[#141420] border border-white/20 shadow-2xl p-1.5 max-h-60 overflow-y-auto space-y-1">
+          {/* Opción predeterminada */}
+          <button
+            type="button"
+            onClick={() => {
+              onChange("");
+              setOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition text-left cursor-pointer ${
+              !value
+                ? "bg-[#008CFF]/20 text-white font-bold border border-[#008CFF]/40"
+                : "text-zinc-300 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-400">⚡</span>
+              <span>Predeterminado (Automático por afinidad)</span>
+            </div>
+            {!value && <span className="text-[#008CFF] font-bold">✓</span>}
+          </button>
+
+          {/* Opciones de servidores */}
+          {activeProvs.map((p) => {
+            const isSelected = p.id === value;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  onChange(p.id);
+                  setOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition text-left cursor-pointer ${
+                  isSelected
+                    ? "bg-[#008CFF]/20 text-white font-bold border border-[#008CFF]/40"
+                    : "text-zinc-300 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="font-mono font-bold text-[#008CFF] bg-[#008CFF]/15 px-1.5 py-0.5 rounded text-[10px]">
+                    {p.simulated_name || `S${p.ord}`}
+                  </span>
+                  <span className="text-white truncate font-medium">{p.real_name || p.name}</span>
+                </div>
+                {isSelected && <span className="text-[#008CFF] font-bold">✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AdminPage() {
@@ -1959,71 +2084,27 @@ export default function AdminPage() {
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              {/* Español */}
-              <div className="p-3 rounded-xl bg-black/30 border border-white/5 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🇪🇸</span>
-                  <span className="text-xs font-bold text-zinc-200">Español (ES)</span>
-                </div>
-                <select
-                  value={primaryByLang.es || ""}
-                  onChange={(e) => setPrimaryByLang({ ...primaryByLang, es: e.target.value })}
-                  className={`${inp} py-1.5 text-xs text-white`}
-                >
-                  <option value="">Predeterminado (Automático)</option>
-                  {provs
-                    .filter((p) => p.active)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.simulated_name || `S${p.ord}`} - {p.real_name || p.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              {/* Português */}
-              <div className="p-3 rounded-xl bg-black/30 border border-white/5 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🇧🇷</span>
-                  <span className="text-xs font-bold text-zinc-200">Português (PT)</span>
-                </div>
-                <select
-                  value={primaryByLang.pt || ""}
-                  onChange={(e) => setPrimaryByLang({ ...primaryByLang, pt: e.target.value })}
-                  className={`${inp} py-1.5 text-xs text-white`}
-                >
-                  <option value="">Predeterminado (Automático)</option>
-                  {provs
-                    .filter((p) => p.active)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.simulated_name || `S${p.ord}`} - {p.real_name || p.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              {/* English */}
-              <div className="p-3 rounded-xl bg-black/30 border border-white/5 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🇺🇸</span>
-                  <span className="text-xs font-bold text-zinc-200">English (EN)</span>
-                </div>
-                <select
-                  value={primaryByLang.en || ""}
-                  onChange={(e) => setPrimaryByLang({ ...primaryByLang, en: e.target.value })}
-                  className={`${inp} py-1.5 text-xs text-white`}
-                >
-                  <option value="">Predeterminado (Automático)</option>
-                  {provs
-                    .filter((p) => p.active)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.simulated_name || `S${p.ord}`} - {p.real_name || p.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
+              <PrimaryServerSelect
+                langKey="es"
+                langLabel="Español (ES)"
+                value={primaryByLang.es || ""}
+                onChange={(val) => setPrimaryByLang({ ...primaryByLang, es: val })}
+                provs={provs}
+              />
+              <PrimaryServerSelect
+                langKey="pt"
+                langLabel="Português (PT)"
+                value={primaryByLang.pt || ""}
+                onChange={(val) => setPrimaryByLang({ ...primaryByLang, pt: val })}
+                provs={provs}
+              />
+              <PrimaryServerSelect
+                langKey="en"
+                langLabel="English (EN)"
+                value={primaryByLang.en || ""}
+                onChange={(val) => setPrimaryByLang({ ...primaryByLang, en: val })}
+                provs={provs}
+              />
             </div>
           </div>
 
