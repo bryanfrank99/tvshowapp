@@ -52,9 +52,9 @@ export default function TrailerButton({ videoKey, label }: { videoKey: string; l
           </div>
           <iframe
             id="trailer-youtube-frame"
-            src={`https://www.youtube.com/embed/${videoKey}?autoplay=1&rel=0&enablejsapi=1`}
+            src={`https://www.youtube-nocookie.com/embed/${videoKey}?autoplay=1&rel=0&playsinline=1&enablejsapi=1`}
             className="w-full aspect-video bg-black block"
-            allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
             title={label}
           />

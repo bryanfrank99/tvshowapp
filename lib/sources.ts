@@ -103,11 +103,28 @@ export function scoreSourceForUser(
 }
 
 /**
- * Ordena las fuentes de mayor a menor prioridad según el idioma del usuario.
+ * Ordena las fuentes de mayor a menor prioridad según el idioma del usuario y la preferencia administrativa.
+ * Si el administrador definió un servidor prioritario para userLang, este recibe la posición 1.
  * Garantiza estabilidad de orden si las puntuaciones son iguales.
  */
-export function sortSourcesByPriority(sources: Source[], userLang: string): Source[] {
+export function sortSourcesByPriority(
+  sources: Source[],
+  userLang: string,
+  primaryByLang?: Record<string, string>
+): Source[] {
+  const cleanLang = (userLang || "").toLowerCase().trim();
+  const primaryProviderId = primaryByLang?.[cleanLang] || "";
+
   return [...sources].sort((a, b) => {
+    // 0. Si el administrador definió un servidor prioritario explícito para este idioma
+    if (primaryProviderId) {
+      const isAPrimary = (a.providerId || a.id) === primaryProviderId;
+      const isBPrimary = (b.providerId || b.id) === primaryProviderId;
+      if (isAPrimary !== isBPrimary) {
+        return isAPrimary ? -1 : 1;
+      }
+    }
+
     // 1. Los servidores no-beta tienen prioridad sobre los beta
     if (!!a.isBeta !== !!b.isBeta) {
       return a.isBeta ? 1 : -1;
@@ -126,9 +143,13 @@ export function sortSourcesByPriority(sources: Source[], userLang: string): Sour
 /**
  * Selecciona la mejor fuente recomendada para el usuario.
  */
-export function findBestSource(sources: Source[], userLang: string): Source | undefined {
+export function findBestSource(
+  sources: Source[],
+  userLang: string,
+  primaryByLang?: Record<string, string>
+): Source | undefined {
   if (!sources || sources.length === 0) return undefined;
-  const sorted = sortSourcesByPriority(sources, userLang);
+  const sorted = sortSourcesByPriority(sources, userLang, primaryByLang);
   return sorted[0];
 }
 

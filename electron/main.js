@@ -167,7 +167,12 @@ function createMainWindow() {
     if (!event.isMainFrame) {
       try {
         const parsed = new URL(url);
+        const host = (parsed.hostname || '').toLowerCase();
         if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          // Si el sub-frame navega dentro de un host de streaming o embed permitido (ej. YouTube, embed providers), permitir carga interna
+          if (isAllowedHost(host)) {
+            return;
+          }
           if (isSafeExternalUrl(url)) {
             event.preventDefault();
             shell.openExternal(url).catch(() => {});
@@ -187,6 +192,12 @@ function createMainWindow() {
           mainWindow.webContents.executeJavaScriptInFrame(
             [frameProcessId, frameRoutingId],
             `try {
+              // No interferir con reproductores oficiales de YouTube / Google Video
+              var h = (window.location.hostname || '').toLowerCase();
+              if (h.indexOf('youtube') !== -1 || h.indexOf('googlevideo') !== -1) {
+                return;
+              }
+
               // Neutralizar apertura de ventanas y alertas invasivas
               window.open = function() { console.log('[AdBlock] window.open bloqueado dentro de iframe'); return null; };
               window.alert = function() { return null; };

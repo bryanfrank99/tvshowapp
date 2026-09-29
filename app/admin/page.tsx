@@ -78,6 +78,10 @@ type Prov = {
   entry_key: string;
   active: boolean;
   ord: number;
+  movie_list_url?: string;
+  tv_list_url?: string;
+  anime_list_url?: string;
+  dorama_list_url?: string;
 };
 
 type Live = {
@@ -194,6 +198,9 @@ export default function AdminPage() {
   });
 
   const [provs, setProvs] = useState<Prov[]>([]);
+  const [primaryByLang, setPrimaryByLang] = useState<{ es: string; pt: string; en: string }>({ es: "", pt: "", en: "" });
+  const [savingPrimary, setSavingPrimary] = useState(false);
+  const [savedPrimaryMsg, setSavedPrimaryMsg] = useState("");
   const [live, setLive] = useState<Live[]>([]);
   const [version, setVersion] = useState("");
   const [label, setLabel] = useState("");
@@ -366,6 +373,13 @@ export default function AdminPage() {
         if (p) {
           setProvs(p.providers || []);
           setVersion(p.version || "");
+          if (p.primary_providers_by_lang) {
+            setPrimaryByLang({
+              es: p.primary_providers_by_lang.es || "",
+              pt: p.primary_providers_by_lang.pt || "",
+              en: p.primary_providers_by_lang.en || "",
+            });
+          }
         }
         if (l?.live) setLive(l.live);
       }
@@ -849,6 +863,39 @@ export default function AdminPage() {
       setMsg("");
       load();
     } else setMsg(lang === "en" ? "Error saving server" : lang === "pt" ? "Erro ao salvar servidor" : "Error guardando servidor");
+  };
+
+  const savePrimaryByLang = async () => {
+    setSavingPrimary(true);
+    setSavedPrimaryMsg("");
+    try {
+      const r = await api("providers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_primary_by_lang",
+          primary_providers_by_lang: primaryByLang,
+        }),
+      });
+      if (r.ok) {
+        setSavedPrimaryMsg(
+          lang === "en"
+            ? "Primary servers saved!"
+            : lang === "pt"
+            ? "Servidores prioritários salvos!"
+            : "¡Servidores prioritarios guardados!"
+        );
+        setTimeout(() => setSavedPrimaryMsg(""), 3500);
+      } else {
+        setSavedPrimaryMsg(
+          lang === "en" ? "Error saving" : lang === "pt" ? "Erro ao salvar" : "Error al guardar"
+        );
+      }
+    } catch {
+      setSavedPrimaryMsg("Error de conexión");
+    } finally {
+      setSavingPrimary(false);
+    }
   };
 
   const saveLive = async () => {
@@ -1864,6 +1911,122 @@ export default function AdminPage() {
               <span>{isCheckingHealth ? d.prov_diagnosing : d.prov_diagnose}</span>
             </button>
           </div>
+          {/* CONFIGURACIÓN DE SERVIDOR PRIORITARIO POR IDIOMA */}
+          <div className="mb-6 p-4 rounded-2xl border border-white/10 bg-white/5 space-y-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                  <span>⚡</span>
+                  <span>
+                    {lang === "en"
+                      ? "Primary Server by Language (First server played)"
+                      : lang === "pt"
+                      ? "Servidor Prioritário por Idioma (Primeiro servidor a reproduzir)"
+                      : "Servidor Prioritario por Idioma (Primer servidor al reproducir)"}
+                  </span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  {lang === "en"
+                    ? "Choose which server will appear in first position (S...) for users based on their selected interface language:"
+                    : lang === "pt"
+                    ? "Escolha qual servidor terá prioridade máxima e aparecerá em 1º lugar (S...) de acordo com o idioma do usuário:"
+                    : "Elige cuál servidor tendrá prioridad máxima y aparecerá en 1ª posición (S...) según el idioma del usuario:"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={savePrimaryByLang}
+                disabled={savingPrimary}
+                className="px-3.5 py-1.5 rounded-xl bg-[#008CFF] hover:bg-[#0070cc] text-white text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <span>{savingPrimary ? "⏳" : "💾"}</span>
+                <span>
+                  {savingPrimary
+                    ? "Guardando..."
+                    : lang === "en"
+                    ? "Save Priorities"
+                    : lang === "pt"
+                    ? "Salvar Prioridades"
+                    : "Guardar Prioridades"}
+                </span>
+              </button>
+            </div>
+
+            {savedPrimaryMsg && (
+              <p className="text-xs text-emerald-400 font-medium animate-fadeIn">
+                ✓ {savedPrimaryMsg}
+              </p>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              {/* Español */}
+              <div className="p-3 rounded-xl bg-black/30 border border-white/5 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🇪🇸</span>
+                  <span className="text-xs font-bold text-zinc-200">Español (ES)</span>
+                </div>
+                <select
+                  value={primaryByLang.es || ""}
+                  onChange={(e) => setPrimaryByLang({ ...primaryByLang, es: e.target.value })}
+                  className={`${inp} py-1.5 text-xs text-white`}
+                >
+                  <option value="">Predeterminado (Automático)</option>
+                  {provs
+                    .filter((p) => p.active)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.simulated_name || `S${p.ord}`} - {p.real_name || p.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Português */}
+              <div className="p-3 rounded-xl bg-black/30 border border-white/5 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🇧🇷</span>
+                  <span className="text-xs font-bold text-zinc-200">Português (PT)</span>
+                </div>
+                <select
+                  value={primaryByLang.pt || ""}
+                  onChange={(e) => setPrimaryByLang({ ...primaryByLang, pt: e.target.value })}
+                  className={`${inp} py-1.5 text-xs text-white`}
+                >
+                  <option value="">Predeterminado (Automático)</option>
+                  {provs
+                    .filter((p) => p.active)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.simulated_name || `S${p.ord}`} - {p.real_name || p.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* English */}
+              <div className="p-3 rounded-xl bg-black/30 border border-white/5 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🇺🇸</span>
+                  <span className="text-xs font-bold text-zinc-200">English (EN)</span>
+                </div>
+                <select
+                  value={primaryByLang.en || ""}
+                  onChange={(e) => setPrimaryByLang({ ...primaryByLang, en: e.target.value })}
+                  className={`${inp} py-1.5 text-xs text-white`}
+                >
+                  <option value="">Predeterminado (Automático)</option>
+                  {provs
+                    .filter((p) => p.active)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.simulated_name || `S${p.ord}`} - {p.real_name || p.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-2">
             {provs.map((p) => {
               const langs = p.languages || (p.lang ? [p.lang] : ["multi"]);
@@ -1923,6 +2086,12 @@ export default function AdminPage() {
                     {p.is_beta && (
                       <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-bold">
                         {d.prov_beta_title.split(" ")[0]} BETA
+                      </span>
+                    )}
+                    {(p.movie_list_url || p.tv_list_url) && (
+                      <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded font-bold flex items-center gap-1" title="Verificación de catálogo por IDs activa">
+                        <span>📋</span>
+                        <span>CATÁLOGO ACTIVO</span>
                       </span>
                     )}
                     <div className="flex items-center gap-1 flex-wrap">
@@ -2083,6 +2252,60 @@ export default function AdminPage() {
                 placeholder={d.prov_entry_key}
                 className={`${inp} font-mono`}
               />
+
+              {/* Listas de Disponibilidad de Catálogo (Opcional) */}
+              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                    <span>📋</span>
+                    <span>Listas de Disponibilidad de Catálogo (Opcional)</span>
+                  </span>
+                  <span className="text-[10px] text-zinc-400">Verificación dinámica de IDs</span>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  Si se configuran, el servidor solo aparecerá al usuario cuando el contenido esté presente en estas listas:
+                </p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Películas (TXT con IDs TMDB):</label>
+                    <input
+                      value={edit.movie_list_url || ""}
+                      onChange={(e) => setEdit({ ...edit, movie_list_url: e.target.value })}
+                      placeholder="https://servidor.com/list-movie-ids.txt"
+                      className={`${inp} font-mono text-xs`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Series (JSON con IDs y episodios):</label>
+                    <input
+                      value={edit.tv_list_url || ""}
+                      onChange={(e) => setEdit({ ...edit, tv_list_url: e.target.value })}
+                      placeholder="https://servidor.com/list-tv-ids.txt"
+                      className={`${inp} font-mono text-xs`}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Animes (JSON, opcional):</label>
+                      <input
+                        value={edit.anime_list_url || ""}
+                        onChange={(e) => setEdit({ ...edit, anime_list_url: e.target.value })}
+                        placeholder="https://servidor.com/list-anime-ids.txt"
+                        className={`${inp} font-mono text-xs`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-zinc-400 mb-1 font-medium">URL Lista Doramas (JSON, opcional):</label>
+                      <input
+                        value={edit.dorama_list_url || ""}
+                        onChange={(e) => setEdit({ ...edit, dorama_list_url: e.target.value })}
+                        placeholder="https://servidor.com/list-dorama-ids.txt"
+                        className={`${inp} font-mono text-xs`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Opción Beta */}
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3">

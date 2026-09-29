@@ -118,7 +118,8 @@ async function MovieDetail(id: string, theatersParam?: string) {
   const directors = ((m.credits?.crew || []).filter((c: any) => c.job === "Director" || c.job === "Writer")).slice(0, 3);
   const cast = (m.credits?.cast || []).slice(0, 10);
   const vids = Array.isArray(m.videos) ? m.videos : ((m.videos as any)?.results || []);
-  const trailer = vids.find((v: any) => v.key && (!v.site || v.site === "YouTube"));
+  const officialTrailer = vids.find((v: any) => v.key && (!v.site || v.site === "YouTube") && v.type === "Trailer");
+  const trailer = officialTrailer || vids.find((v: any) => v.key && (!v.site || v.site === "YouTube"));
   const trailerKey = trailer?.key || "";
   const cert = m.certification || "";
   const similar = await getSimilarTitles("movie", id, m.genres);
@@ -286,7 +287,8 @@ function renderTv(s: any, det: any, id: string, sel: number, seasons: any[], imd
   const creators = (s.created_by || []).slice(0, 3);
   const cast = (s.credits?.cast || []).slice(0, 10);
   const vids = Array.isArray(s.videos) ? s.videos : (s.videos?.results || []);
-  const trailer = vids.find((v: any) => v.key && (!v.site || v.site === "YouTube"));
+  const officialTrailer = vids.find((v: any) => v.key && (!v.site || v.site === "YouTube") && v.type === "Trailer");
+  const trailer = officialTrailer || vids.find((v: any) => v.key && (!v.site || v.site === "YouTube"));
   const trailerKey = trailer?.key || "";
   const cert = s.certification || certOf(s);
   const nS = s.number_of_seasons ?? seasons.length;

@@ -1,0 +1,21 @@
+# Tasks 057: Administración de Disponibilidad, Servidor Prioritario por Idioma y Corrección de Banderas
+
+- [x] 1. Corregir renderizado de banderas de idiomas
+  - [x] Crear componentes SVG vectoriales en `components/icons/FlagIcon.tsx` (BR, ES, US)
+  - [x] Actualizar `components/LanguageModal.tsx` para usar vectores SVG en lugar de emojis
+  - [x] Validar visualización en pantalla de idiomas
+- [x] 2. Crear migración y soporte backend para URLs de disponibilidad y prioridad por idioma
+  - [x] Crear archivo `supabase/migration_provider_availability_urls.sql`
+  - [x] Actualizar `app/api/admin/providers/route.ts` para persistir `movie_list_url`, `tv_list_url`, etc., con fallback a `config`
+  - [x] Permitir consultar y guardar `primary_providers_by_lang` en `config` a través de `/api/admin/providers`
+- [x] 3. Actualizar panel de administración (`app/admin/page.tsx`)
+  - [x] Agregar inputs de URLs de catálogo en el formulario de edición de servidor
+  - [x] Agregar panel de configuración "Servidor prioritario por idioma"
+  - [x] Implementar guardado y sincronización con el backend
+- [x] 4. Integrar prioridad por idioma y URLs dinámicas en resolver (`app/api/resolve/route.ts` y `lib/sources.ts`)
+  - [x] Pasar URLs personalizadas a `isRedeflixAvailable`
+  - [x] Aplicar orden prioritario para el servidor seleccionado en el idioma del usuario
+- [x] 5. Crear suite de pruebas y verificar `npm run build`
+  - [x] Crear `scripts/test-admin-availability-and-lang-priority.mjs`
+  - [x] Ejecutar suite y verificar ausencia de regresiones
+  - [x] Ejecutar `npm run build`

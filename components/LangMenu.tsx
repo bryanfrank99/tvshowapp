@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { LANGS, useLang } from "@/hooks/useLang";
 import { t } from "@/lib/dict";
 import { IconGlobe } from "@/components/Icons";
+import { FlagIcon } from "@/components/icons/FlagIcon";
 
 const NAMES = { es: "Español", en: "English", pt: "Português" } as const;
 
@@ -35,7 +36,10 @@ export default function LangMenu() {
           {LANGS.map((l) => (
             <button key={l} role="menuitem" onClick={() => { setOpen(false); if (l !== lang) setLang(l); }}
               className={`w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-white/5 ${l === lang ? "text-white" : "text-zinc-400"}`}>
-              {NAMES[l]}
+              <div className="flex items-center gap-2">
+                <FlagIcon lang={l} className="w-5 h-3.5 rounded-sm border border-white/20 shadow-xs" />
+                <span>{NAMES[l]}</span>
+              </div>
               {l === lang && <span className="text-[#008CFF]">✓</span>}
             </button>
           ))}

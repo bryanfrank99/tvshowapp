@@ -8,6 +8,7 @@ import type { ProviderDef } from "@/lib/providers";
 // La view_key de Vimeus nunca sale al cliente.
 // GET /api/embed-url?provider=vidcore&type=movie&id=550&s=1&e=1
 import { fillTemplate } from "@/lib/adapters/provider-adapter";
+import { isRedeflixProvider, isRedeflixAvailable } from "@/lib/redeflix-availability";
 
 export async function GET(req: NextRequest) {
   const sess = await checkSession(req.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
@@ -28,6 +29,19 @@ export async function GET(req: NextRequest) {
       .eq("active", true)
       .maybeSingle();
     if (error || !data) return NextResponse.json({ error: "unknown provider" }, { status: 404 });
+
+    if (isRedeflixProvider(data)) {
+      const isAvail = await isRedeflixAvailable({
+        type,
+        tmdbId: id,
+        season: parseInt(s, 10) || 1,
+        episode: parseInt(e, 10) || 1,
+      });
+      if (!isAvail) {
+        return NextResponse.json({ error: "not_available", message: "Contenido no disponible en RedeFlix" }, { status: 404 });
+      }
+    }
+
     const key = process.env.VIMEUS_VIEW_KEY || "";
     const tpl = type === "movie" ? data.movie_tpl : data.tv_tpl;
     return NextResponse.json({

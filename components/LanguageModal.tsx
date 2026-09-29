@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import { useLang, LANGS, setClientLang } from "@/hooks/useLang";
 import { t, type Lang } from "@/lib/dict";
+import { FlagIcon } from "@/components/icons/FlagIcon";
 
 const LANG_DETAILS: Record<Lang, { name: string; native: string; flag: string; desc: string }> = {
   pt: { name: "Português", native: "Português (Brasil)", flag: "🇧🇷", desc: "Idioma padrão da interface e catálogo" },
@@ -91,7 +92,9 @@ export default function LanguageModal({ isOpen, onClose }: LanguageModalProps) {
                 }`}
               >
                 <div className="flex items-center gap-3.5">
-                  <span className="text-3xl">{info.flag}</span>
+                  <div className="w-10 h-7 flex items-center justify-center shrink-0">
+                    <FlagIcon lang={l} className="w-10 h-7 rounded-md border border-white/20 shadow-md" />
+                  </div>
                   <div>
                     <p className="font-bold text-base text-white group-hover:text-[#008CFF] transition flex items-center gap-2">
                       <span>{info.native}</span>

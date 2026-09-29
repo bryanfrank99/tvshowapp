@@ -5,6 +5,7 @@ import { checkSession, SESSION_COOKIE } from "@/lib/access";
 import { providersToSources, type ProviderAdapterInput } from "@/lib/adapters/provider-adapter";
 import { parseLangs, parseSubs } from "@/lib/providers";
 import { sortSourcesByPriority, type ResolveResponse, type Source } from "@/lib/sources";
+import { isRedeflixProvider, isRedeflixAvailable } from "@/lib/redeflix-availability";
 
 // In-memory cache de resolución IMDb ↔ TMDB en servidor (TTL 24 horas)
 const idMapCache = new Map<string, { tmdb?: string; imdb?: string; exp: number }>();
@@ -96,14 +97,16 @@ export async function GET(req: NextRequest) {
   try {
     const sb = supa();
 
-    // 2. Consulta de proveedores y versión de catálogo
-    const [provRes, verRes] = await Promise.all([
+    // 2. Consulta de proveedores, versión y preferencias de prioridad lingüística
+    const [provRes, verRes, primaryRes, availRes] = await Promise.all([
       sb
         .from("providers")
-        .select("id, name, ord, movie_tpl, tv_tpl, needs_tmdb, tv_ok, entry_key, lang, subtitles, is_beta")
+        .select("*")
         .eq("active", true)
         .order("ord"),
       sb.from("config").select("value").eq("key", "providers_version").maybeSingle(),
+      sb.from("config").select("value").eq("key", "primary_providers_by_lang").maybeSingle(),
+      sb.from("config").select("value").eq("key", "provider_availability_urls").maybeSingle(),
     ]);
 
     if (provRes.error || !provRes.data) {
@@ -112,6 +115,20 @@ export async function GET(req: NextRequest) {
 
     const providersData = provRes.data;
     const version = (verRes.data as any)?.value || "1.0";
+
+    let primaryByLang: Record<string, string> = {};
+    try {
+      if (primaryRes.data?.value) {
+        primaryByLang = JSON.parse(primaryRes.data.value);
+      }
+    } catch {}
+
+    let fallbackAvailUrls: Record<string, any> = {};
+    try {
+      if (availRes.data?.value) {
+        fallbackAvailUrls = JSON.parse(availRes.data.value);
+      }
+    } catch {}
 
     // 3. Resolución de IDs según los requerimientos de los proveedores activos
     const isImdb = rawId.startsWith("tt");
@@ -139,6 +156,32 @@ export async function GET(req: NextRequest) {
     let serverIndex = 1;
 
     for (const p of providersData) {
+      const provAvail = fallbackAvailUrls[p.id] || {};
+      const movieListUrl = p.movie_list_url || provAvail.movie_list_url || "";
+      const tvListUrl = p.tv_list_url || provAvail.tv_list_url || "";
+      const animeListUrl = p.anime_list_url || provAvail.anime_list_url || "";
+      const doramaListUrl = p.dorama_list_url || provAvail.dorama_list_url || "";
+
+      // Filtrar servidor si el contenido no está disponible en sus listas de catálogo
+      if (isRedeflixProvider({ ...p, movie_list_url: movieListUrl, tv_list_url: tvListUrl })) {
+        if (!effectiveTmdbId) {
+          continue;
+        }
+        const isAvail = await isRedeflixAvailable({
+          type,
+          tmdbId: effectiveTmdbId,
+          season: s,
+          episode: e,
+          movieListUrl,
+          tvListUrl,
+          animeListUrl,
+          doramaListUrl,
+        });
+        if (!isAvail) {
+          continue;
+        }
+      }
+
       const requiresTmdb = !!p.needs_tmdb;
       // Mantener todos los proveedores disponibles; si falta TMDB ID, usar el ID original como fallback
       const targetId = requiresTmdb
@@ -184,8 +227,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Ordenar TODAS las fuentes según afinidad lingüística real
-    const sorted = sortSourcesByPriority(rawSources, userLang);
+    // Ordenar TODAS las fuentes según afinidad lingüística real y prioridad de servidor por idioma
+    const sorted = sortSourcesByPriority(rawSources, userLang, primaryByLang);
 
     // Conservar identificadores canónicos (S{ord}) para coincidir 1:1 con administración
     const sources = sorted;
