@@ -4,6 +4,7 @@ import { tmdb, hasKey, getLang } from "./tmdb";
 import { withImdbIds, type Media } from "./imdb";
 import { getPerson, savePerson } from "./db";
 import { getNowPlayingIds } from "./theaters-server";
+import { isMovieInTheaters } from "./theaters";
 import * as free from "./free";
 
 export type Spot = { show: any; seasonNum: number; ep: any | null };
@@ -25,19 +26,15 @@ export function isPremiered(item: any): boolean {
 async function tagInTheaters(items: Media[]): Promise<Media[]> {
   try {
     const ids = await getNowPlayingIds();
-    const now = Date.now();
     return items.map((x: any) => {
       if (x.media_type === "tv") {
         return { ...x, in_theaters: false };
       }
-      if (ids && ids.has(Number(x.id))) {
-        if (x.release_date) {
-          const daysSince = (now - new Date(x.release_date).getTime()) / (1000 * 60 * 60 * 24);
-          if (daysSince > 90) return { ...x, in_theaters: false };
-        }
-        return { ...x, in_theaters: true };
-      }
-      return { ...x, in_theaters: false };
+      const inTheaters = isMovieInTheaters({
+        ...x,
+        in_theaters: ids?.has(Number(x.id)),
+      });
+      return { ...x, in_theaters: inTheaters };
     });
   } catch {
     return items;
@@ -144,7 +141,7 @@ export async function getUpcoming(page = 1, per = 12): Promise<Page<Media>> {
     const raw = (d.results || [])
       .filter(isPremiered)
       .slice(0, per)
-      .map((x) => ({ ...x, media_type: "movie", in_theaters: true }));
+      .map((x) => ({ ...x, media_type: "movie" }));
     const items = await tagInTheaters(raw);
     return { items, hasMore: page < (d.total_pages || 1) };
   }, async () => {
@@ -306,7 +303,11 @@ export async function getNowPlaying(page = 1, per = 24): Promise<Page<Media>> {
     const ids = await getNowPlayingIds();
     const d = await tmdb<Paged<{ results: Media[] }>>(`/movie/now_playing?page=${page}`, 3600);
     return {
-      items: d.results.filter(isPremiered).slice(0, per).map((x) => ({ ...x, media_type: "movie", in_theaters: ids.has(Number(x.id)) })),
+      items: d.results.filter(isPremiered).slice(0, per).map((x) => ({
+        ...x,
+        media_type: "movie",
+        in_theaters: isMovieInTheaters({ ...x, in_theaters: ids.has(Number(x.id)) }),
+      })),
       hasMore: page < (d.total_pages || 1),
     };
   }, async () => {

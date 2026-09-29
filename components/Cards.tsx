@@ -45,7 +45,7 @@ export function MediaCard({
   const posterSrc = img(item.poster_path || (item as any).poster || null);
   const rawRating = item.vote_average ?? (item as any).rating ?? 0;
   const rating = Number(rawRating);
-  const isCine = Boolean(item.in_theaters || (type === "movie" && isMovieInTheaters(item)));
+  const isCine = type === "movie" && isMovieInTheaters(item);
   const targetHref = href || `/title?type=${type}&id=${item.id}${isCine ? "&theaters=1" : ""}`;
   const { lang } = useLang();
   const d = t(lang);

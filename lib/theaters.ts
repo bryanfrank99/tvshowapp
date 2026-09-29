@@ -2,8 +2,32 @@
 // Helper puro sin dependencias de Node ni servidor (compartido entre Server y Client Components)
 
 /**
- * Determina con alta precisión si una película sigue actualmente en cines y no ha tenido
- * su lanzamiento digital o físico (lo que implica que cualquier video disponible es grabación CAM).
+ * Calcula los días calendario transcurridos desde la fecha de estreno (release_date) hasta hoy.
+ * Se normaliza a medianoche UTC para evitar discrepancias por zona horaria.
+ * - Retorna 0 el mismo día del estreno.
+ * - Retorna número positivo si ya se estrenó (ej: 45 hace 45 días).
+ * - Retorna número negativo si el estreno es en el futuro (ej: -5 faltan 5 días).
+ * - Retorna null si la fecha es inválida o no se proporciona.
+ */
+export function getDaysSinceRelease(releaseDateStr?: string | null): number | null {
+  if (!releaseDateStr) return null;
+  const clean = String(releaseDateStr).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(clean)) return null;
+
+  const [y, m, d] = clean.split("-").map(Number);
+  if (!y || !m || !d) return null;
+
+  const releaseDateUTC = Date.UTC(y, m - 1, d);
+  const now = new Date();
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
+  return Math.floor((todayUTC - releaseDateUTC) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Determina si una película debe mostrar la etiqueta "EN CINES".
+ * Regla: Aparece a todas las películas desde su fecha de estreno (día 0)
+ * y hasta 45 días después. En el día 46 ya no se muestra.
  */
 export function isMovieInTheaters(m: any): boolean {
   if (!m) return false;
@@ -12,60 +36,19 @@ export function isMovieInTheaters(m: any): boolean {
     return false;
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const now = Date.now();
-
-  // 1. Si la película tiene fecha de estreno y es de hace más de 90 días, NO es exclusiva de cines
-  if (m.release_date) {
-    const relTime = new Date(m.release_date).getTime();
-    if (!isNaN(relTime)) {
-      const daysSince = (now - relTime) / (1000 * 60 * 60 * 24);
-      // Películas estrenadas hace más de 90 días ya tienen distribución digital / streaming
-      if (daysSince > 90) {
-        return false;
-      }
-    }
+  // Si tiene fecha de estreno, calcular días transcurridos
+  const daysSince = getDaysSinceRelease(m.release_date);
+  if (daysSince !== null) {
+    // Desde el día del estreno (0) hasta 45 días después inclusive.
+    // En el día 46 (daysSince >= 46) o antes del estreno (daysSince < 0) no se muestra.
+    return daysSince >= 0 && daysSince <= 45;
   }
 
-  // 2. Si disponemos de release_dates (vía append_to_response=release_dates), comprobar si YA salió en streaming / digital o físico
-  const results = m.release_dates?.results || [];
-  if (Array.isArray(results) && results.length > 0) {
-    const all = results.flatMap((r: any) => r.release_dates || []);
-
-    // Comprobar si ya existe estreno digital (4) o físico (5) cuya fecha ya pasó
-    const releasedDigitalOrPhysical = all.some(
-      (x: any) => (x.type === 4 || x.type === 5) && x.release_date && x.release_date.slice(0, 10) <= todayStr
-    );
-
-    // Si ya está en streaming/digital/físico, DEFINITIVAMENTE NO es calidad CAM de cines
-    if (releasedDigitalOrPhysical) {
-      return false;
-    }
-
-    // Comprobar si tuvo estreno en cines reciente (tipo 2 o 3)
-    const hasTheatrical = all.some(
-      (x: any) => (x.type === 2 || x.type === 3) && x.release_date && x.release_date.slice(0, 10) <= todayStr
-    );
-
-    if (hasTheatrical) {
-      return true;
-    }
-
-    // Si tiene datos de fechas pero NO tuvo estreno en cines (p. ej. solo festival o streaming), no es de cines
-    return false;
-  }
-
-  // 3. Si viene marcada explícitamente por now_playing (verificada por el servidor con getNowPlayingIds), validar ventana teatral (0 a 90 días desde su estreno)
+  // Si no tiene release_date pero viene marcada explícitamente como in_theaters
   if (m.in_theaters === true) {
-    if (m.release_date) {
-      const relTime = new Date(m.release_date).getTime();
-      const daysSince = (now - relTime) / (1000 * 60 * 60 * 24);
-      return daysSince >= 0 && daysSince <= 90;
-    }
     return true;
   }
 
-  // Sin release_dates ni marca verificada in_theaters de now_playing, NUNCA asumir que es de cines por fecha
-  // (evita marcar falsamente estrenos exclusivos de streaming como Netflix / Prime Video / VOD)
   return false;
 }
+

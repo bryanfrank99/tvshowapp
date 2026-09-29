@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Servidor TMDB: Obtención y caché de IDs de películas en cines
 import { tmdb, hasKey } from "./tmdb";
+import { getDaysSinceRelease } from "./theaters";
 
 let cachedNowPlayingIds: Set<number> | null = null;
 let cachedNowPlayingTime = 0;
@@ -31,12 +32,12 @@ export async function getNowPlayingIds(): Promise<Set<number>> {
 
     const raw = [...(p1?.results || []), ...(p2?.results || []), ...(p3?.results || [])];
 
-    // 1. Filtrar solo películas recientes (ventana teatral válida: entre 0 y 90 días desde su estreno en cines)
-    // Esto descarta películas no estrenadas (daysSince < 0) y clásicas de años anteriores
+    // 1. Filtrar solo películas recientes (ventana teatral válida: entre 0 y 45 días desde su estreno en cines)
+    // Esto descarta películas no estrenadas (daysSince < 0) y títulos con 46+ días
     const recent = raw.filter((m) => {
       if (!m?.id || !m?.release_date) return false;
-      const daysSince = (now - new Date(m.release_date).getTime()) / (1000 * 60 * 60 * 24);
-      return daysSince >= 0 && daysSince <= 90;
+      const daysSince = getDaysSinceRelease(m.release_date);
+      return daysSince !== null && daysSince >= 0 && daysSince <= 45;
     });
 
     // 2. Para las candidatas recientes, comprobar si ya cuentan con estreno digital (tipo 4) o físico (tipo 5)
