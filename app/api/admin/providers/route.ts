@@ -109,6 +109,7 @@ export async function PUT(req: NextRequest) {
     const url = String(b.url || "").trim();
     const type = b.type === "tv" ? "tv" : "movie";
     const tmdbId = String(b.tmdbId || (type === "tv" ? "1396" : "969681")).trim();
+    const imdbId = String(b.imdbId || (type === "tv" ? "tt0903747" : "tt6263850")).trim();
     const s = b.season ? parseInt(b.season, 10) : 1;
     const e = b.episode ? parseInt(b.episode, 10) : 1;
 
@@ -121,12 +122,13 @@ export async function PUT(req: NextRequest) {
 
       const probe = isProbeUrl(url);
       const effectiveUrl = probe
-        ? interpolateProbeUrl(url, { id: tmdbId, season: s, episode: e })
+        ? interpolateProbeUrl(url, { tmdbId, imdbId, id: tmdbId, season: s, episode: e })
         : url;
 
       const isAvail = await isRedeflixAvailable({
         type,
         tmdbId,
+        imdbId,
         season: s,
         episode: e,
         movieListUrl: type === "movie" ? url : undefined,
@@ -140,6 +142,7 @@ export async function PUT(req: NextRequest) {
         testedUrl: effectiveUrl,
         type,
         tmdbId,
+        imdbId,
         season: type === "tv" ? s : undefined,
         episode: type === "tv" ? e : undefined,
       });

@@ -139,8 +139,11 @@ export async function GET(req: NextRequest) {
     let effectiveImdbId: string | undefined = isImdb ? rawId : undefined;
 
     const needsTmdbCount = providersData.filter((p: any) => !!p.needs_tmdb).length;
+    const hasAvailCheck = providersData.some(
+      (p: any) => p.movie_list_url || p.tv_list_url || fallbackAvailUrls[p.id] || isRedeflixProvider(p)
+    );
 
-    if (isImdb && needsTmdbCount > 0) {
+    if (isImdb && (needsTmdbCount > 0 || hasAvailCheck)) {
       const resolvedTmdb = await getServerTmdbId(type, rawId);
       if (resolvedTmdb) {
         effectiveTmdbId = resolvedTmdb;
@@ -167,18 +170,20 @@ export async function GET(req: NextRequest) {
 
       // Filtrar servidor si el contenido no está disponible en sus listas de catálogo
       if (isRedeflixProvider({ ...p, movie_list_url: movieListUrl, tv_list_url: tvListUrl })) {
-        if (!effectiveTmdbId) {
+        if (!effectiveTmdbId && !effectiveImdbId) {
           continue;
         }
         const isAvail = await isRedeflixAvailable({
           type,
           tmdbId: effectiveTmdbId,
+          imdbId: effectiveImdbId,
           season: s,
           episode: e,
           movieListUrl,
           tvListUrl,
           animeListUrl,
           doramaListUrl,
+          needsTmdb: !!p.needs_tmdb,
         });
         if (!isAvail) {
           continue;

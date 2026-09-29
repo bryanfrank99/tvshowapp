@@ -31,7 +31,7 @@ const probePromises = new Map<string, Promise<boolean>>();
 /**
  * Detecta si una URL es una plantilla de comprobación puntual (Probe URL)
  * Soporta placeholders: {id}, {tmdb}, {imdb}, {s}, {season}, {e}, {episode}
- * o enlaces con IDs numéricos de ejemplo como /movie/969681 o /tvshow/1396/1/1
+ * o enlaces con IDs de ejemplo como /movie/969681, /movie/tt6263850, /tvshow/1396/1/1, etc.
  */
 export function isProbeUrl(url?: string | null): boolean {
   if (!url) return false;
@@ -47,8 +47,8 @@ export function isProbeUrl(url?: string | null): boolean {
   ) {
     return true;
   }
-  // Detección de URLs con patrón puntual ingresadas como ejemplo
-  if (/\/(?:movie|filme|tv|tvshow|serie|series)\/\d+/i.test(clean)) {
+  // Detección de URLs con patrón puntual ingresadas como ejemplo (TMDB numérico o IMDb tt...)
+  if (/\/(?:movie|filme|tv|tvshow|serie|series)\/(?:\d+|tt\d+)/i.test(clean)) {
     return true;
   }
   return false;
@@ -60,48 +60,81 @@ export function isProbeUrl(url?: string | null): boolean {
 export function normalizeProbeUrl(url: string, type: "movie" | "tv"): string {
   if (!url) return "";
   let clean = url.trim();
-  if (clean.includes("{id}") || clean.includes("{tmdb}")) {
+  if (clean.includes("{id}") || clean.includes("{tmdb}") || clean.includes("{imdb}")) {
     return clean;
   }
   if (type === "movie") {
-    clean = clean.replace(/(\/(?:movie|filme)\/)\d+(\/?$)/i, "$1{id}$2");
-    if (!clean.includes("{id}")) {
-      clean = clean.replace(/\/\d+(\/?$)/, "/{id}$1");
+    if (/\/tt\d+/i.test(clean)) {
+      clean = clean.replace(/(\/(?:movie|filme)\/)tt\d+(\/?$)/i, "$1{imdb}$2");
+      if (!clean.includes("{imdb}")) clean = clean.replace(/\/tt\d+(\/?$)/i, "/{imdb}$1");
+    } else {
+      clean = clean.replace(/(\/(?:movie|filme)\/)\d+(\/?$)/i, "$1{id}$2");
+      if (!clean.includes("{id}")) clean = clean.replace(/\/\d+(\/?$)/, "/{id}$1");
     }
   } else {
-    clean = clean.replace(/(\/(?:tv|tvshow|serie|series)\/)\d+\/\d+\/\d+(\/?$)/i, "$1{id}/{s}/{e}$2");
-    if (!clean.includes("{id}")) {
-      clean = clean.replace(/\/\d+\/\d+\/\d+(\/?$)/, "/{id}/{s}/{e}$1");
+    if (/\/tt\d+/i.test(clean)) {
+      clean = clean.replace(/(\/(?:tv|tvshow|serie|series)\/)tt\d+\/\d+\/\d+(\/?$)/i, "$1{imdb}/{s}/{e}$2");
+      if (!clean.includes("{imdb}")) clean = clean.replace(/\/tt\d+\/\d+\/\d+(\/?$)/i, "/{imdb}/{s}/{e}$1");
+    } else {
+      clean = clean.replace(/(\/(?:tv|tvshow|serie|series)\/)\d+\/\d+\/\d+(\/?$)/i, "$1{id}/{s}/{e}$2");
+      if (!clean.includes("{id}")) clean = clean.replace(/\/\d+\/\d+\/\d+(\/?$)/, "/{id}/{s}/{e}$1");
     }
   }
   return clean;
 }
 
 /**
- * Interpola una plantilla de comprobación puntual con los identificadores del título
+ * Interpola una plantilla de comprobación puntual con identificadores duales (IMDb y TMDB)
  */
 export function interpolateProbeUrl(
   template: string,
-  params: { id: string | number; season?: string | number | null; episode?: string | number | null }
+  params: {
+    id?: string | number | null;
+    tmdbId?: string | number | null;
+    imdbId?: string | number | null;
+    season?: string | number | null;
+    episode?: string | number | null;
+    needsTmdb?: boolean;
+  }
 ): string {
   const sStr = params.season !== undefined && params.season !== null ? String(params.season) : "1";
   const eStr = params.episode !== undefined && params.episode !== null ? String(params.episode) : "1";
-  const idStr = String(params.id || "").trim();
+
+  let tmdbVal = params.tmdbId ? String(params.tmdbId).trim() : "";
+  let imdbVal = params.imdbId ? String(params.imdbId).trim() : "";
+
+  const rawId = params.id ? String(params.id).trim() : "";
+  if (rawId) {
+    if (rawId.startsWith("tt")) {
+      if (!imdbVal) imdbVal = rawId;
+    } else {
+      if (!tmdbVal) tmdbVal = rawId;
+    }
+  }
+
+  let genericIdVal = rawId;
+  if (!genericIdVal) {
+    if (params.needsTmdb === false && imdbVal) {
+      genericIdVal = imdbVal;
+    } else {
+      genericIdVal = tmdbVal || imdbVal;
+    }
+  }
 
   let url = template.trim();
-  if (!url.includes("{id}") && !url.includes("{tmdb}")) {
+  if (!url.includes("{id}") && !url.includes("{tmdb}") && !url.includes("{imdb}")) {
     const isTv =
       url.includes("{s}") ||
-      /\/\d+\/\d+\/\d+/.test(url) ||
+      /\/(?:\d+|tt\d+)\/\d+\/\d+/.test(url) ||
       url.toLowerCase().includes("tv") ||
       url.toLowerCase().includes("serie");
     url = normalizeProbeUrl(url, isTv ? "tv" : "movie");
   }
 
   return url
-    .replace(/\{id\}/gi, idStr)
-    .replace(/\{tmdb\}/gi, idStr)
-    .replace(/\{imdb\}/gi, idStr)
+    .replace(/\{tmdb\}/gi, tmdbVal || genericIdVal)
+    .replace(/\{imdb\}/gi, imdbVal || genericIdVal)
+    .replace(/\{id\}/gi, genericIdVal)
     .replace(/\{s\}/gi, sStr)
     .replace(/\{season\}/gi, sStr)
     .replace(/\{e\}/gi, eStr)
@@ -274,14 +307,22 @@ export async function getRedeflixMovieSet(url: string = DEFAULT_REDEFLIX_MOVIE_U
               } else if (item && typeof item === "object") {
                 const id = item.id_tmdb || item.id || item.tmdb_id || item.tmdb;
                 if (id) movieSet.add(String(id).trim());
+                const imdb = item.id_imdb || item.imdb_id || item.imdb;
+                if (imdb) movieSet.add(String(imdb).trim());
               }
             }
           } else if (parsed && typeof parsed === "object") {
             const items = parsed.items || parsed.movies || parsed.results || parsed.data;
             if (Array.isArray(items)) {
               for (const item of items) {
-                const id = typeof item === "object" ? (item?.id_tmdb || item?.id || item?.tmdb_id) : item;
-                if (id) movieSet.add(String(id).trim());
+                if (typeof item === "object" && item) {
+                  const id = item.id_tmdb || item.id || item.tmdb_id || item.tmdb;
+                  if (id) movieSet.add(String(id).trim());
+                  const imdb = item.id_imdb || item.imdb_id || item.imdb;
+                  if (imdb) movieSet.add(String(imdb).trim());
+                } else if (item) {
+                  movieSet.add(String(item).trim());
+                }
               }
             } else {
               for (const k of Object.keys(parsed)) {
@@ -364,10 +405,16 @@ export async function getRedeflixTvMap(urls?: TvFetchUrls): Promise<Map<string, 
           if (items) {
             for (const item of items) {
               if (item) {
-                const tmdbKey = String(item.id_tmdb || item.id || item.tmdb_id || "");
+                const tmdbKey = String(
+                  item.id_tmdb || item.tmdb_id || (String(item.id || "").startsWith("tt") ? "" : item.id || "")
+                ).trim();
+                const imdbKey = String(
+                  item.id_imdb || item.imdb_id || item.imdb || (String(item.id || "").startsWith("tt") ? item.id : "")
+                ).trim();
+                const incoming = item.episodios || item.episodes || {};
+
                 if (tmdbKey) {
                   const existingSeries = tvMap.get(tmdbKey) || {};
-                  const incoming = item.episodios || item.episodes || {};
                   for (const seasonKey of Object.keys(incoming)) {
                     existingSeries[seasonKey] = {
                       ...(existingSeries[seasonKey] || {}),
@@ -375,6 +422,16 @@ export async function getRedeflixTvMap(urls?: TvFetchUrls): Promise<Map<string, 
                     };
                   }
                   tvMap.set(tmdbKey, existingSeries);
+                }
+                if (imdbKey) {
+                  const existingSeries = tvMap.get(imdbKey) || {};
+                  for (const seasonKey of Object.keys(incoming)) {
+                    existingSeries[seasonKey] = {
+                      ...(existingSeries[seasonKey] || {}),
+                      ...incoming[seasonKey],
+                    };
+                  }
+                  tvMap.set(imdbKey, existingSeries);
                 }
               }
             }
@@ -405,33 +462,57 @@ export async function getRedeflixTvMap(urls?: TvFetchUrls): Promise<Map<string, 
 export interface RedeFlixCheckOptions {
   type: "movie" | "tv";
   tmdbId?: string | number | null;
+  imdbId?: string | number | null;
   season?: string | number | null;
   episode?: string | number | null;
   movieListUrl?: string | null;
   tvListUrl?: string | null;
   animeListUrl?: string | null;
   doramaListUrl?: string | null;
+  needsTmdb?: boolean;
 }
 
 /**
- * Consulta si un contenido específico está disponible mediante Probe URL, API o listas de catálogo en lote
+ * Consulta si un contenido específico está disponible mediante Probe URL, API o listas de catálogo en lote.
+ * Admite búsqueda por TMDB ID, IMDb ID o ambos simultáneamente.
  */
 export async function isRedeflixAvailable(opts: RedeFlixCheckOptions): Promise<boolean> {
-  if (!opts.tmdbId) return false;
-  const tmdbStr = String(opts.tmdbId).trim();
-  if (!tmdbStr || tmdbStr.startsWith("tt")) return false; // Requiere ID TMDB numérico
+  let tmdbStr = opts.tmdbId ? String(opts.tmdbId).trim() : "";
+  let imdbStr = opts.imdbId ? String(opts.imdbId).trim() : "";
+
+  // Si tmdbId tiene formato "tt...", moverlo a imdbStr
+  if (tmdbStr.startsWith("tt")) {
+    if (!imdbStr) imdbStr = tmdbStr;
+    tmdbStr = "";
+  }
+  // Si imdbId es numérico puro, moverlo a tmdbStr
+  if (imdbStr && /^\d+$/.test(imdbStr)) {
+    if (!tmdbStr) tmdbStr = imdbStr;
+    imdbStr = "";
+  }
+
+  // Si no disponemos de ningún ID, no es posible verificar
+  if (!tmdbStr && !imdbStr) return false;
 
   if (opts.type === "movie") {
     const movieUrl = opts.movieListUrl || "";
     // Modalidad 1: Link de comprobación puntual (Probe URL / API)
     if (isProbeUrl(movieUrl)) {
-      const targetProbe = interpolateProbeUrl(movieUrl, { id: tmdbStr });
+      const targetProbe = interpolateProbeUrl(movieUrl, {
+        tmdbId: tmdbStr,
+        imdbId: imdbStr,
+        id: opts.needsTmdb === false && imdbStr ? imdbStr : (tmdbStr || imdbStr),
+        needsTmdb: opts.needsTmdb,
+      });
       return probeUrlAvailability(targetProbe);
     }
 
     // Modalidad 2: Lista en lote (TXT / JSON completo)
     const movieSet = await getRedeflixMovieSet(movieUrl || undefined);
-    return movieSet.has(tmdbStr);
+    // Verificamos coincidencia por TMDB o por IMDb
+    if (tmdbStr && movieSet.has(tmdbStr)) return true;
+    if (imdbStr && movieSet.has(imdbStr)) return true;
+    return false;
   }
 
   if (opts.type === "tv") {
@@ -439,9 +520,12 @@ export async function isRedeflixAvailable(opts: RedeFlixCheckOptions): Promise<b
     // Modalidad 1: Link de comprobación puntual (Probe URL / API)
     if (isProbeUrl(tvUrl)) {
       const targetProbe = interpolateProbeUrl(tvUrl, {
-        id: tmdbStr,
+        tmdbId: tmdbStr,
+        imdbId: imdbStr,
+        id: opts.needsTmdb === false && imdbStr ? imdbStr : (tmdbStr || imdbStr),
         season: opts.season,
         episode: opts.episode,
+        needsTmdb: opts.needsTmdb,
       });
       return probeUrlAvailability(targetProbe);
     }
@@ -452,7 +536,7 @@ export async function isRedeflixAvailable(opts: RedeFlixCheckOptions): Promise<b
       animeUrl: opts.animeListUrl || undefined,
       doramaUrl: opts.doramaListUrl || undefined,
     });
-    const series = tvMap.get(tmdbStr);
+    const series = (tmdbStr && tvMap.get(tmdbStr)) || (imdbStr && tvMap.get(imdbStr));
     if (!series) return false;
 
     // Si se especifican temporada y episodio, validar que existan

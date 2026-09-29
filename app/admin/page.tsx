@@ -557,6 +557,7 @@ export default function AdminPage() {
           url,
           type,
           tmdbId: type === "tv" ? "1396" : "969681",
+          imdbId: type === "tv" ? "tt0903747" : "tt6263850",
           season: 1,
           episode: 1,
         }),
@@ -2533,14 +2534,14 @@ export default function AdminPage() {
                 </div>
                 <div className="text-[11px] text-zinc-400 space-y-1">
                   <p>
-                    Configura cómo verificar si el servidor dispone de un título antes de mostrarlo a los usuarios. Se admiten:
+                    Configura cómo verificar si el servidor dispone de un título antes de mostrarlo. Admite identificadores <b>TMDB</b> (numéricos) e <b>IMDb</b> (<code className="text-[#008CFF] font-mono text-[10px]">tt...</code>):
                   </p>
                   <ul className="list-disc pl-4 space-y-0.5 text-zinc-400">
                     <li>
-                      <b className="text-zinc-300">Link de comprobación puntual (Probe URL / API):</b> ej. <code className="text-[#008CFF] font-mono text-[10px]">https://v2.watchplay.shop/movie/&#123;id&#125;</code> y <code className="text-[#008CFF] font-mono text-[10px]">https://v2.watchplay.shop/tvshow/&#123;id&#125;/&#123;s&#125;/&#123;e&#125;</code> (o con IDs de ejemplo como <code className="text-zinc-300 font-mono text-[10px]">.../movie/969681</code>).
+                      <b className="text-zinc-300">Link de comprobación puntual (Probe URL / API):</b> puedes usar <code className="text-[#008CFF] font-mono text-[10px]">&#123;id&#125;</code>, <code className="text-[#008CFF] font-mono text-[10px]">&#123;tmdb&#125;</code> (ej. 969681) y <code className="text-[#008CFF] font-mono text-[10px]">&#123;imdb&#125;</code> (ej. tt6263850), además de <code className="text-[#008CFF] font-mono text-[10px]">&#123;s&#125;</code> y <code className="text-[#008CFF] font-mono text-[10px]">&#123;e&#125;</code>.
                     </li>
                     <li>
-                      <b className="text-zinc-300">Lista completa en lote (TXT / JSON):</b> ej. <code className="text-[#008CFF] font-mono text-[10px]">https://redeflixapi.store/list-movie-ids.txt</code> (archivos con líneas de IDs o JSON con arrays/objetos de catálogo).
+                      <b className="text-zinc-300">Lista completa en lote (TXT / JSON):</b> archivos con líneas de IDs o JSON con catálogos. La comprobación es dual: busca tanto por ID TMDB como por ID IMDb.
                     </li>
                   </ul>
                 </div>
@@ -2559,7 +2560,7 @@ export default function AdminPage() {
                           onClick={() => testAvailabilityUrl(edit.movie_list_url!, "movie")}
                           className="text-[10px] text-[#008CFF] hover:underline font-bold cursor-pointer disabled:opacity-50"
                         >
-                          {testingAvail === edit.movie_list_url ? "⏳ Probando..." : "🔍 Probar Película (969681)"}
+                          {testingAvail === edit.movie_list_url ? "⏳ Probando..." : "🔍 Probar Película (TMDB / IMDb)"}
                         </button>
                       )}
                     </div>
@@ -2612,7 +2613,7 @@ export default function AdminPage() {
                           onClick={() => testAvailabilityUrl(edit.tv_list_url!, "tv")}
                           className="text-[10px] text-[#008CFF] hover:underline font-bold cursor-pointer disabled:opacity-50"
                         >
-                          {testingAvail === edit.tv_list_url ? "⏳ Probando..." : "🔍 Probar Serie (1396/1/1)"}
+                          {testingAvail === edit.tv_list_url ? "⏳ Probando..." : "🔍 Probar Serie (TMDB / IMDb)"}
                         </button>
                       )}
                     </div>
