@@ -5,6 +5,22 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams;
+  if (q.get("check_api") === "1") {
+    try {
+      const resMovie = await fetch("https://mgeb.top/api/movie", {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" }
+      });
+      const textMovie = await resMovie.text();
+      return NextResponse.json({
+        status: resMovie.status,
+        preview: textMovie.slice(0, 200),
+        is403: resMovie.status === 403
+      });
+    } catch (e: any) {
+      return NextResponse.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   const id = (q.get("id") || "").trim();
   const type = q.get("type") === "tv" ? "tv" : "movie";
   const s = parseInt(q.get("s") || "1", 10) || 1;
