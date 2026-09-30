@@ -30,6 +30,9 @@ export async function GET(req: NextRequest) {
       {
         error: "stream_not_found",
         message: "No se pudo extraer stream directo de MegaEmbed",
+        details: result?.error,
+        debugStatus: result?.debugStatus,
+        preview: result?.debugHtmlPreview,
       },
       { status: 404 }
     );

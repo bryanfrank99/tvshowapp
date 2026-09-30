@@ -16,6 +16,8 @@ export interface MegaEmbedStreamResult {
   mp4Url?: string;
   allSources?: MegaEmbedSourceItem[];
   error?: string;
+  debugStatus?: number;
+  debugHtmlPreview?: string;
 }
 
 export interface MegaEmbedExtractParams {
@@ -55,7 +57,11 @@ export async function fetchMegaEmbedStream(
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      return null;
+      return {
+        success: false,
+        debugStatus: res.status,
+        error: `HTTP ${res.status} from megaembed`,
+      };
     }
 
     const html = await res.text();
@@ -85,7 +91,12 @@ export async function fetchMegaEmbedStream(
     }
 
     if (!sources || sources.length === 0) {
-      return null;
+      return {
+        success: false,
+        debugStatus: res.status,
+        debugHtmlPreview: html.slice(0, 300),
+        error: "No sources found in HTML",
+      };
     }
 
     // Priorizar fuentes HLS
@@ -101,8 +112,12 @@ export async function fetchMegaEmbedStream(
       hlsUrl: primaryHls,
       mp4Url: mp4Source?.file,
       allSources: sources,
+      debugStatus: res.status,
     };
   } catch (err: any) {
-    return null;
+    return {
+      success: false,
+      error: String(err?.message || err),
+    };
   }
 }
