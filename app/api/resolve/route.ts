@@ -222,6 +222,42 @@ export async function GET(req: NextRequest) {
     const rawSources: Source[] = [];
     for (const prov of eligibleProviders) {
       const targetId = prov.needs_tmdb ? (effectiveTmdbId as string) : (effectiveImdbId || rawId);
+
+      // Si es Cinecalidad, resolvemos directamente los embeds de los reproductores con audio Latino
+      if (prov.id === "cinecalidad" || String(prov.movie_tpl || "").includes("cinecalidad")) {
+        try {
+          const { fetchCinecalidadEmbeds } = await import("@/lib/cinecalidad");
+          const embeds = await fetchCinecalidadEmbeds({
+            type,
+            tmdbId: targetId,
+            season: s,
+            episode: e,
+          });
+          if (embeds.length > 0) {
+            embeds.forEach((emb, idx) => {
+              const hostName = emb.host ? ` (${emb.host.split(".")[0]})` : "";
+              rawSources.push({
+                id: idx === 0 ? `${prov.id}-iframe` : `${prov.id}-iframe-${idx + 1}`,
+                providerId: prov.id,
+                providerName: prov.simulated_name || prov.name,
+                realName: `${prov.real_name || prov.name}${hostName}`,
+                ord: prov.ord,
+                type: "iframe",
+                url: emb.url,
+                lang: "es",
+                languages: ["es"],
+                subtitles: [],
+                priority: 100,
+                isBeta: false,
+                needsTmdb: true,
+                tvOk: true,
+              });
+            });
+            continue;
+          }
+        } catch {}
+      }
+
       const adapted = providersToSources([prov], {
         type,
         id: targetId,
