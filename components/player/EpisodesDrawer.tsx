@@ -1,14 +1,11 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import Image from "next/image";
+import React, { useState, useEffect, useRef } from "react";
 
 export interface EpisodeItem {
   episode_number: number;
   name?: string;
   title?: string;
   overview?: string;
-  still_path?: string;
-  thumbnail?: string;
   runtime?: number;
 }
 
@@ -43,11 +40,15 @@ export default function EpisodesDrawer({
   const [selectedSeason, setSelectedSeason] = useState<number>(currentSeason || 1);
   const [episodes, setEpisodes] = useState<EpisodeItem[]>([]);
   const [loading, setLoading] = useState(false);
+
   const episodesCacheRef = useRef<Map<number, EpisodeItem[]>>(new Map());
   const drawerRef = useRef<HTMLDivElement>(null);
-  const activeCardRef = useRef<HTMLButtonElement>(null);
+  const activeEpisodeRef = useRef<HTMLButtonElement | null>(null);
+  const firstEpisodeRef = useRef<HTMLButtonElement | null>(null);
+  const seasonPillRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+  const episodeBtnRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
-  // Sincronizar temporada cuando cambie desde fuera
+  // Sincronizar temporada cuando cambie desde props
   useEffect(() => {
     if (currentSeason) {
       setSelectedSeason(currentSeason);
@@ -62,7 +63,6 @@ export default function EpisodesDrawer({
     const isTt = id.startsWith("tt");
 
     if (isTt) {
-      // Cinemeta para IMDb IDs
       fetch(`https://v3-cinemeta.strem.io/meta/series/${id}.json`)
         .then((r) => r.json())
         .then((data) => {
@@ -82,7 +82,6 @@ export default function EpisodesDrawer({
                 episode_number: epNum,
                 name: v.title || v.name || `${lang === "pt" ? "Episódio" : "Episodio"} ${epNum}`,
                 overview: v.overview || "",
-                thumbnail: v.thumbnail || "",
               });
               grouped.set(sNum, list);
             }
@@ -92,7 +91,7 @@ export default function EpisodesDrawer({
               .sort((a, b) => a - b)
               .map((sNum) => ({
                 season_number: sNum,
-                name: `${lang === "pt" ? "Temporada" : "Temporada"} ${sNum}`,
+                name: `${lang === "pt" ? "T" : "T"}${sNum}`,
                 episode_count: grouped.get(sNum)?.length || 0,
               }));
 
@@ -103,7 +102,6 @@ export default function EpisodesDrawer({
         })
         .catch(() => {});
     } else {
-      // TMDB API
       fetch(`/api/tmdb/tv/${id}`)
         .then((r) => r.json())
         .then((data) => {
@@ -115,7 +113,7 @@ export default function EpisodesDrawer({
             setSeasons(
               rawSeasons.map((s) => ({
                 season_number: s.season_number,
-                name: s.name || `${lang === "pt" ? "Temporada" : "Temporada"} ${s.season_number}`,
+                name: `${lang === "pt" ? "T" : "T"}${s.season_number}`,
                 episode_count: s.episode_count,
               }))
             );
@@ -150,7 +148,6 @@ export default function EpisodesDrawer({
           episode_number: e.episode_number,
           name: e.name || `${lang === "pt" ? "Episódio" : "Episodio"} ${e.episode_number}`,
           overview: e.overview || "",
-          still_path: e.still_path ? `https://image.tmdb.org/t/p/w300${e.still_path}` : undefined,
           runtime: e.runtime,
         }));
         episodesCacheRef.current.set(selectedSeason, formatted);
@@ -166,27 +163,43 @@ export default function EpisodesDrawer({
     };
   }, [isOpen, id, selectedSeason, lang]);
 
-  // Desplazar automáticamente hacia el episodio activo al abrir
+  // Auto-focus y centrado suave del episodio activo en apertura
   useEffect(() => {
-    if (isOpen && activeCardRef.current) {
-      setTimeout(() => {
-        activeCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-        activeCardRef.current?.focus({ preventScroll: true });
-      }, 200);
-    }
-  }, [isOpen, episodes]);
+    if (!isOpen || episodes.length === 0) return;
 
-  // Manejar tecla Escape para cerrar
+    const timer = setTimeout(() => {
+      if (activeEpisodeRef.current) {
+        activeEpisodeRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        activeEpisodeRef.current.focus({ preventScroll: true });
+      } else if (firstEpisodeRef.current) {
+        firstEpisodeRef.current.focus({ preventScroll: true });
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [isOpen, selectedSeason, episodes]);
+
+  // Manejar atajos globales de control remoto (Escape, Back en Android TV / Tizen / WebOS)
   useEffect(() => {
     if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      // Teclas Back en mandos Android TV y navegadores
+      if (
+        e.key === "Escape" ||
+        e.key === "GoBack" ||
+        e.keyCode === 27 ||
+        e.keyCode === 10009 || // Tizen
+        e.keyCode === 461      // WebOS
+      ) {
         e.preventDefault();
+        e.stopPropagation();
         onClose();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -194,165 +207,201 @@ export default function EpisodesDrawer({
   return (
     <div
       ref={drawerRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Selector de episodios"
       onClick={(e) => {
         if (e.target === drawerRef.current) onClose();
       }}
-      className="absolute inset-0 z-50 bg-black/90 backdrop-blur-xl flex flex-col justify-end sm:justify-center p-2 sm:p-6 animate-fade-in text-white overflow-hidden"
+      onKeyDown={(e) => {
+        // Evitar que teclas de navegación se filtren al reproductor de video de fondo
+        e.stopPropagation();
+      }}
+      className="absolute inset-0 z-50 bg-black/75 backdrop-blur-sm flex justify-end animate-fade-in text-white overflow-hidden"
     >
-      <div className="relative w-full max-w-4xl mx-auto h-[90%] sm:h-[85%] flex flex-col bg-zinc-950/95 border border-white/15 rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/10">
-        {/* 1. Encabezado Estilo Netflix */}
-        <div className="flex items-center justify-between gap-4 p-4 sm:p-5 border-b border-white/10 bg-zinc-900/60 shrink-0">
-          <div className="min-w-0">
-            <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-[#008CFF]">
-              {lang === "pt" ? "Episódios & Temporadas" : "Episodios y Temporadas"}
-            </p>
-            <h3 className="text-base sm:text-xl font-black text-white truncate mt-0.5">
+      {/* Panel lateral compacto (max-w-md / 420px) */}
+      <div className="relative w-full max-w-md sm:max-w-[420px] h-full flex flex-col bg-zinc-950/95 border-l border-white/10 shadow-2xl overflow-hidden ring-1 ring-white/10">
+        
+        {/* 1. Cabecera Compacta */}
+        <div className="flex items-center justify-between p-3.5 sm:p-4 border-b border-white/10 bg-zinc-900/70 shrink-0">
+          <div className="min-w-0 pr-2">
+            <h3 className="text-sm sm:text-base font-extrabold text-white truncate leading-tight">
               {seriesTitle}
             </h3>
+            <p className="text-[11px] font-semibold text-[#008CFF] mt-0.5">
+              {lang === "pt" ? "Temporada" : "Temporada"} {selectedSeason} • {lang === "pt" ? "Episódio" : "Episodio"} {currentEpisode}
+            </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            {/* Selector de Temporadas */}
-            {seasons.length > 1 && (
-              <div className="relative">
-                <select
-                  value={selectedSeason}
-                  onChange={(e) => {
-                    const sNum = parseInt(e.target.value, 10) || 1;
-                    setSelectedSeason(sNum);
-                  }}
-                  className="bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm py-2 px-3 sm:px-4 rounded-xl border border-white/20 outline-none focus:ring-2 focus:ring-[#008CFF] cursor-pointer appearance-none pr-8 transition"
-                >
-                  {seasons.map((s) => (
-                    <option key={s.season_number} value={s.season_number} className="bg-zinc-900 text-white">
-                      {s.name} {s.episode_count ? `(${s.episode_count} eps)` : ""}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-zinc-300">
-                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20">
-                    <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-                  </svg>
-                </div>
-              </div>
-            )}
-
-            {/* Botón de Cierre */}
-            <button
-              onClick={onClose}
-              type="button"
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white flex items-center justify-center transition active:scale-95 border border-white/10 outline-none focus:ring-2 focus:ring-white"
-              title={lang === "pt" ? "Fechar" : "Cerrar"}
-              aria-label="Cerrar panel de episodios"
-            >
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-              </svg>
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            type="button"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white flex items-center justify-center transition active:scale-95 border border-white/10 outline-none focus:ring-2 focus:ring-white shrink-0"
+            title={lang === "pt" ? "Fechar" : "Cerrar"}
+            aria-label="Cerrar panel de episodios"
+          >
+            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </button>
         </div>
 
-        {/* 2. Lista de Episodios con Scroll */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 custom-scrollbar">
+        {/* 2. Barra de Temporadas en Píldoras Horizontales (Mando de TV: Flechas Izquierda / Derecha) */}
+        {seasons.length > 1 && (
+          <div className="flex items-center gap-1.5 p-2.5 sm:p-3 border-b border-white/10 overflow-x-auto no-scrollbar shrink-0 bg-black/40">
+            {seasons.map((s, idx) => {
+              const isSeasonActive = s.season_number === selectedSeason;
+              return (
+                <button
+                  key={s.season_number}
+                  ref={(el) => {
+                    if (el) seasonPillRefs.current.set(s.season_number, el);
+                  }}
+                  type="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedSeason(s.season_number)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      const prevSeason = seasons[idx - 1];
+                      if (prevSeason) {
+                        setSelectedSeason(prevSeason.season_number);
+                        seasonPillRefs.current.get(prevSeason.season_number)?.focus();
+                      }
+                    } else if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      const nextSeason = seasons[idx + 1];
+                      if (nextSeason) {
+                        setSelectedSeason(nextSeason.season_number);
+                        seasonPillRefs.current.get(nextSeason.season_number)?.focus();
+                      }
+                    } else if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      if (activeEpisodeRef.current) {
+                        activeEpisodeRef.current.focus();
+                      } else if (firstEpisodeRef.current) {
+                        firstEpisodeRef.current.focus();
+                      }
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all outline-none cursor-pointer border ${
+                    isSeasonActive
+                      ? "bg-[#008CFF] text-white border-[#008CFF] shadow-sm shadow-[#008CFF]/30"
+                      : "bg-white/5 hover:bg-white/15 text-zinc-300 border-white/10 hover:border-white/20"
+                  } focus:ring-2 focus:ring-white focus:bg-white/25 focus:scale-105`}
+                >
+                  {s.name}
+                  {s.episode_count ? ` (${s.episode_count})` : ""}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 3. Lista Compacta de Episodios (Mando de TV: Flechas Arriba / Abajo + Enter) */}
+        <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-1.5 custom-scrollbar">
           {loading ? (
-            <div className="h-full flex flex-col items-center justify-center gap-3 p-12">
-              <div className="w-8 h-8 rounded-full border-2 border-[#008CFF] border-t-transparent animate-spin" />
-              <p className="text-xs sm:text-sm text-zinc-400 font-medium">
-                {lang === "pt" ? "Carregando episódios..." : "Cargando episodios..."}
+            <div className="h-full flex flex-col items-center justify-center gap-2.5 p-8 text-center">
+              <div className="w-7 h-7 rounded-full border-2 border-[#008CFF] border-t-transparent animate-spin" />
+              <p className="text-xs text-zinc-400 font-medium">
+                {lang === "pt" ? "Carregando..." : "Cargando episodios..."}
               </p>
             </div>
           ) : episodes.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center p-12 text-center text-zinc-400">
-              <p className="text-sm font-semibold">
+            <div className="h-full flex flex-col items-center justify-center p-8 text-center text-zinc-500">
+              <p className="text-xs font-semibold">
                 {lang === "pt"
-                  ? "Nenhum episódio encontrado para esta temporada."
-                  : "No se encontraron episodios para esta temporada."}
+                  ? "Nenhum episódio encontrado."
+                  : "No se encontraron episodios."}
               </p>
             </div>
           ) : (
-            episodes.map((ep) => {
+            episodes.map((ep, idx) => {
               const isCurrent =
                 selectedSeason === currentSeason && ep.episode_number === currentEpisode;
-              const thumbUrl = ep.still_path || ep.thumbnail;
+              const isFirst = idx === 0;
 
               return (
                 <button
                   key={ep.episode_number}
-                  ref={isCurrent ? activeCardRef : null}
+                  ref={(el) => {
+                    if (el) episodeBtnRefs.current.set(ep.episode_number, el);
+                    if (isCurrent && el) activeEpisodeRef.current = el;
+                    if (isFirst && el) firstEpisodeRef.current = el;
+                  }}
                   type="button"
+                  tabIndex={0}
                   onClick={() => {
                     onSelectEpisode(selectedSeason, ep.episode_number);
                     onClose();
                   }}
-                  className={`w-full text-left p-2.5 sm:p-3.5 rounded-2xl border transition-all duration-200 flex items-start gap-3.5 sm:gap-4 group cursor-pointer outline-none ${
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      const nextEp = episodes[idx + 1];
+                      if (nextEp) {
+                        const target = episodeBtnRefs.current.get(nextEp.episode_number);
+                        target?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                        target?.focus();
+                      }
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      if (idx > 0) {
+                        const prevEp = episodes[idx - 1];
+                        if (prevEp) {
+                          const target = episodeBtnRefs.current.get(prevEp.episode_number);
+                          target?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                          target?.focus();
+                        }
+                      } else if (seasons.length > 1) {
+                        // Al subir desde el primer episodio, enfocar la píldora de temporada activa
+                        seasonPillRefs.current.get(selectedSeason)?.focus();
+                      }
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      onSelectEpisode(selectedSeason, ep.episode_number);
+                      onClose();
+                    }
+                  }}
+                  className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center gap-3 cursor-pointer outline-none group ${
                     isCurrent
-                      ? "bg-[#008CFF]/15 border-[#008CFF] shadow-[0_0_20px_rgba(0,140,255,0.25)] ring-1 ring-[#008CFF]"
-                      : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 active:scale-[0.99] text-zinc-300"
-                  }`}
+                      ? "bg-[#008CFF]/20 border-[#008CFF] text-white shadow-sm ring-1 ring-[#008CFF]"
+                      : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 text-zinc-300"
+                  } focus:ring-2 focus:ring-white focus:bg-white/20 focus:text-white focus:scale-[1.01]`}
                 >
-                  {/* Miniatura / Número de Episodio */}
-                  <div className="relative w-28 sm:w-36 aspect-video bg-zinc-900 rounded-xl overflow-hidden shrink-0 border border-white/10 shadow-sm flex items-center justify-center">
-                    {thumbUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={thumbUrl}
-                        alt={`Episodio ${ep.episode_number}`}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="text-center font-bold text-zinc-500">
-                        <span className="text-lg">📺</span>
-                      </div>
-                    )}
-
-                    {/* Badge de Número */}
-                    <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md text-[10px] font-mono font-black text-white border border-white/20">
-                      E{ep.episode_number}
-                    </div>
-
-                    {isCurrent ? (
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <span className="w-8 h-8 rounded-full bg-[#008CFF] flex items-center justify-center text-white shadow-lg animate-pulse">
-                          <svg className="w-4 h-4 fill-current ml-0.5" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <span className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center text-black">
-                          <svg className="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </span>
-                      </div>
-                    )}
+                  {/* Badge de Número de Episodio */}
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-black text-xs shrink-0 border ${
+                      isCurrent
+                        ? "bg-[#008CFF] text-white border-[#008CFF] shadow-sm animate-pulse"
+                        : "bg-black/60 text-zinc-400 border-white/15 group-hover:text-white group-hover:border-white/30"
+                    }`}
+                  >
+                    E{ep.episode_number}
                   </div>
 
-                  {/* Metadatos del Episodio */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs sm:text-sm font-bold text-white group-hover:text-[#008CFF] transition truncate">
-                        {ep.episode_number}. {ep.name || `${lang === "pt" ? "Episódio" : "Episodio"} ${ep.episode_number}`}
-                      </span>
-                      {isCurrent && (
-                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-[#008CFF]/25 border border-[#008CFF]/50 text-[#008CFF]">
-                          {lang === "pt" ? "Reproduzindo" : "Reproduciendo"}
-                        </span>
-                      )}
-                    </div>
-
-                    {ep.overview ? (
-                      <p className="text-xs text-zinc-400 line-clamp-2 mt-1 leading-relaxed">
-                        {ep.overview}
+                  {/* Título y Estado */}
+                  <div className="flex-1 min-w-0 pr-1">
+                    <p
+                      className={`text-xs sm:text-sm font-semibold truncate ${
+                        isCurrent ? "text-white font-bold" : "text-zinc-200 group-hover:text-white"
+                      }`}
+                    >
+                      {ep.name || `${lang === "pt" ? "Episódio" : "Episodio"} ${ep.episode_number}`}
+                    </p>
+                    {ep.runtime ? (
+                      <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
+                        {ep.runtime} min
                       </p>
-                    ) : (
-                      <p className="text-[11px] text-zinc-500 italic mt-1">
-                        {lang === "pt" ? "Sem descrição disponível." : "Sin descripción disponible."}
-                      </p>
-                    )}
+                    ) : null}
                   </div>
+
+                  {/* Indicador de Reproducción Activa */}
+                  {isCurrent && (
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-[#008CFF] text-white shrink-0 tracking-wide">
+                      {lang === "pt" ? "No ar" : "Activo"}
+                    </span>
+                  )}
                 </button>
               );
             })

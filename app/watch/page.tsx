@@ -558,35 +558,6 @@ function WatchInner() {
         }
       />
 
-      {/* 3. Navegación de Episodios (Solo para series TV) */}
-      {type === "tv" && (
-        <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
-          {e > 1 && (
-            <Link
-              id="btn-prev-ep"
-              href={`/watch?type=tv&id=${id}&s=${s}&e=${e - 1}`}
-              className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-medium text-zinc-300 hover:text-white active:scale-95 transition focus:ring-2 focus:ring-[#008CFF] outline-none"
-            >
-              ← E{e - 1}
-            </Link>
-          )}
-          <Link
-            id="btn-next-ep"
-            href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`}
-            className="px-4 py-2 rounded-xl bg-[#008CFF] hover:bg-[#0077dd] text-white text-xs sm:text-sm font-bold active:scale-95 transition shadow-[0_0_16px_rgba(0,140,255,0.4)] inline-flex items-center gap-1.5 focus:ring-2 focus:ring-white outline-none"
-          >
-            <span>{d.siguiente} {d.ep_e}{e + 1}</span>
-            <span>→</span>
-          </Link>
-          <Link
-            id="btn-all-ep"
-            href={`/title?type=tv&id=${id}&season=${s}`}
-            className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm text-zinc-300 hover:text-white active:scale-95 transition hidden sm:inline-flex focus:ring-2 focus:ring-[#008CFF] outline-none"
-          >
-            {d.todos_capitulos}
-          </Link>
-        </div>
-      )}
 
       {/* 4. Banner Informativo de Calidad para Películas en Cines */}
       {inTheaters && (

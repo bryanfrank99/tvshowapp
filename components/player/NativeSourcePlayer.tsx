@@ -1311,7 +1311,10 @@ export default function NativeSourcePlayer({
       {seriesInfo && seriesInfo.type === "tv" && (
         <EpisodesDrawer
           isOpen={showEpisodesDrawer}
-          onClose={() => setShowEpisodesDrawer(false)}
+          onClose={() => {
+            setShowEpisodesDrawer(false);
+            episodesBtnRef.current?.focus();
+          }}
           seriesTitle={title}
           id={seriesInfo.id}
           currentSeason={seriesInfo.season}
