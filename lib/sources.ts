@@ -34,6 +34,7 @@ export interface Source {
   tvOk?: boolean;             // Si soporta series
   sandbox?: string;           // Atributos de sandbox recomendados para iframes
   headers?: Record<string, string>; // Cabeceras personalizadas para streams directos
+  backupUrls?: string[];      // URLs de fallback para streams directos HLS/MP4
 }
 
 export interface ResolveRequest {

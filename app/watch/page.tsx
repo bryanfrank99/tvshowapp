@@ -118,6 +118,7 @@ function WatchInner() {
                     id: `${megaItem.providerId}-native`,
                     type: "hls",
                     url: streamResult.hlsUrl,
+                    backupUrls: streamResult.backupHlsUrls,
                     realName: `${megaItem.realName || megaItem.providerName} (Nativo TV)`,
                     priority: 120,
                   };
@@ -391,6 +392,7 @@ function WatchInner() {
                     id: `${source.providerId}-native`,
                     type: "hls",
                     url: streamResult.hlsUrl,
+                    backupUrls: streamResult.backupHlsUrls,
                     realName: `${source.realName || source.providerName} (Nativo TV)`,
                     priority: 120,
                   };

@@ -278,6 +278,7 @@ export async function GET(req: NextRequest) {
               ord: prov.ord,
               type: "hls",
               url: streamResult.hlsUrl,
+              backupUrls: streamResult.backupHlsUrls,
               lang: (prov.lang as any) || "und",
               languages: prov.languages || ["und"],
               subtitles: prov.subtitles || [],

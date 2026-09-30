@@ -13,6 +13,7 @@ export interface MegaEmbedSourceItem {
 export interface MegaEmbedStreamResult {
   success: boolean;
   hlsUrl?: string;
+  backupHlsUrls?: string[];
   mp4Url?: string;
   allSources?: MegaEmbedSourceItem[];
   error?: string;
@@ -46,7 +47,7 @@ export async function fetchMegaEmbedStream(
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 9000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     const headers: Record<string, string> = {
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -114,17 +115,50 @@ export async function fetchMegaEmbedStream(
       };
     }
 
-    // Priorizar fuentes HLS
-    const hlsSource =
-      sources.find((s) => s.type === "hls" || s.file.includes(".m3u8")) || null;
+    // Extraer todos los streams HLS disponibles
+    const hlsSources = sources.filter(
+      (s) => s.type === "hls" || s.file.includes(".m3u8")
+    );
     const mp4Source =
       sources.find((s) => s.type === "mp4" || s.file.includes(".mp4")) || null;
 
-    const primaryHls = hlsSource?.file;
+    let primaryHls = hlsSources[0]?.file;
+    let backupHlsUrls = hlsSources.slice(1).map((s) => s.file);
+
+    // Si existen múltiples streams HLS, verificar en paralelo cuál responde con manifiesto HLS válido (evita streams caídos con 520)
+    if (hlsSources.length > 1) {
+      try {
+        const checkResults = await Promise.allSettled(
+          hlsSources.map(async (src) => {
+            const getRes = await fetch(src.file, {
+              signal: AbortSignal.timeout(1600),
+            });
+            if (!getRes.ok) return { file: src.file, ok: false };
+            const text = await getRes.text();
+            const isValid = text.includes("#EXTM3U") || text.includes("#EXT-X");
+            return { file: src.file, ok: isValid };
+          })
+        );
+        const working = checkResults
+          .filter(
+            (r): r is PromiseFulfilledResult<{ file: string; ok: boolean }> =>
+              r.status === "fulfilled" && r.value.ok
+          )
+          .map((r) => r.value.file);
+
+        if (working.length > 0) {
+          primaryHls = working[0];
+          backupHlsUrls = hlsSources
+            .map((s) => s.file)
+            .filter((f) => f !== primaryHls);
+        }
+      } catch {}
+    }
 
     return {
       success: !!(primaryHls || mp4Source?.file),
       hlsUrl: primaryHls,
+      backupHlsUrls,
       mp4Url: mp4Source?.file,
       allSources: sources,
       debugStatus: res.status,
