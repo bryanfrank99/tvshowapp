@@ -41,6 +41,10 @@ export interface SetCachedStreamParams extends GetCachedStreamParams {
   ttlSeconds?: number;
 }
 
+// Control maestro para activar/desactivar la caché de streams (stream_cache)
+// Desactivada por petición explícita del usuario
+export const STREAM_CACHE_ENABLED = process.env.ENABLE_STREAM_CACHE === "true"; // false por defecto
+
 // Caché en memoria para evitar llamadas redundantes a BD en la misma instancia de Node/Next.js
 const memoryCache = new Map<string, { data: CachedStreamRecord; expires: number }>();
 
@@ -58,6 +62,11 @@ export function buildStreamCacheKey(p: GetCachedStreamParams): string {
 export async function getCachedStream(
   params: GetCachedStreamParams
 ): Promise<CachedStreamResult | null> {
+  // Si la caché está desactivada, omitir cualquier lectura de caché
+  if (!STREAM_CACHE_ENABLED) {
+    return null;
+  }
+
   const key = buildStreamCacheKey(params);
   const now = Date.now();
 
@@ -174,6 +183,11 @@ export async function getCachedStream(
 export async function setCachedStream(
   params: SetCachedStreamParams
 ): Promise<boolean> {
+  // Si la caché está desactivada, no persistir nada
+  if (!STREAM_CACHE_ENABLED) {
+    return false;
+  }
+
   const key = buildStreamCacheKey(params);
 
   // Cálculo inteligente de TTL:
@@ -270,4 +284,19 @@ export async function setCachedStream(
   } catch {}
 
   return false;
+}
+
+/**
+ * Purga todos los registros de la tabla stream_cache en Supabase y limpia la memoria.
+ */
+export async function purgeAllStreamCache(): Promise<boolean> {
+  try {
+    memoryCache.clear();
+    const sb = supa();
+    await (sb as any).from("stream_cache").delete().neq("id", "");
+    await (sb as any).from("config").delete().ilike("key", "stream:%");
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -1,5 +1,5 @@
 import { fetchCinecalidadStream } from "../lib/cinecalidad.js";
-import { getCachedStream, setCachedStream } from "../lib/stream-cache.js";
+import { getCachedStream, setCachedStream, STREAM_CACHE_ENABLED } from "../lib/stream-cache.js";
 
 async function runTests() {
   console.log("=== RUNNING SPEC 072 S19 (CINECALIDAD) HLS TESTS ===");
@@ -52,12 +52,12 @@ async function runTests() {
   assert("TV series stream extraction successful", tvStream?.success === true);
   assert("TV series stream contains .m3u8 URL", typeof tvStream?.hlsUrl === "string" && tvStream.hlsUrl.includes(".m3u8"));
 
-  // TEST 4: Supabase Database Cache persistence and retrieval (<20ms)
-  console.log("\n[Test 4] Testing Supabase DB stream caching...");
+  // TEST 4: Supabase Database Cache persistence and retrieval
+  console.log("\n[Test 4] Testing Supabase DB stream caching status...");
   const testTargetId = "99999999";
   const dummyHls = "https://test.cinecalidad.stream/hls/master.m3u8";
 
-  await setCachedStream({
+  const saveRes = await setCachedStream({
     providerId: "cinecalidad",
     type: "movie",
     targetId: testTargetId,
@@ -73,8 +73,13 @@ async function runTests() {
   });
   const elapsed = Date.now() - startTime;
 
-  assert("Cached stream retrieved successfully", cached?.hlsUrl === dummyHls);
-  assert(`Cache latency is fast (<100ms, was ${elapsed}ms)`, elapsed < 100);
+  if (STREAM_CACHE_ENABLED) {
+    assert("Cached stream retrieved successfully", cached?.hlsUrl === dummyHls);
+    assert(`Cache latency is fast (<100ms, was ${elapsed}ms)`, elapsed < 100);
+  } else {
+    assert("Stream cache está desactivada (setCachedStream retorna false)", saveRes === false);
+    assert("Stream cache está desactivada (getCachedStream retorna null)", cached === null);
+  }
 
   console.log(`\nResults: ${passed}/${total} passed.`);
   if (passed !== total) {

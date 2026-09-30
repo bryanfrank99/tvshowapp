@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({
-      success: true,
+      success: saved,
+      disabled: !saved,
       savedInDb: saved,
       providerId,
       targetId,

@@ -1,5 +1,5 @@
 import { fetchNasriPlayStream } from "../lib/nasriplay.js";
-import { getCachedStream, setCachedStream } from "../lib/stream-cache.js";
+import { getCachedStream, setCachedStream, STREAM_CACHE_ENABLED } from "../lib/stream-cache.js";
 import { sortSourcesByPriority } from "../lib/sources.js";
 
 async function runTests() {
@@ -76,12 +76,12 @@ async function runTests() {
   assert("TV series 1399 has graceful fallback iframeUrl", typeof tvStream?.iframeUrl === "string" && tvStream.iframeUrl.includes("1399"));
   assert("TV series 1399 provides fallback embeds", Array.isArray(tvStream?.embeds) && tvStream.embeds.length > 0);
 
-  // TEST 4: Supabase Database Cache persistence and retrieval (<20ms)
-  console.log("\n[Test 4] Testing Supabase DB stream caching for NasriPlay...");
+  // TEST 4: Supabase Database Cache persistence and retrieval
+  console.log("\n[Test 4] Testing Supabase DB stream caching status for NasriPlay...");
   const testTargetId = "77777777";
   const dummyHls = "https://test.nasriplay.stream/hls/master.m3u8";
 
-  await setCachedStream({
+  const saveRes = await setCachedStream({
     providerId: "nasriplay",
     type: "movie",
     targetId: testTargetId,
@@ -97,8 +97,13 @@ async function runTests() {
   });
   const elapsed = Date.now() - startTime;
 
-  assert("Cached stream retrieved successfully", cached?.hlsUrl === dummyHls);
-  assert(`Cache latency is fast (<100ms, was ${elapsed}ms)`, elapsed < 100);
+  if (STREAM_CACHE_ENABLED) {
+    assert("Cached stream retrieved successfully", cached?.hlsUrl === dummyHls);
+    assert(`Cache latency is fast (<100ms, was ${elapsed}ms)`, elapsed < 100);
+  } else {
+    assert("Stream cache está desactivada (setCachedStream retorna false)", saveRes === false);
+    assert("Stream cache está desactivada (getCachedStream retorna null)", cached === null);
+  }
 
   // TEST 5: Spanish HLS Pool Integration with both S17 (NasriPlay) and S19 (Cinecalidad)
   console.log("\n[Test 5] Testing Spanish HLS Pool consolidation with S17 and S19...");
