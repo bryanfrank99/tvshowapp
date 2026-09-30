@@ -464,8 +464,9 @@ export async function GET(req: NextRequest) {
 
         let directHlsUrl = cachedHls?.hlsUrl;
         let backupUrls = cachedHls?.backupHlsUrls || [];
+        let fetchedEmbeds: any[] | undefined = cachedHls?.embeds;
 
-        if (!directHlsUrl) {
+        if (!directHlsUrl || !fetchedEmbeds || fetchedEmbeds.length === 0) {
           try {
             const { fetchNasriPlayStream } = await import("@/lib/nasriplay");
             const extractPromise = fetchNasriPlayStream({
@@ -474,23 +475,29 @@ export async function GET(req: NextRequest) {
               season: s,
               episode: e,
             });
-            const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 3000));
+            const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 5500));
             const fresh = await Promise.race([extractPromise, timeoutPromise]);
-            if (fresh?.success && fresh.hlsUrl) {
-              directHlsUrl = fresh.hlsUrl;
-              backupUrls = fresh.backupHlsUrls || [];
+            if (fresh) {
+              if (fresh.embeds && fresh.embeds.length > 0) {
+                fetchedEmbeds = fresh.embeds;
+              }
+              if (fresh.success && fresh.hlsUrl) {
+                directHlsUrl = fresh.hlsUrl;
+                backupUrls = fresh.backupHlsUrls || [];
 
-              const { setCachedStream } = await import("@/lib/stream-cache");
-              setCachedStream({
-                providerId: prov.id,
-                type,
-                targetId,
-                season: s,
-                episode: e,
-                hlsUrl: fresh.hlsUrl,
-                backupHlsUrls: fresh.backupHlsUrls,
-                ttlHours: 12,
-              }).catch(() => {});
+                const { setCachedStream } = await import("@/lib/stream-cache");
+                setCachedStream({
+                  providerId: prov.id,
+                  type,
+                  targetId,
+                  season: s,
+                  episode: e,
+                  hlsUrl: fresh.hlsUrl,
+                  backupHlsUrls: fresh.backupHlsUrls,
+                  embeds: fresh.embeds,
+                  ttlHours: 12,
+                }).catch(() => {});
+              }
             }
           } catch {}
         }
@@ -513,8 +520,34 @@ export async function GET(req: NextRequest) {
             needsTmdb: prov.needs_tmdb,
             tvOk: prov.tv_ok,
           });
-          // Se mantiene también la fuente iframe original de S17 para que el usuario siempre
-          // tenga acceso directo a NasriPlay aunque esté agrupado en el pool HLS.
+        }
+
+        // Si tenemos múltiples sub-proveedores resueltos de NasriPlay (ej. Streamwish, Voe, Streamtape)
+        if (fetchedEmbeds && fetchedEmbeds.length > 0) {
+          fetchedEmbeds.forEach((emb: any, idx: number) => {
+            const detectedHost = (emb.host || emb.server || emb.name || "Servidor").trim();
+            const hostDisplay = detectedHost.toLowerCase().includes("nsr") || detectedHost.toLowerCase().includes("vimeos") || detectedHost.toLowerCase().includes("nasriplay")
+              ? ""
+              : ` (${detectedHost.charAt(0).toUpperCase() + detectedHost.slice(1)})`;
+
+            rawSources.push({
+              id: idx === 0 ? `${prov.id}-iframe` : `${prov.id}-iframe-${idx + 1}`,
+              providerId: prov.id,
+              providerName: prov.simulated_name || prov.name,
+              realName: `${prov.real_name || prov.name}${hostDisplay}`,
+              ord: prov.ord,
+              type: "iframe",
+              url: emb.url,
+              lang: "es",
+              languages: ["es", "lat"],
+              subtitles: prov.subtitles || [],
+              priority: 95 - idx,
+              isBeta: false,
+              needsTmdb: true,
+              tvOk: true,
+            });
+          });
+          continue; // Ya agregamos todos los servidores y sub-proveedores de NasriPlay
         }
       }
 

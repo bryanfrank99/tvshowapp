@@ -13,8 +13,15 @@ export interface CachedStreamRecord {
   episode?: number;
   hlsUrl: string;
   backupHlsUrls?: string[];
+  embeds?: any[];
   extractedAt: string;
   expiresAt: string;
+}
+
+export interface CachedStreamResult {
+  hlsUrl: string;
+  backupHlsUrls?: string[];
+  embeds?: any[];
 }
 
 export interface GetCachedStreamParams {
@@ -28,6 +35,7 @@ export interface GetCachedStreamParams {
 export interface SetCachedStreamParams extends GetCachedStreamParams {
   hlsUrl: string;
   backupHlsUrls?: string[];
+  embeds?: any[];
   ttlHours?: number;
   ttlMinutes?: number;
   ttlSeconds?: number;
@@ -49,7 +57,7 @@ export function buildStreamCacheKey(p: GetCachedStreamParams): string {
  */
 export async function getCachedStream(
   params: GetCachedStreamParams
-): Promise<{ hlsUrl: string; backupHlsUrls?: string[] } | null> {
+): Promise<CachedStreamResult | null> {
   const key = buildStreamCacheKey(params);
   const now = Date.now();
 
@@ -59,6 +67,7 @@ export async function getCachedStream(
     return {
       hlsUrl: mem.data.hlsUrl,
       backupHlsUrls: mem.data.backupHlsUrls,
+      embeds: mem.data.embeds,
     };
   }
 
@@ -89,11 +98,23 @@ export async function getCachedStream(
 
     const row = data as any;
     if (!error && row && row.hls_url) {
-      const backupUrls = Array.isArray(row.backup_urls)
+      const rawBackupUrls = Array.isArray(row.backup_urls)
         ? row.backup_urls
         : typeof row.backup_urls === "string"
         ? JSON.parse(row.backup_urls)
         : [];
+
+      const backupUrls: string[] = [];
+      const embeds: any[] = [];
+      for (const item of rawBackupUrls) {
+        if (typeof item === "string" && item.startsWith("__embed__:")) {
+          try {
+            embeds.push(JSON.parse(item.slice(10)));
+          } catch {}
+        } else if (typeof item === "string") {
+          backupUrls.push(item);
+        }
+      }
 
       // Guardar en memoria
       memoryCache.set(key, {
@@ -106,6 +127,7 @@ export async function getCachedStream(
           episode: params.episode,
           hlsUrl: row.hls_url,
           backupHlsUrls: backupUrls,
+          embeds: embeds.length > 0 ? embeds : undefined,
           extractedAt: nowIso,
           expiresAt: row.expires_at,
         },
@@ -115,6 +137,7 @@ export async function getCachedStream(
       return {
         hlsUrl: row.hls_url,
         backupHlsUrls: backupUrls,
+        embeds: embeds.length > 0 ? embeds : undefined,
       };
     }
 
@@ -175,6 +198,8 @@ export async function setCachedStream(
   const expiresAt = new Date(Date.now() + ttlMs).toISOString();
   const extractedAt = new Date().toISOString();
   const backupHlsUrls = params.backupHlsUrls || [];
+  const encodedEmbeds = (params.embeds || []).map((emb) => `__embed__:${JSON.stringify(emb)}`);
+  const combinedBackupUrls = [...backupHlsUrls, ...encodedEmbeds];
 
   // 1. Guardar en memoria de inmediato
   memoryCache.set(key, {
@@ -187,6 +212,7 @@ export async function setCachedStream(
       episode: params.episode,
       hlsUrl: params.hlsUrl,
       backupHlsUrls,
+      embeds: params.embeds,
       extractedAt,
       expiresAt,
     },
@@ -207,7 +233,7 @@ export async function setCachedStream(
         season: params.season || 1,
         episode: params.episode || 1,
         hls_url: params.hlsUrl,
-        backup_urls: backupHlsUrls,
+        backup_urls: combinedBackupUrls,
         extracted_at: extractedAt,
         expires_at: expiresAt,
       },

@@ -12,11 +12,39 @@ export interface NasriPlayExtractParams {
   timeoutMs?: number;
 }
 
+export interface NasriPlayEmbedOption {
+  name: string;        // ej. "Nsr Play", "streamwish", "voesx", "streamtape", "vidhide"
+  server?: string;     // ej. "vimeos", "streamwish", "voesx", "streamtape", "vidhide"
+  host?: string;       // ej. "Streamwish", "Voe", "Streamtape", "NasriPlay"
+  language?: string;   // ej. "Latino", "Español Latino", "Subtitulado"
+  url: string;         // URL directa de embed
+}
+
+export function detectNasriPlayHost(url: string, rawServer?: string, rawName?: string): string {
+  const hostMatch = url.match(/https?:\/\/(?:www\.)?([^\/]+)/i)?.[1]?.toLowerCase() || "";
+  if (hostMatch.includes("streamtape")) return "Streamtape";
+  if (hostMatch.includes("streamwish") || hostMatch.includes("wishembed")) return "Streamwish";
+  if (hostMatch.includes("voe.")) return "Voe";
+  if (hostMatch.includes("vidhide")) return "Vidhide";
+  if (hostMatch.includes("filelions")) return "Filelions";
+  if (hostMatch.includes("dood")) return "Doodstream";
+  if (hostMatch.includes("uqload")) return "Uqload";
+  if (hostMatch.includes("vimeus") || hostMatch.includes("vimeos")) return "Vimeos";
+  if (hostMatch.includes("nsrplay")) return "NasriPlay";
+
+  const fallback = (rawServer || rawName || "").trim();
+  if (!fallback || fallback.toLowerCase().includes("nsr") || fallback.toLowerCase().includes("play")) {
+    return "NasriPlay";
+  }
+  return fallback.charAt(0).toUpperCase() + fallback.slice(1);
+}
+
 export interface NasriPlayStreamResult {
   success: boolean;
   hlsUrl?: string;
   backupHlsUrls?: string[];
   iframeUrl?: string;
+  embeds?: NasriPlayEmbedOption[];
   lang?: string;
   title?: string;
   serverName?: string;
@@ -95,6 +123,7 @@ export async function fetchNasriPlayStream(
       return {
         success: false,
         iframeUrl: embedUrl,
+        embeds: [{ name: "NasriPlay", server: "nsrplay", language: "Latino", url: embedUrl }],
         debugStatus: embedRes.status,
         error: `HTTP ${embedRes.status} al cargar embed de NasriPlay`,
       };
@@ -106,6 +135,7 @@ export async function fetchNasriPlayStream(
       return {
         success: false,
         iframeUrl: embedUrl,
+        embeds: [{ name: "NasriPlay", server: "nsrplay", language: "Latino", url: embedUrl }],
         error: "No se encontró PAGE_TOKEN en el código de NasriPlay",
       };
     }
@@ -130,6 +160,7 @@ export async function fetchNasriPlayStream(
       return {
         success: false,
         iframeUrl: embedUrl,
+        embeds: [{ name: "NasriPlay", server: "nsrplay", language: "Latino", url: embedUrl }],
         debugStatus: sourcesRes.status,
         error: `HTTP ${sourcesRes.status} al consultar API de fuentes de NasriPlay`,
       };
@@ -140,79 +171,144 @@ export async function fetchNasriPlayStream(
       return {
         success: false,
         iframeUrl: embedUrl,
+        embeds: [{ name: "NasriPlay", server: "nsrplay", language: "Latino", url: embedUrl }],
         error: "NasriPlay no reportó servidores disponibles para este contenido",
       };
     }
 
     const servers: any[] = data.servers;
 
-    // 3. Recopilar candidatos potenciales de streams HLS directos
-    const candidateUrls: string[] = [];
+    // 3. Ejecutar en PARALELO:
+    // A) Resolución de embeds de todos los sub-proveedores (/server-url)
+    // B) Resolución y verificación en vivo de streams HLS directos (/resolve + isLivePlayableStream)
+    const [embeds, liveStreams] = await Promise.all([
+      // Tarea A: Extraer y resolver los sub-proveedores de embed
+      (async (): Promise<NasriPlayEmbedOption[]> => {
+        const resolvedList: NasriPlayEmbedOption[] = [];
+        const serverUrlPromises = servers.map(async (srv) => {
+          let resolvedEmbedUrl: string | undefined;
+          if (srv.token) {
+            try {
+              const subCtrl = new AbortController();
+              const subTimer = setTimeout(() => subCtrl.abort(), 1600);
+              const suRes = await fetch(
+                `https://nsrplay.space/api/v1/embed/server-url?token=${encodeURIComponent(srv.token)}`,
+                {
+                  signal: subCtrl.signal,
+                  headers: { "User-Agent": USER_AGENT, Referer: embedUrl },
+                }
+              );
+              clearTimeout(subTimer);
+              if (suRes.ok) {
+                const suJson = await suRes.json();
+                if (suJson?.data?.embedUrl && typeof suJson.data.embedUrl === "string") {
+                  resolvedEmbedUrl = suJson.data.embedUrl;
+                }
+              }
+            } catch {}
+          }
 
-    // Candidatos desde directUrl directa en la lista de servidores
-    for (const srv of servers) {
-      if (srv.directUrl && typeof srv.directUrl === "string" && srv.directUrl.includes(".m3u8")) {
-        if (!candidateUrls.includes(srv.directUrl)) candidateUrls.push(srv.directUrl);
-      }
-    }
+          const finalUrl = resolvedEmbedUrl || embedUrl;
+          const detectedHost = detectNasriPlayHost(finalUrl, srv.server, srv.name);
+          return {
+            name: srv.name || "Nsr Play",
+            server: srv.server || srv.name?.toLowerCase() || "nsrplay",
+            host: detectedHost,
+            language: srv.language || "Latino",
+            url: finalUrl,
+          };
+        });
 
-    // Candidatos resolviendo tokens dinámicos con prioridad a servidores de stream directo
-    const eligible = servers.filter((s) => s.token && s.directResolveEligible).slice(0, 3);
-    if (eligible.length > 0) {
-      const resolvedResults = await Promise.all(
-        eligible.map(async (srv) => {
-          try {
-            const subController = new AbortController();
-            const subTimer = setTimeout(() => subController.abort(), 2500);
-            const resolveUrl = `https://nsrplay.space/api/v1/embed/resolve?token=${encodeURIComponent(srv.token)}&pt=${encodeURIComponent(pageToken)}&parentUrl=${encodeURIComponent(embedUrl)}`;
-            const resolveRes = await fetch(resolveUrl, {
-              signal: subController.signal,
-              headers: {
-                "User-Agent": USER_AGENT,
-                Referer: embedUrl,
-                Accept: "application/json",
-              },
-            });
-            clearTimeout(subTimer);
-            if (resolveRes.ok) {
-              const rJson = await resolveRes.json();
-              const dUrl = rJson?.data?.directUrl;
-              if (dUrl && typeof dUrl === "string" && (dUrl.includes(".m3u8") || dUrl.includes(".mp4"))) {
-                return dUrl;
+        try {
+          const results = await Promise.all(serverUrlPromises);
+          for (const emb of results) {
+            if (emb && emb.url) {
+              if (!resolvedList.some((e) => e.url === emb.url && e.name === emb.name)) {
+                resolvedList.push(emb);
               }
             }
-          } catch {}
-          return null;
-        })
-      );
+          }
+        } catch {}
 
-      for (const u of resolvedResults) {
-        if (u && !candidateUrls.includes(u)) {
-          candidateUrls.push(u);
+        if (resolvedList.length === 0) {
+          resolvedList.push({
+            name: "NasriPlay",
+            server: "nsrplay",
+            host: "NasriPlay",
+            language: "Latino",
+            url: embedUrl,
+          });
         }
-      }
-    }
+        return resolvedList;
+      })(),
 
-    // 4. Validación en vivo estricta: Solo aceptar streams que respondan HTTP 200/206 sin 404 ni 403
-    const liveStreams: string[] = [];
-    if (candidateUrls.length > 0) {
-      const checkResults = await Promise.all(
-        candidateUrls.map(async (url) => {
-          const isAlive = await isLivePlayableStream(url);
-          return isAlive ? url : null;
-        })
-      );
-      for (const u of checkResults) {
-        if (u && !liveStreams.includes(u)) {
-          liveStreams.push(u);
+      // Tarea B: Recopilar y validar en vivo los streams HLS directos
+      (async (): Promise<string[]> => {
+        const candidateUrls: string[] = [];
+
+        // Candidatos directUrl presentes en la lista de servidores
+        for (const srv of servers) {
+          if (srv.directUrl && typeof srv.directUrl === "string" && srv.directUrl.includes(".m3u8")) {
+            if (!candidateUrls.includes(srv.directUrl)) candidateUrls.push(srv.directUrl);
+          }
         }
-      }
-    }
+
+        // Candidatos directResolveEligible
+        const eligible = servers.filter((s) => s.token && s.directResolveEligible).slice(0, 3);
+        if (eligible.length > 0) {
+          const resolvePromises = eligible.map(async (srv) => {
+            try {
+              const subController = new AbortController();
+              const subTimer = setTimeout(() => subController.abort(), 1800);
+              const resolveUrl = `https://nsrplay.space/api/v1/embed/resolve?token=${encodeURIComponent(srv.token)}&pt=${encodeURIComponent(pageToken)}&parentUrl=${encodeURIComponent(embedUrl)}`;
+              const resolveRes = await fetch(resolveUrl, {
+                signal: subController.signal,
+                headers: {
+                  "User-Agent": USER_AGENT,
+                  Referer: embedUrl,
+                  Accept: "application/json",
+                },
+              });
+              clearTimeout(subTimer);
+              if (resolveRes.ok) {
+                const rJson = await resolveRes.json();
+                const dUrl = rJson?.data?.directUrl;
+                if (dUrl && typeof dUrl === "string" && (dUrl.includes(".m3u8") || dUrl.includes(".mp4"))) {
+                  return dUrl;
+                }
+              }
+            } catch {}
+            return null;
+          });
+
+          const resolvedDirects = await Promise.all(resolvePromises);
+          for (const u of resolvedDirects) {
+            if (u && !candidateUrls.includes(u)) candidateUrls.push(u);
+          }
+        }
+
+        // Validación en vivo rápida: solo aceptar streams que respondan HTTP 200/206
+        const validLiveStreams: string[] = [];
+        if (candidateUrls.length > 0) {
+          const checks = await Promise.all(
+            candidateUrls.map(async (url) => {
+              const isAlive = await isLivePlayableStream(url);
+              return isAlive ? url : null;
+            })
+          );
+          for (const u of checks) {
+            if (u && !validLiveStreams.includes(u)) validLiveStreams.push(u);
+          }
+        }
+        return validLiveStreams;
+      })(),
+    ]);
 
     if (liveStreams.length === 0) {
       return {
         success: false,
         iframeUrl: embedUrl,
+        embeds,
         title: data.meta?.title,
         serverName: "NasriPlay",
         error: "Ningún stream directo de NasriPlay respondió HTTP 200 OK (se recomienda iframe)",
@@ -226,6 +322,7 @@ export async function fetchNasriPlayStream(
       hlsUrl: primaryHlsUrl,
       backupHlsUrls,
       iframeUrl: embedUrl,
+      embeds,
       lang: "es",
       title: data.meta?.title,
       serverName: "NasriPlay",
