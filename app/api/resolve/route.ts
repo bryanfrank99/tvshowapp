@@ -4,7 +4,7 @@ import { supa } from "@/lib/supa";
 import { checkSession, SESSION_COOKIE } from "@/lib/access";
 import { providersToSources, type ProviderAdapterInput } from "@/lib/adapters/provider-adapter";
 import { parseLangs, parseSubs } from "@/lib/providers";
-import { sortSourcesByPriority, getLanguageFamily, type ResolveResponse, type Source } from "@/lib/sources";
+import { sortSourcesByPriority, type ResolveResponse, type Source } from "@/lib/sources";
 import { isRedeflixProvider, isRedeflixAvailable } from "@/lib/redeflix-availability";
 
 // In-memory cache de resolución IMDb ↔ TMDB en servidor (TTL 24 horas)
@@ -295,11 +295,12 @@ export async function GET(req: NextRequest) {
           }
 
           if (directHlsUrl) {
+            const srvTag = prov.ord ? `S${prov.ord}` : "S19";
             provSources.push({
-              id: prov.id,
+              id: `${prov.id}-hls`,
               providerId: prov.id,
-              providerName: prov.simulated_name || prov.name,
-              realName: prov.real_name || prov.name,
+              providerName: `HLS - ${srvTag}`,
+              realName: `${prov.real_name || prov.name} (HLS)`,
               ord: prov.ord,
               type: "hls",
               url: directHlsUrl,
@@ -400,11 +401,12 @@ export async function GET(req: NextRequest) {
           }
 
           if (directHlsUrl) {
+            const srvTag = prov.ord ? `S${prov.ord}` : "S14";
             provSources.push({
-              id: prov.id,
+              id: `${prov.id}-hls`,
               providerId: prov.id,
-              providerName: prov.simulated_name || prov.name,
-              realName: prov.real_name || prov.name,
+              providerName: `HLS - ${srvTag}`,
+              realName: `${prov.real_name || prov.name} (HLS)`,
               ord: prov.ord,
               type: "hls",
               url: directHlsUrl,
@@ -463,11 +465,12 @@ export async function GET(req: NextRequest) {
           }
 
           if (cachedHls?.hlsUrl) {
+            const srvTag = prov.ord ? `S${prov.ord}` : "S18";
             provSources.push({
-              id: prov.id,
+              id: `${prov.id}-hls`,
               providerId: prov.id,
-              providerName: prov.simulated_name || prov.name,
-              realName: prov.real_name || prov.name,
+              providerName: `HLS - ${srvTag}`,
+              realName: `${prov.real_name || prov.name} (HLS)`,
               ord: prov.ord,
               type: "hls",
               url: cachedHls.hlsUrl,
@@ -539,11 +542,12 @@ export async function GET(req: NextRequest) {
           }
 
           if (directHlsUrl) {
+            const srvTag = prov.ord ? `S${prov.ord}` : "S17";
             provSources.push({
-              id: prov.id,
+              id: `${prov.id}-hls`,
               providerId: prov.id,
-              providerName: prov.simulated_name || prov.name,
-              realName: prov.real_name || prov.name,
+              providerName: `HLS - ${srvTag}`,
+              realName: `${prov.real_name || prov.name} (HLS)`,
               ord: prov.ord,
               type: "hls",
               url: directHlsUrl,
@@ -600,83 +604,10 @@ export async function GET(req: NextRequest) {
 
     const rawSources: Source[] = sourceBatches.flat();
 
-    // Ordenar TODAS las fuentes según afinidad lingüística real y prioridad de servidor por idioma
-    const sorted = sortSourcesByPriority(rawSources, userLang, primaryByLang);
-
-    // 4. Unificación de servidores compatibles con HLS aislados estrictamente por idioma de audio
-    // REGLA: Los servidores HLS en modo beta (isBeta: true) NUNCA se colocan dentro de la pool unificada.
-    // Se mantienen como fuentes independientes para permitir testearlos individualmente.
-    const hlsPoolSources = sorted.filter((s) => s.type === "hls" && !s.isBeta);
-    const standaloneSources = sorted.filter((s) => s.type !== "hls" || s.isBeta);
-    let sources: Source[] = sorted;
-
-    if (hlsPoolSources.length > 0) {
-      // Agrupar por familia de idioma
-      const hlsByLang = new Map<string, Source[]>();
-      for (const src of hlsPoolSources) {
-        const audios = src.languages && src.languages.length ? src.languages : [src.lang];
-        const fam = getLanguageFamily(audios[0] || src.lang);
-        const existing = hlsByLang.get(fam) || [];
-        existing.push(src);
-        hlsByLang.set(fam, existing);
-      }
-
-      const consolidatedHls: Source[] = [];
-      for (const [langFam, groupSources] of hlsByLang.entries()) {
-        if (!groupSources.length) continue;
-        const primaryHls = { ...groupSources[0] };
-
-        const urlServerMap: Record<string, string> = {};
-        const getServerTag = (s: Source) =>
-          typeof s.ord === "number" && s.ord > 0
-            ? `S${s.ord}`
-            : s.providerName?.match(/^S\d+/i)
-            ? s.providerName.toUpperCase()
-            : `S${s.ord || 1}`;
-
-        urlServerMap[primaryHls.url] = getServerTag(primaryHls);
-
-        // Los backups SOLO se enlazan entre servidores HLS del mismo idioma de audio
-        if (groupSources.length > 1) {
-          const otherBackupUrls = groupSources
-            .slice(1)
-            .flatMap((s) => {
-              const tag = getServerTag(s);
-              const urls = [s.url, ...(s.backupUrls || [])].filter(Boolean);
-              for (const u of urls) {
-                if (!urlServerMap[u]) urlServerMap[u] = tag;
-              }
-              return urls;
-            })
-            .filter((u) => u && u !== primaryHls.url);
-
-          primaryHls.backupUrls = Array.from(
-            new Set([...(primaryHls.backupUrls || []), ...otherBackupUrls])
-          ).filter((u) => u && u !== primaryHls.url);
-        } else {
-          primaryHls.backupUrls = Array.from(
-            new Set(primaryHls.backupUrls || [])
-          ).filter((u) => u && u !== primaryHls.url);
-        }
-
-        for (const u of primaryHls.backupUrls || []) {
-          if (!urlServerMap[u]) urlServerMap[u] = getServerTag(primaryHls);
-        }
-
-        primaryHls.urlServerMap = urlServerMap;
-        primaryHls.providerName = "HLS";
-        primaryHls.realName = `HLS (${langFam.toUpperCase()})`;
-        primaryHls.ord = 0;
-        primaryHls.lang = langFam as any;
-        primaryHls.languages = [langFam as any];
-        const maxPriority = Math.max(...groupSources.map((s) => s.priority || 100), 120);
-        primaryHls.priority = maxPriority;
-        consolidatedHls.push(primaryHls);
-      }
-
-      // Reordenar conservando afinidad lingüística, pool HLS en pos 0 y servidores individuales/beta
-      sources = sortSourcesByPriority([...consolidatedHls, ...standaloneSources], userLang, primaryByLang);
-    }
+    // Ordenar TODAS las fuentes según afinidad lingüística real y prioridad de servidor por idioma.
+    // Spec 085: Cada servidor HLS nativo se entrega como fuente independiente (HLS - S14, HLS - S18, etc.)
+    // con sus propios backups, permitiendo selección directa y fallback limpio entre servidores.
+    const sources: Source[] = sortSourcesByPriority(rawSources, userLang, primaryByLang);
 
     const recommendedSourceId = sources[0]?.id || "";
 

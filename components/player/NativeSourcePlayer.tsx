@@ -725,6 +725,9 @@ export default function NativeSourcePlayer({
               <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-zinc-400">
                 <span className="font-bold text-zinc-200">
                   {(() => {
+                    if (source.providerName?.startsWith("HLS - ")) {
+                      return source.providerName;
+                    }
                     const isHlsPool = source.type === "hls" || source.providerName === "HLS";
                     const lowerUrl = (activeUrl || "").toLowerCase();
                     let srvName = "";

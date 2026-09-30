@@ -110,9 +110,9 @@ export default function SourceSelectorGrid({
               </span>
             )}
             {p.type === "hls" && p.backupUrls && p.backupUrls.length > 0 && (
-              <span className="text-xs bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1 rounded-xl text-indigo-200 inline-flex items-center gap-1.5" title="Pool HLS con auto-failover transparente">
-                <span>⚡ Multi-Stream:</span>
-                <b className="text-indigo-100">{p.backupUrls.length + 1} servidores enlazados</b>
+              <span className="text-xs bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1 rounded-xl text-indigo-200 inline-flex items-center gap-1.5" title="Auto-failover transparente de mirrors">
+                <span>⚡ Mirrors:</span>
+                <b className="text-indigo-100">{p.backupUrls.length + 1} disponibles</b>
               </span>
             )}
             {p.embedOptions && p.embedOptions.length > 1 && (
@@ -194,9 +194,9 @@ export default function SourceSelectorGrid({
                   {x.type === "hls" && x.backupUrls && x.backupUrls.length > 0 && (
                     <span
                       className="text-[9px] px-1.5 py-0.5 rounded font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                      title={`${x.backupUrls.length + 1} servidores HLS enlazados con failover automático`}
+                      title={`${x.backupUrls.length + 1} mirrors con auto-failover`}
                     >
-                      MULTI-STREAM
+                      MIRRORS
                     </span>
                   )}
                   {x.embedOptions && x.embedOptions.length > 1 && (

@@ -134,123 +134,39 @@ function WatchInner() {
 
           const extractedList: ExtractedStreamInfo[] = [];
 
-          // Helper para fusionar streams extraídos en la lista de fuentes (en memoria o estado)
+          // Helper para fusionar streams extraídos como servidores HLS individuales independientes
           const mergeExtractedStreams = (baseSources: Source[], itemsToMerge: ExtractedStreamInfo[]): Source[] => {
             if (!itemsToMerge || itemsToMerge.length === 0) return baseSources;
 
             let updated = [...baseSources];
 
-            // REGLA: Los servidores en modo beta (isBeta: true) NUNCA se colocan dentro de la pool unificada.
-            // Se mantienen como fuentes independientes para permitir testearlos individualmente.
-            const betaItems = itemsToMerge.filter((it) => !!it.isBeta);
-            const stableItems = itemsToMerge.filter((it) => !it.isBeta);
-
-            for (const bItem of betaItems) {
-              const betaSource: Source = {
-                id: `${bItem.providerId}-hls-beta`,
-                providerId: bItem.providerId,
-                providerName: bItem.simulatedName || bItem.tag,
-                realName: `${bItem.realName || bItem.tag} (Beta)`,
-                ord: bItem.ord,
+            for (const it of itemsToMerge) {
+              const srvTag = it.tag || (it.ord ? `S${it.ord}` : "S1");
+              const hlsSource: Source = {
+                id: it.isBeta ? `${it.providerId}-hls-beta` : `${it.providerId}-hls`,
+                providerId: it.providerId,
+                providerName: `HLS - ${srvTag}`,
+                realName: `${it.realName || srvTag}${it.isBeta ? " (Beta)" : " (HLS)"}`,
+                ord: it.ord,
                 type: "hls",
-                lang: bItem.lang as any,
-                languages: [bItem.lang as any],
-                priority: 80,
-                url: bItem.hlsUrl,
-                backupUrls: bItem.backupUrls,
-                isBeta: true,
+                lang: it.lang as any,
+                languages: [it.lang as any],
+                priority: it.isBeta ? 80 : 120,
+                url: it.hlsUrl,
+                backupUrls: it.backupUrls,
+                isBeta: Boolean(it.isBeta),
                 tvOk: true,
                 needsTmdb: true,
               };
 
-              // Reemplazar la versión previa de este proveedor por su versión HLS Beta individual
-              updated = updated.filter((s) => s.id !== bItem.providerId && s.id !== betaSource.id);
-              updated.push(betaSource);
-            }
-
-            // Unificar únicamente los streams estables en la pool oficial
-            const byLang = new Map<string, ExtractedStreamInfo[]>();
-            for (const item of stableItems) {
-              const list = byLang.get(item.lang) || [];
-              list.push(item);
-              byLang.set(item.lang, list);
-            }
-
-            for (const [itemLang, items] of byLang.entries()) {
-              if (items.length === 0) continue;
-
-              const existingPoolIndex = updated.findIndex(
+              // Reemplazar la fuente original o versión previa de este proveedor
+              updated = updated.filter(
                 (s) =>
-                  !s.isBeta &&
-                  (s.ord === 0 || s.providerName === "HLS" || s.type === "hls") &&
-                  (s.lang === itemLang || s.languages?.includes(itemLang as any))
+                  s.id !== it.providerId &&
+                  s.id !== hlsSource.id &&
+                  !(s.providerId === it.providerId && s.type !== "hls" && !s.id.includes("iframe"))
               );
-
-              if (existingPoolIndex !== -1) {
-                const existing = updated[existingPoolIndex];
-                const combinedBackups = [...(existing.backupUrls || [])];
-                const newMap = { ...(existing.urlServerMap || {}) };
-
-                for (const it of items) {
-                  combinedBackups.push(it.hlsUrl, ...it.backupUrls);
-                  if (!newMap[it.hlsUrl]) newMap[it.hlsUrl] = it.tag;
-                  for (const b of it.backupUrls) {
-                    if (!newMap[b]) newMap[b] = it.tag;
-                  }
-                }
-
-                const uniqueBackups = Array.from(new Set(combinedBackups)).filter(
-                  (u) => u && u !== existing.url
-                );
-                for (const b of uniqueBackups) {
-                  if (!newMap[b]) newMap[b] = items[0]?.tag || "S1";
-                }
-
-                updated[existingPoolIndex] = {
-                  ...existing,
-                  backupUrls: uniqueBackups,
-                  urlServerMap: newMap,
-                };
-              } else {
-                const primaryItem = items[0];
-                const backupUrls = Array.from(
-                  new Set(
-                    items.flatMap((it, idx) => (idx === 0 ? it.backupUrls : [it.hlsUrl, ...it.backupUrls]))
-                  )
-                ).filter((u) => u && u !== primaryItem.hlsUrl);
-
-                const urlServerMap: Record<string, string> = { [primaryItem.hlsUrl]: primaryItem.tag };
-                for (const it of items) {
-                  urlServerMap[it.hlsUrl] = it.tag;
-                  for (const b of it.backupUrls) {
-                    if (!urlServerMap[b]) urlServerMap[b] = it.tag;
-                  }
-                }
-
-                const newPool: Source = {
-                  id: `hls-${itemLang}`,
-                  providerId: primaryItem.providerId,
-                  providerName: "HLS",
-                  realName: `HLS (${itemLang.toUpperCase()})`,
-                  ord: 0,
-                  type: "hls",
-                  lang: itemLang as any,
-                  languages: [itemLang as any],
-                  priority: 120,
-                  url: primaryItem.hlsUrl,
-                  backupUrls,
-                  urlServerMap,
-                  isBeta: false,
-                  tvOk: true,
-                  needsTmdb: true,
-                };
-
-                const convertedProviders = new Set(items.map((i) => i.providerId));
-                updated = updated.filter(
-                  (s) => !convertedProviders.has(s.providerId) || s.type === "hls"
-                );
-                updated.unshift(newPool);
-              }
+              updated.push(hlsSource);
             }
 
             return updated;
@@ -692,41 +608,18 @@ function WatchInner() {
                   }).catch(() => {});
 
                   setSources((prev) => {
-                    const existingPtPool = prev.find(
-                      (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "pt" || s.languages?.includes("pt"))
-                    );
-
-                    if (existingPtPool) {
-                      return prev.map((src) => {
-                        if (src.id === existingPtPool.id) {
-                          const newBackups = Array.from(
-                            new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
-                          ).filter((u) => u && u !== src.url);
-
-                          const updatedMap = { ...(src.urlServerMap || {}) };
-                          const serverTag = source.ord ? `S${source.ord}` : "S14";
-                          if (!updatedMap[streamResult.hlsUrl!]) updatedMap[streamResult.hlsUrl!] = serverTag;
-                          for (const b of streamResult.backupHlsUrls || []) {
-                            if (!updatedMap[b]) updatedMap[b] = serverTag;
-                          }
-
-                          return {
-                            ...src,
-                            backupUrls: newBackups,
-                            urlServerMap: updatedMap,
-                          };
-                        }
-                        return src;
-                      });
-                    }
-
+                    const srvTag = source.ord ? `S${source.ord}` : "S14";
                     return prev.map((src) =>
                       src.id === source.id
                         ? {
                             ...src,
+                            id: `${source.providerId || "megaembed"}-hls`,
+                            providerName: `HLS - ${srvTag}`,
+                            realName: `${source.realName || "MegaEmbed"} (HLS)`,
                             type: "hls",
                             url: streamResult.hlsUrl!,
                             backupUrls: streamResult.backupHlsUrls,
+                            priority: 120,
                           }
                         : src
                     );
@@ -757,41 +650,18 @@ function WatchInner() {
                   }).catch(() => {});
 
                   setSources((prev) => {
-                    const existingPtPool = prev.find(
-                      (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "pt" || s.languages?.includes("pt"))
-                    );
-
-                    if (existingPtPool) {
-                      return prev.map((src) => {
-                        if (src.id === existingPtPool.id) {
-                          const newBackups = Array.from(
-                            new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
-                          ).filter((u) => u && u !== src.url);
-
-                          const updatedMap = { ...(src.urlServerMap || {}) };
-                          const serverTag = source.ord ? `S${source.ord}` : "S18";
-                          if (!updatedMap[streamResult.hlsUrl!]) updatedMap[streamResult.hlsUrl!] = serverTag;
-                          for (const b of streamResult.backupHlsUrls || []) {
-                            if (!updatedMap[b]) updatedMap[b] = serverTag;
-                          }
-
-                          return {
-                            ...src,
-                            backupUrls: newBackups,
-                            urlServerMap: updatedMap,
-                          };
-                        }
-                        return src;
-                      });
-                    }
-
+                    const srvTag = source.ord ? `S${source.ord}` : "S18";
                     return prev.map((src) =>
                       src.id === source.id
                         ? {
                             ...src,
+                            id: `${source.providerId || "watchplay"}-hls`,
+                            providerName: `HLS - ${srvTag}`,
+                            realName: `${source.realName || "WatchPlay"} (HLS)`,
                             type: "hls",
                             url: streamResult.hlsUrl!,
                             backupUrls: streamResult.backupHlsUrls,
+                            priority: 120,
                           }
                         : src
                     );
@@ -820,6 +690,24 @@ function WatchInner() {
                       backupHlsUrls: streamResult.backupHlsUrls,
                     }),
                   }).catch(() => {});
+
+                  setSources((prev) => {
+                    const srvTag = source.ord ? `S${source.ord}` : "S17";
+                    return prev.map((src) =>
+                      src.id === source.id
+                        ? {
+                            ...src,
+                            id: `${source.providerId || "nasriplay"}-hls`,
+                            providerName: `HLS - ${srvTag}`,
+                            realName: `${source.realName || "NasriPlay"} (HLS)`,
+                            type: "hls",
+                            url: streamResult.hlsUrl!,
+                            backupUrls: streamResult.backupHlsUrls,
+                            priority: 120,
+                          }
+                        : src
+                    );
+                  });
                 }
               }).catch(() => {});
             }
