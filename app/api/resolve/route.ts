@@ -448,6 +448,75 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // Si es NasriPlay (S17), consultamos la caché de BD de streams M3U8 o extraemos el stream HLS directo con audio Latino
+      if (prov.id === "nasriplay" || String(prov.movie_tpl || "").includes("nsrplay.space")) {
+        let cachedHls: { hlsUrl: string; backupHlsUrls?: string[] } | null = null;
+        try {
+          const { getCachedStream } = await import("@/lib/stream-cache");
+          cachedHls = await getCachedStream({
+            providerId: prov.id,
+            type,
+            targetId,
+            season: s,
+            episode: e,
+          });
+        } catch {}
+
+        let directHlsUrl = cachedHls?.hlsUrl;
+        let backupUrls = cachedHls?.backupHlsUrls || [];
+
+        if (!directHlsUrl) {
+          try {
+            const { fetchNasriPlayStream } = await import("@/lib/nasriplay");
+            const extractPromise = fetchNasriPlayStream({
+              id: targetId,
+              type,
+              season: s,
+              episode: e,
+            });
+            const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 3000));
+            const fresh = await Promise.race([extractPromise, timeoutPromise]);
+            if (fresh?.success && fresh.hlsUrl) {
+              directHlsUrl = fresh.hlsUrl;
+              backupUrls = fresh.backupHlsUrls || [];
+
+              const { setCachedStream } = await import("@/lib/stream-cache");
+              setCachedStream({
+                providerId: prov.id,
+                type,
+                targetId,
+                season: s,
+                episode: e,
+                hlsUrl: fresh.hlsUrl,
+                backupHlsUrls: fresh.backupHlsUrls,
+                ttlHours: 12,
+              }).catch(() => {});
+            }
+          } catch {}
+        }
+
+        if (directHlsUrl) {
+          rawSources.push({
+            id: prov.id,
+            providerId: prov.id,
+            providerName: prov.simulated_name || prov.name,
+            realName: prov.real_name || prov.name,
+            ord: prov.ord,
+            type: "hls",
+            url: directHlsUrl,
+            backupUrls,
+            lang: "es",
+            languages: ["es", "lat"],
+            subtitles: prov.subtitles || [],
+            priority: 120, // Máxima prioridad para reproducción directa HLS
+            isBeta: false,
+            needsTmdb: prov.needs_tmdb,
+            tvOk: prov.tv_ok,
+          });
+          continue; // Ya agregamos el servidor S17 como stream nativo HLS
+        }
+      }
+
       const adapted = providersToSources([prov], {
         type,
         id: targetId,
