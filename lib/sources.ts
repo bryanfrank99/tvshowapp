@@ -70,6 +70,17 @@ export interface ResolveResponse {
 }
 
 /**
+ * Normaliza y agrupa códigos de idioma en su familia lingüística principal ('pt', 'es', 'en').
+ */
+export function getLanguageFamily(langCode = "es"): string {
+  const l = (langCode || "").toLowerCase().trim();
+  if (l.includes("pt") || l.includes("por") || l.includes("br")) return "pt";
+  if (l.includes("es") || l.includes("spa") || l.includes("lat") || l.includes("cas")) return "es";
+  if (l.includes("en") || l.includes("eng")) return "en";
+  return l;
+}
+
+/**
  * Calcula la puntuación de afinidad de una fuente para el idioma del usuario.
  * Respeta la misma escala probada de TVShow:
  * - Idioma nativo prioritario: 10 pts
