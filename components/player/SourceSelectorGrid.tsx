@@ -115,6 +115,33 @@ export default function SourceSelectorGrid({
                 <b className="text-indigo-100">{p.backupUrls.length + 1} servidores enlazados</b>
               </span>
             )}
+            {p.embedOptions && p.embedOptions.length > 1 && (
+              <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl flex-wrap">
+                <span className="text-xs text-zinc-400 font-medium mr-1">
+                  🌐 {lang === "pt" ? "Opções:" : "Mirrors:"}
+                </span>
+                {p.embedOptions.map((opt, idx) => {
+                  const isActive = p.url === opt.url;
+                  const optLabel = opt.host || opt.name || `Opción ${idx + 1}`;
+                  return (
+                    <button
+                      key={opt.url + idx}
+                      onClick={() => {
+                        onSelectSource({ ...p, url: opt.url });
+                      }}
+                      className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 ${
+                        isActive
+                          ? "bg-[#008CFF] text-white shadow-sm ring-1 ring-white/20"
+                          : "bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white"
+                      }`}
+                      title={lang === "pt" ? `Mudar para ${optLabel}` : `Cambiar a ${optLabel}`}
+                    >
+                      <span>{optLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -170,6 +197,14 @@ export default function SourceSelectorGrid({
                       title={`${x.backupUrls.length + 1} servidores HLS enlazados con failover automático`}
                     >
                       MULTI-STREAM
+                    </span>
+                  )}
+                  {x.embedOptions && x.embedOptions.length > 1 && (
+                    <span
+                      className="text-[9px] px-1.5 py-0.5 rounded font-extrabold bg-sky-500/20 text-sky-300 border border-sky-500/30"
+                      title={`${x.embedOptions.length} servidores/mirrors disponibles`}
+                    >
+                      {x.embedOptions.length} MIRRORS
                     </span>
                   )}
                   {isSelected ? (

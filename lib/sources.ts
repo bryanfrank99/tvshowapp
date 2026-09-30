@@ -16,6 +16,14 @@ export interface SourceSubtitle {
   isDefault?: boolean;
 }
 
+export interface SourceEmbedOption {
+  name: string;
+  server?: string;
+  host?: string;
+  language?: string;
+  url: string;
+}
+
 export interface Source {
   id: string;                 // Identificador único (ej: "vidcore", "vidcore-hls")
   providerId: string;         // ID del proveedor subyacente (ej: "vidcore")
@@ -35,6 +43,8 @@ export interface Source {
   sandbox?: string;           // Atributos de sandbox recomendados para iframes
   headers?: Record<string, string>; // Cabeceras personalizadas para streams directos
   backupUrls?: string[];      // URLs de fallback para streams directos HLS/MP4
+  urlServerMap?: Record<string, string>; // Mapeo de URL -> nombre de servidor (ej: "S14", "S19", "S17")
+  embedOptions?: SourceEmbedOption[]; // Sub-proveedores/mirrors unificados para un mismo servidor
 }
 
 export interface ResolveRequest {

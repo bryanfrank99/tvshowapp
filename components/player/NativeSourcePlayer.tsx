@@ -693,16 +693,38 @@ export default function NativeSourcePlayer({
               </h2>
               <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-zinc-400">
                 <span className="font-bold text-zinc-200">
-                  {source.type === "hls" || source.providerName === "HLS"
-                    ? "HLS"
-                    : typeof source.ord === "number" && source.ord > 0
-                    ? `S${source.ord}`
-                    : source.providerName?.match(/^S\d+/i)
-                    ? source.providerName.toUpperCase()
-                    : `S${source.providerName || "1"}`}
+                  {(() => {
+                    const isHlsPool = source.type === "hls" || source.providerName === "HLS";
+                    const lowerUrl = (activeUrl || "").toLowerCase();
+                    let srvName = "";
+
+                    if (source.urlServerMap && source.urlServerMap[activeUrl]) {
+                      srvName = source.urlServerMap[activeUrl];
+                    } else if (
+                      lowerUrl.includes("mgeb") ||
+                      lowerUrl.includes("playercdn") ||
+                      lowerUrl.includes("97bf1") ||
+                      lowerUrl.includes("s1q2105")
+                    ) {
+                      srvName = "S14";
+                    } else if (lowerUrl.includes("watchplay") || lowerUrl.includes("embedmovies-v2")) {
+                      srvName = "S18";
+                    } else if (lowerUrl.includes("cinecalidad") || lowerUrl.includes("cinestart")) {
+                      srvName = "S19";
+                    } else if (lowerUrl.includes("vimeos") || lowerUrl.includes("nsrplay")) {
+                      srvName = "S17";
+                    } else if (typeof source.ord === "number" && source.ord > 0) {
+                      srvName = `S${source.ord}`;
+                    } else if (source.providerName?.match(/^S\d+/i)) {
+                      srvName = source.providerName.toUpperCase();
+                    }
+
+                    if (isHlsPool) {
+                      return srvName ? `HLS - ${srvName}` : "HLS";
+                    }
+                    return srvName || `S${source.providerName || "1"}`;
+                  })()}
                 </span>
-                <span className="w-1 h-1 rounded-full bg-zinc-500" />
-                <span className="text-[#008CFF] font-bold">1080p Full HD</span>
               </div>
             </div>
 
