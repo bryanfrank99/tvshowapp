@@ -106,7 +106,7 @@ const PlayerContainer = forwardRef<HTMLDivElement, PlayerContainerProps>(
           />
         ) : (
           <NativeSourcePlayer
-            key={source.url}
+            key={source.id || source.url}
             source={source}
             title={title}
             onError={onSourceError}

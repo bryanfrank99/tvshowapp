@@ -378,7 +378,7 @@ export async function GET(req: NextRequest) {
                 season: s,
                 episode: e,
               });
-              const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 5500));
+              const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 6000));
               const fresh = await Promise.race([extractPromise, timeoutPromise]);
               if (fresh?.success && fresh.hlsUrl) {
                 directHlsUrl = fresh.hlsUrl;

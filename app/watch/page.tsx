@@ -45,11 +45,14 @@ function WatchInner() {
   const [inTheaters, setInTheaters] = useState(spTheaters);
   const frameBox = useRef<HTMLDivElement>(null);
   const hasStartedPlaybackRef = useRef(false);
+  const isInitialPhaseDoneRef = useRef(false);
+  const activeSourceRef = useRef<Source | null>(null);
 
   // Cada vez que cambia el título, temporada o episodio, se restablece la selección manual y el estado de reproducción
   useEffect(() => {
     setUserSourceId(null);
     hasStartedPlaybackRef.current = false;
+    isInitialPhaseDoneRef.current = false;
   }, [id, type, s, e, lang]);
 
   const goFullscreen = () => {
@@ -71,6 +74,7 @@ function WatchInner() {
     setLocked(false);
     setLoading(true);
     hasStartedPlaybackRef.current = false;
+    isInitialPhaseDoneRef.current = false;
 
     ensureSession()
       .then(async (ok) => {
@@ -294,11 +298,16 @@ function WatchInner() {
                     };
                     extractedList.push(extracted);
 
-                    // Si la interfaz ya está reproduciendo, incorporar backups sin reiniciar playback
-                    if (hasStartedPlaybackRef.current) {
+                    // Si la fase de espera inicial ya culminó, incorporar stream tardío sin reiniciar playback activo
+                    if (isInitialPhaseDoneRef.current) {
                       setSources((prev) => {
+                        const currentActiveId = activeSourceRef.current?.id;
                         const merged = mergeExtractedStreams(prev, [extracted]);
-                        return sortSourcesByPriority(merged, lang);
+                        const sorted = sortSourcesByPriority(merged, lang);
+                        if (currentActiveId && !userSourceId) {
+                          setUserSourceId(currentActiveId);
+                        }
+                        return sorted;
                       });
                     }
                   }
@@ -346,10 +355,15 @@ function WatchInner() {
                     };
                     extractedList.push(extracted);
 
-                    if (hasStartedPlaybackRef.current) {
+                    if (isInitialPhaseDoneRef.current) {
                       setSources((prev) => {
+                        const currentActiveId = activeSourceRef.current?.id;
                         const merged = mergeExtractedStreams(prev, [extracted]);
-                        return sortSourcesByPriority(merged, lang);
+                        const sorted = sortSourcesByPriority(merged, lang);
+                        if (currentActiveId && !userSourceId) {
+                          setUserSourceId(currentActiveId);
+                        }
+                        return sorted;
                       });
                     }
                   }
@@ -397,10 +411,15 @@ function WatchInner() {
                     };
                     extractedList.push(extracted);
 
-                    if (hasStartedPlaybackRef.current) {
+                    if (isInitialPhaseDoneRef.current) {
                       setSources((prev) => {
+                        const currentActiveId = activeSourceRef.current?.id;
                         const merged = mergeExtractedStreams(prev, [extracted]);
-                        return sortSourcesByPriority(merged, lang);
+                        const sorted = sortSourcesByPriority(merged, lang);
+                        if (currentActiveId && !userSourceId) {
+                          setUserSourceId(currentActiveId);
+                        }
+                        return sorted;
                       });
                     }
                   }
@@ -409,11 +428,13 @@ function WatchInner() {
             );
           }
 
-          // 3. Fase de Coordinación Pre-Reproducción: Esperar a que terminen o hasta 2.8s
+          // 3. Fase de Coordinación Pre-Reproducción: Esperar a que terminen o hasta 4.2s para asegurar HLS primario
           if (extractionTasks.length > 0) {
-            const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2800));
+            const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 4200));
             await Promise.race([Promise.allSettled(extractionTasks), timeoutPromise]);
           }
+
+          isInitialPhaseDoneRef.current = true;
 
           // 4. Consolidar todas las extracciones completadas en la lista inicial
           const mergedInitial = mergeExtractedStreams(rawList, extractedList);
@@ -461,6 +482,10 @@ function WatchInner() {
     recommendedSourceId,
     lang,
   });
+
+  useEffect(() => {
+    activeSourceRef.current = activeSource;
+  }, [activeSource]);
 
   const handleCycleNext = () => {
     const next = cycleNext();

@@ -76,6 +76,8 @@ export default function NativeSourcePlayer({
     source.url,
     ...(source.backupUrls || []).filter((u) => u && u !== source.url),
   ];
+  const candidateUrlsRef = useRef(candidateUrls);
+  candidateUrlsRef.current = candidateUrls;
   const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
   const activeUrl = candidateUrls[currentUrlIndex] || source.url;
 
@@ -184,10 +186,11 @@ export default function NativeSourcePlayer({
     let networkRetryCount = 0;
 
     const tryNextStream = () => {
-      if (currentUrlIndex + 1 < candidateUrls.length) {
+      const urls = candidateUrlsRef.current;
+      if (currentUrlIndex + 1 < urls.length) {
         const nextIdx = currentUrlIndex + 1;
         setCurrentUrlIndex(nextIdx);
-        triggerFeedbackRef.current("🔄", `Probando stream alternativo (${nextIdx + 1}/${candidateUrls.length})`);
+        triggerFeedbackRef.current("🔄", `Probando stream alternativo (${nextIdx + 1}/${urls.length})`);
       } else {
         setError(true);
         onErrorRef.current?.();
@@ -280,7 +283,7 @@ export default function NativeSourcePlayer({
         hls.destroy();
       }
     };
-  }, [activeUrl, currentUrlIndex, candidateUrls.length, isHlsStream, autoFocusFullscreen]);
+  }, [activeUrl, currentUrlIndex, isHlsStream, autoFocusFullscreen]);
 
   // Controles de reproducción
   const togglePlay = useCallback(() => {
