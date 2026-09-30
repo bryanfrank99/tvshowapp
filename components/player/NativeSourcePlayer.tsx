@@ -94,6 +94,23 @@ export default function NativeSourcePlayer({
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  const triggerFeedbackRef = useRef(triggerFeedback);
+  useEffect(() => {
+    triggerFeedbackRef.current = triggerFeedback;
+  }, [triggerFeedback]);
+
+  const resetHideTimerRef = useRef(resetHideTimer);
+  useEffect(() => {
+    resetHideTimerRef.current = resetHideTimer;
+  }, [resetHideTimer]);
+
+  const isHlsStream = activeUrl.includes(".m3u8") || source.type === "hls";
+
   // Inicialización y carga de stream (con soporte Hls.js y Failover de streams)
   useEffect(() => {
     setError(false);
@@ -101,16 +118,16 @@ export default function NativeSourcePlayer({
     if (!video || !activeUrl) return;
 
     let hls: Hls | null = null;
-    const isHlsStream = activeUrl.includes(".m3u8") || source.type === "hls";
+    let networkRetryCount = 0;
 
     const tryNextStream = () => {
       if (currentUrlIndex + 1 < candidateUrls.length) {
         const nextIdx = currentUrlIndex + 1;
         setCurrentUrlIndex(nextIdx);
-        triggerFeedback("🔄", `Probando stream alternativo (${nextIdx + 1}/${candidateUrls.length})`);
+        triggerFeedbackRef.current("🔄", `Probando stream alternativo (${nextIdx + 1}/${candidateUrls.length})`);
       } else {
         setError(true);
-        onError?.();
+        onErrorRef.current?.();
       }
     };
 
@@ -120,28 +137,37 @@ export default function NativeSourcePlayer({
       video.load();
       video.play().then(() => {
         setIsPlaying(true);
-        resetHideTimer();
+        resetHideTimerRef.current();
       }).catch(() => {
         setIsPlaying(false);
-        resetHideTimer();
       });
     } else if (isHlsStream && Hls.isSupported()) {
       // 2. Desktop Chrome / Windows Electron / Firefox vía hls.js
       hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        maxBufferLength: 30,
+        backBufferLength: 60,
+        maxBufferLength: 45,
+        maxMaxBufferLength: 90,
+        maxBufferSize: 80 * 1024 * 1024,
+        manifestLoadingTimeOut: 15000,
+        manifestLoadingMaxRetry: 3,
+        levelLoadingTimeOut: 15000,
+        fragLoadingTimeOut: 15000,
+        startFragPrefetch: true,
       });
-      hls.loadSource(activeUrl);
+
       hls.attachMedia(video);
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        hls?.loadSource(activeUrl);
+      });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         video.play().then(() => {
           setIsPlaying(true);
-          resetHideTimer();
+          resetHideTimerRef.current();
         }).catch(() => {
           setIsPlaying(false);
-          resetHideTimer();
         });
       });
 
@@ -149,8 +175,14 @@ export default function NativeSourcePlayer({
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.warn("[NativePlayer] Error fatal de red en HLS stream, intentando conmutar:", activeUrl);
-              tryNextStream();
+              if (networkRetryCount < 2) {
+                networkRetryCount++;
+                console.warn("[NativePlayer] Reintentando carga de red HLS:", activeUrl);
+                hls?.startLoad();
+              } else {
+                console.warn("[NativePlayer] Error fatal de red en HLS stream tras reintentos, conmutando:", activeUrl);
+                tryNextStream();
+              }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               hls?.recoverMediaError();
@@ -167,10 +199,9 @@ export default function NativeSourcePlayer({
       video.load();
       video.play().then(() => {
         setIsPlaying(true);
-        resetHideTimer();
+        resetHideTimerRef.current();
       }).catch(() => {
         setIsPlaying(false);
-        resetHideTimer();
       });
     }
 
@@ -179,7 +210,7 @@ export default function NativeSourcePlayer({
         hls.destroy();
       }
     };
-  }, [activeUrl, currentUrlIndex, candidateUrls.length, source.type, resetHideTimer, onError, triggerFeedback]);
+  }, [activeUrl, currentUrlIndex, candidateUrls.length, isHlsStream]);
 
   // Controles de reproducción
   const togglePlay = useCallback(() => {

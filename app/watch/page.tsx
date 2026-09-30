@@ -105,7 +105,7 @@ function WatchInner() {
           if (megaItem && !hasNative) {
             import("@/lib/megaembed").then(async ({ fetchMegaEmbedStream }) => {
               try {
-                const targetMegaId = data.effectiveImdbId || data.effectiveTmdbId || id;
+                const targetMegaId = data.effectiveTmdbId || data.effectiveImdbId || id;
                 const streamResult = await fetchMegaEmbedStream({
                   id: targetMegaId,
                   type,
@@ -137,6 +137,7 @@ function WatchInner() {
                     return next;
                   });
                   setRecommendedSourceId(nativeSource.id);
+                  setUserSourceId((prev) => (!prev || prev === megaItem.id ? nativeSource.id : prev));
                 }
               } catch {}
             });
@@ -384,6 +385,7 @@ function WatchInner() {
                 setUserSourceId(nativeMega.id);
                 return;
               }
+              setUserSourceId(source.id);
               import("@/lib/megaembed").then(async ({ fetchMegaEmbedStream }) => {
                 const streamResult = await fetchMegaEmbedStream({ id, type, season: s, episode: e });
                 if (streamResult?.hlsUrl) {
@@ -400,6 +402,7 @@ function WatchInner() {
                   setUserSourceId(nativeSource.id);
                 }
               }).catch(() => {});
+              return;
             }
             setUserSourceId(source.id);
           }}

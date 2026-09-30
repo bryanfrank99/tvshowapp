@@ -131,7 +131,7 @@ export async function fetchMegaEmbedStream(
         const checkResults = await Promise.allSettled(
           hlsSources.map(async (src) => {
             const getRes = await fetch(src.file, {
-              signal: AbortSignal.timeout(1600),
+              signal: AbortSignal.timeout(3500),
             });
             if (!getRes.ok) return { file: src.file, ok: false };
             const text = await getRes.text();
@@ -148,9 +148,12 @@ export async function fetchMegaEmbedStream(
 
         if (working.length > 0) {
           primaryHls = working[0];
-          backupHlsUrls = hlsSources
+          // Priorizar los streams que respondieron positivamente en backupHlsUrls
+          const otherWorking = working.slice(1);
+          const remaining = hlsSources
             .map((s) => s.file)
-            .filter((f) => f !== primaryHls);
+            .filter((f) => !working.includes(f));
+          backupHlsUrls = [...otherWorking, ...remaining];
         }
       } catch {}
     }
