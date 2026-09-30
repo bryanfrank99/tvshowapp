@@ -626,7 +626,13 @@ export default function NativeSourcePlayer({
                 {title}
               </h2>
               <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-zinc-400">
-                <span>{source.realName || source.providerName}</span>
+                <span className="font-bold text-zinc-200">
+                  {typeof source.ord === "number" && source.ord > 0
+                    ? `S${source.ord}`
+                    : source.providerName?.match(/^S\d+/i)
+                    ? source.providerName.toUpperCase()
+                    : `S${source.providerName || "1"}`}
+                </span>
                 <span className="w-1 h-1 rounded-full bg-zinc-500" />
                 <span className="text-[#008CFF] font-bold">1080p Full HD</span>
               </div>
