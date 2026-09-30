@@ -44,16 +44,27 @@ async function runTests() {
     assert("Manifest contains Spanish audio track or valid segments", manifest.includes(".m3u8") || manifest.includes(".ts") || manifest.includes("AUDIO"));
   }
 
-  // TEST 3: Extract HLS stream for TV Show (Game of Thrones S1E1 - 1399)
-  console.log("\n[Test 3] Extracting HLS stream for Game of Thrones S1E1 (1399)...");
+  // TEST 3: Extract HLS stream for TV Shows (Game of Thrones - 1399, Lioness - 113962)
+  console.log("\n[Test 3] Extracting HLS stream for Lioness S1E1 (113962)...");
+  const tvStreamLioness = await fetchNasriPlayStream({
+    id: "113962",
+    type: "tv",
+    season: 1,
+    episode: 1,
+  });
+  assert("TV series 113962 stream extraction successful", tvStreamLioness?.success === true);
+  assert("TV series 113962 stream contains .m3u8 URL", typeof tvStreamLioness?.hlsUrl === "string" && tvStreamLioness.hlsUrl.includes(".m3u8"));
+  assert("TV series 113962 has iframeUrl fallback", typeof tvStreamLioness?.iframeUrl === "string" && tvStreamLioness.iframeUrl.includes("113962"));
+
+  console.log("\n[Test 3b] Extracting HLS stream for Game of Thrones S1E1 (1399)...");
   const tvStream = await fetchNasriPlayStream({
     id: "1399",
     type: "tv",
     season: 1,
     episode: 1,
   });
-  assert("TV series stream extraction successful", tvStream?.success === true);
-  assert("TV series stream contains .m3u8 URL", typeof tvStream?.hlsUrl === "string" && tvStream.hlsUrl.includes(".m3u8"));
+  assert("TV series 1399 stream extraction successful", tvStream?.success === true);
+  assert("TV series 1399 stream contains .m3u8 URL", typeof tvStream?.hlsUrl === "string" && tvStream.hlsUrl.includes(".m3u8"));
 
   // TEST 4: Supabase Database Cache persistence and retrieval (<20ms)
   console.log("\n[Test 4] Testing Supabase DB stream caching for NasriPlay...");
