@@ -36,10 +36,12 @@ function WatchInner() {
   const spTheaters = sp.get("theaters") === "1" || sp.get("in_theaters") === "1";
   const [inTheaters, setInTheaters] = useState(spTheaters);
   const frameBox = useRef<HTMLDivElement>(null);
+  const hasStartedPlaybackRef = useRef(false);
 
-  // Cada vez que cambia el título, temporada o episodio, se restablece la selección manual
+  // Cada vez que cambia el título, temporada o episodio, se restablece la selección manual y el estado de reproducción
   useEffect(() => {
     setUserSourceId(null);
+    hasStartedPlaybackRef.current = false;
   }, [id, type, s, e, lang]);
 
   const goFullscreen = () => {
@@ -60,6 +62,7 @@ function WatchInner() {
     setError(false);
     setLocked(false);
     setLoading(true);
+    hasStartedPlaybackRef.current = false;
 
     ensureSession()
       .then(async (ok) => {
@@ -89,290 +92,289 @@ function WatchInner() {
         const data: ResolveResponse = await res.json();
         if (data && Array.isArray(data.sources)) {
           const rawList = [...data.sources];
-          setSources(rawList);
-          setRecommendedSourceId(data.recommendedSourceId || rawList[0]?.id || "");
           setVersion(data.version || "");
+          const targetId = data.effectiveTmdbId || data.effectiveImdbId || id;
 
-          // Extracción client-side para MegaEmbed:
-          // Las IPs de centros de datos de Vercel/AWS son bloqueadas por Cloudflare (HTTP 403),
-          // pero el cliente (navegador, Electron, Android TV) corre desde IP residencial donde megaembed.com permite CORS '*'
+          // 1. Detectar proveedores candidatos para extracción client-side
           const megaItem = rawList.find(
-            (s) => s.providerId === "megaembed" || s.id.startsWith("megaembed")
+            (s) => (s.providerId === "megaembed" || s.id.startsWith("megaembed")) && s.type !== "hls"
           );
-
-          if (megaItem && megaItem.type !== "hls") {
-            import("@/lib/megaembed").then(async ({ fetchMegaEmbedStream }) => {
-              try {
-                const targetMegaId = data.effectiveTmdbId || data.effectiveImdbId || id;
-                const streamResult = await fetchMegaEmbedStream({
-                  id: targetMegaId,
-                  type,
-                  season: s,
-                  episode: e,
-                });
-                if (streamResult?.hlsUrl) {
-                  // Guardar en la base de datos Supabase para futuras consultas rápidas
-                  fetch("/api/resolve/cache-stream", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      providerId: megaItem.providerId || "megaembed",
-                      type,
-                      targetId: targetMegaId,
-                      season: s,
-                      episode: e,
-                      hlsUrl: streamResult.hlsUrl,
-                      backupHlsUrls: streamResult.backupHlsUrls,
-                    }),
-                  }).catch(() => {});
-
-                  setSources((prev) => {
-                    const existingPtPool = prev.find(
-                      (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "pt" || s.languages?.includes("pt"))
-                    );
-
-                    let nextSources: Source[];
-                    if (existingPtPool) {
-                      nextSources = prev.map((src) => {
-                        if (src.id === existingPtPool.id) {
-                          const newBackups = Array.from(
-                            new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
-                          ).filter((u) => u && u !== src.url);
-
-                          const updatedMap = { ...(src.urlServerMap || {}) };
-                          const serverTag = megaItem.ord ? `S${megaItem.ord}` : "S14";
-                          if (!updatedMap[streamResult.hlsUrl!]) updatedMap[streamResult.hlsUrl!] = serverTag;
-                          for (const b of streamResult.backupHlsUrls || []) {
-                            if (!updatedMap[b]) updatedMap[b] = serverTag;
-                          }
-
-                          return {
-                            ...src,
-                            backupUrls: newBackups,
-                            urlServerMap: updatedMap,
-                          };
-                        }
-                        return src;
-                      });
-                    } else {
-                      nextSources = prev.map((src) =>
-                        src.id === megaItem.id
-                          ? {
-                              ...src,
-                              ord: 0,
-                              providerName: "HLS",
-                              realName: "HLS (PT)",
-                              type: "hls",
-                              lang: "pt",
-                              languages: ["pt"],
-                              priority: 120,
-                              url: streamResult.hlsUrl!,
-                              backupUrls: (streamResult.backupHlsUrls || []).filter((u: string) => u && u !== streamResult.hlsUrl),
-                              urlServerMap: {
-                                [streamResult.hlsUrl!]: megaItem.ord ? `S${megaItem.ord}` : "S14",
-                              },
-                            }
-                          : src
-                      );
-                    }
-
-                    const sorted = sortSourcesByPriority(nextSources, lang);
-                    if (sorted.length > 0 && sorted[0].id) {
-                      setRecommendedSourceId(sorted[0].id);
-                    }
-                    return sorted;
-                  });
-                }
-              } catch {}
-            });
-          }
-
-          // Extracción client-side para WatchPlay (S18)
           const watchPlayItem = rawList.find(
-            (s) => s.providerId === "watchplay" || s.id.startsWith("watchplay") || s.providerId === "EmbedMovies-V2"
+            (s) =>
+              (s.providerId === "watchplay" || s.id.startsWith("watchplay") || s.providerId === "EmbedMovies-V2") &&
+              s.type !== "hls"
           );
-
-          if (watchPlayItem && watchPlayItem.type !== "hls") {
-            import("@/lib/watchplay").then(async ({ fetchWatchPlayStream }) => {
-              try {
-                const targetWatchPlayId = data.effectiveTmdbId || data.effectiveImdbId || id;
-                const streamResult = await fetchWatchPlayStream({
-                  id: targetWatchPlayId,
-                  type,
-                  season: s,
-                  episode: e,
-                });
-                if (streamResult?.hlsUrl) {
-                  fetch("/api/resolve/cache-stream", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      providerId: watchPlayItem.providerId || "watchplay",
-                      type,
-                      targetId: targetWatchPlayId,
-                      season: s,
-                      episode: e,
-                      hlsUrl: streamResult.hlsUrl,
-                      backupHlsUrls: streamResult.backupHlsUrls,
-                    }),
-                  }).catch(() => {});
-
-                  setSources((prev) => {
-                    const existingPtPool = prev.find(
-                      (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "pt" || s.languages?.includes("pt"))
-                    );
-
-                    let nextSources: Source[];
-                    if (existingPtPool) {
-                      nextSources = prev.map((src) => {
-                        if (src.id === existingPtPool.id) {
-                          const newBackups = Array.from(
-                            new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
-                          ).filter((u) => u && u !== src.url);
-
-                          const updatedMap = { ...(src.urlServerMap || {}) };
-                          const serverTag = watchPlayItem.ord ? `S${watchPlayItem.ord}` : "S18";
-                          if (!updatedMap[streamResult.hlsUrl!]) updatedMap[streamResult.hlsUrl!] = serverTag;
-                          for (const b of streamResult.backupHlsUrls || []) {
-                            if (!updatedMap[b]) updatedMap[b] = serverTag;
-                          }
-
-                          return {
-                            ...src,
-                            backupUrls: newBackups,
-                            urlServerMap: updatedMap,
-                          };
-                        }
-                        return src;
-                      });
-                    } else {
-                      nextSources = prev.map((src) =>
-                        src.id === watchPlayItem.id
-                          ? {
-                              ...src,
-                              ord: 0,
-                              providerName: "HLS",
-                              realName: "HLS (PT)",
-                              type: "hls",
-                              lang: "pt",
-                              languages: ["pt"],
-                              priority: 120,
-                              url: streamResult.hlsUrl!,
-                              backupUrls: (streamResult.backupHlsUrls || []).filter((u: string) => u && u !== streamResult.hlsUrl),
-                              urlServerMap: {
-                                [streamResult.hlsUrl!]: watchPlayItem.ord ? `S${watchPlayItem.ord}` : "S18",
-                              },
-                            }
-                          : src
-                      );
-                    }
-
-                    const sorted = sortSourcesByPriority(nextSources, lang);
-                    if (sorted.length > 0 && sorted[0].id) {
-                      setRecommendedSourceId(sorted[0].id);
-                    }
-                    return sorted;
-                  });
-                }
-              } catch {}
-            });
-          }
-
-          // Extracción client-side para NasriPlay (S17)
           const nasriItem = rawList.find(
             (s) => (s.providerId === "nasriplay" || s.id.startsWith("nasriplay")) && s.type !== "hls"
           );
 
-          if (nasriItem) {
-            import("@/lib/nasriplay").then(async ({ fetchNasriPlayStream }) => {
-              try {
-                const targetNasriId = data.effectiveTmdbId || id;
-                const streamResult = await fetchNasriPlayStream({
-                  id: targetNasriId,
-                  type,
-                  season: s,
-                  episode: e,
-                });
-                if (streamResult?.hlsUrl) {
-                  fetch("/api/resolve/cache-stream", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      providerId: "nasriplay",
-                      type,
-                      targetId: targetNasriId,
-                      season: s,
-                      episode: e,
-                      hlsUrl: streamResult.hlsUrl,
-                      backupHlsUrls: streamResult.backupHlsUrls,
-                    }),
-                  }).catch(() => {});
-
-                  setSources((prev) => {
-                    const existingEsPool = prev.find(
-                      (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "es" || s.languages?.includes("es"))
-                    );
-
-                    let nextSources: Source[];
-                    if (existingEsPool) {
-                      nextSources = prev.map((src) => {
-                        if (src.id === existingEsPool.id) {
-                          const newBackups = Array.from(
-                            new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
-                          ).filter((u) => u && u !== src.url);
-
-                          const updatedMap = { ...(src.urlServerMap || {}) };
-                          const serverTag = nasriItem.ord ? `S${nasriItem.ord}` : "S17";
-                          if (!updatedMap[streamResult.hlsUrl!]) updatedMap[streamResult.hlsUrl!] = serverTag;
-                          for (const b of streamResult.backupHlsUrls || []) {
-                            if (!updatedMap[b]) updatedMap[b] = serverTag;
-                          }
-
-                          return {
-                            ...src,
-                            backupUrls: newBackups,
-                            urlServerMap: updatedMap,
-                          };
-                        }
-                        return src;
-                      });
-                    } else {
-                      const newPool: Source = {
-                        id: "nasriplay-hls",
-                        providerId: "nasriplay",
-                        providerName: "HLS",
-                        realName: "HLS (ES)",
-                        ord: 0,
-                        type: "hls",
-                        lang: "es",
-                        languages: ["es", "lat"],
-                        priority: 120,
-                        url: streamResult.hlsUrl!,
-                        backupUrls: (streamResult.backupHlsUrls || []).filter((u: string) => u && u !== streamResult.hlsUrl),
-                        urlServerMap: {
-                          [streamResult.hlsUrl!]: nasriItem.ord ? `S${nasriItem.ord}` : "S17",
-                        },
-                        isBeta: false,
-                        tvOk: true,
-                        needsTmdb: true,
-                      };
-                      nextSources = [newPool, ...prev];
-                    }
-
-                    const sorted = sortSourcesByPriority(nextSources, lang);
-                    if (sorted.length > 0 && sorted[0].id) {
-                      setRecommendedSourceId(sorted[0].id);
-                    }
-                    return sorted;
-                  });
-                }
-              } catch {}
-            });
+          interface ExtractedStreamInfo {
+            providerId: string;
+            ord: number;
+            tag: string;
+            lang: "es" | "pt" | "en";
+            hlsUrl: string;
+            backupUrls: string[];
           }
+
+          const extractedList: ExtractedStreamInfo[] = [];
+
+          // Helper para fusionar streams extraídos en la lista de fuentes (en memoria o estado)
+          const mergeExtractedStreams = (baseSources: Source[], itemsToMerge: ExtractedStreamInfo[]): Source[] => {
+            if (!itemsToMerge || itemsToMerge.length === 0) return baseSources;
+
+            let updated = [...baseSources];
+            const byLang = new Map<string, ExtractedStreamInfo[]>();
+            for (const item of itemsToMerge) {
+              const list = byLang.get(item.lang) || [];
+              list.push(item);
+              byLang.set(item.lang, list);
+            }
+
+            for (const [itemLang, items] of byLang.entries()) {
+              if (items.length === 0) continue;
+
+              const existingPoolIndex = updated.findIndex(
+                (s) =>
+                  (s.ord === 0 || s.providerName === "HLS" || s.type === "hls") &&
+                  (s.lang === itemLang || s.languages?.includes(itemLang as any))
+              );
+
+              if (existingPoolIndex !== -1) {
+                const existing = updated[existingPoolIndex];
+                const combinedBackups = [...(existing.backupUrls || [])];
+                const newMap = { ...(existing.urlServerMap || {}) };
+
+                for (const it of items) {
+                  combinedBackups.push(it.hlsUrl, ...it.backupUrls);
+                  if (!newMap[it.hlsUrl]) newMap[it.hlsUrl] = it.tag;
+                  for (const b of it.backupUrls) {
+                    if (!newMap[b]) newMap[b] = it.tag;
+                  }
+                }
+
+                const uniqueBackups = Array.from(new Set(combinedBackups)).filter(
+                  (u) => u && u !== existing.url
+                );
+                for (const b of uniqueBackups) {
+                  if (!newMap[b]) newMap[b] = items[0]?.tag || "S1";
+                }
+
+                updated[existingPoolIndex] = {
+                  ...existing,
+                  backupUrls: uniqueBackups,
+                  urlServerMap: newMap,
+                };
+              } else {
+                const primaryItem = items[0];
+                const backupUrls = Array.from(
+                  new Set(
+                    items.flatMap((it, idx) => (idx === 0 ? it.backupUrls : [it.hlsUrl, ...it.backupUrls]))
+                  )
+                ).filter((u) => u && u !== primaryItem.hlsUrl);
+
+                const urlServerMap: Record<string, string> = { [primaryItem.hlsUrl]: primaryItem.tag };
+                for (const it of items) {
+                  urlServerMap[it.hlsUrl] = it.tag;
+                  for (const b of it.backupUrls) {
+                    if (!urlServerMap[b]) urlServerMap[b] = it.tag;
+                  }
+                }
+
+                const newPool: Source = {
+                  id: `hls-${itemLang}`,
+                  providerId: primaryItem.providerId,
+                  providerName: "HLS",
+                  realName: `HLS (${itemLang.toUpperCase()})`,
+                  ord: 0,
+                  type: "hls",
+                  lang: itemLang as any,
+                  languages: [itemLang as any],
+                  priority: 120,
+                  url: primaryItem.hlsUrl,
+                  backupUrls,
+                  urlServerMap,
+                  isBeta: false,
+                  tvOk: true,
+                  needsTmdb: true,
+                };
+
+                const convertedProviders = new Set(items.map((i) => i.providerId));
+                updated = updated.filter(
+                  (s) => !convertedProviders.has(s.providerId) || s.type === "hls"
+                );
+                updated.unshift(newPool);
+              }
+            }
+
+            return updated;
+          };
+
+          // 2. Coordinar tareas de extracción paralelas
+          const extractionTasks: Promise<void>[] = [];
+
+          if (megaItem) {
+            extractionTasks.push(
+              (async () => {
+                try {
+                  const { fetchMegaEmbedStream } = await import("@/lib/megaembed");
+                  const streamResult = await fetchMegaEmbedStream({
+                    id: targetId,
+                    type,
+                    season: s,
+                    episode: e,
+                  });
+                  if (streamResult?.hlsUrl) {
+                    fetch("/api/resolve/cache-stream", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        providerId: megaItem.providerId || "megaembed",
+                        type,
+                        targetId,
+                        season: s,
+                        episode: e,
+                        hlsUrl: streamResult.hlsUrl,
+                        backupHlsUrls: streamResult.backupHlsUrls,
+                      }),
+                    }).catch(() => {});
+
+                    const extracted: ExtractedStreamInfo = {
+                      providerId: "megaembed",
+                      ord: megaItem.ord || 14,
+                      tag: megaItem.ord ? `S${megaItem.ord}` : "S14",
+                      lang: "pt",
+                      hlsUrl: streamResult.hlsUrl,
+                      backupUrls: (streamResult.backupHlsUrls || []).filter(Boolean),
+                    };
+                    extractedList.push(extracted);
+
+                    // Si la interfaz ya está reproduciendo, incorporar backups sin reiniciar playback
+                    if (hasStartedPlaybackRef.current) {
+                      setSources((prev) => {
+                        const merged = mergeExtractedStreams(prev, [extracted]);
+                        return sortSourcesByPriority(merged, lang);
+                      });
+                    }
+                  }
+                } catch {}
+              })()
+            );
+          }
+
+          if (watchPlayItem) {
+            extractionTasks.push(
+              (async () => {
+                try {
+                  const { fetchWatchPlayStream } = await import("@/lib/watchplay");
+                  const streamResult = await fetchWatchPlayStream({
+                    id: targetId,
+                    type,
+                    season: s,
+                    episode: e,
+                  });
+                  if (streamResult?.hlsUrl) {
+                    fetch("/api/resolve/cache-stream", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        providerId: watchPlayItem.providerId || "watchplay",
+                        type,
+                        targetId,
+                        season: s,
+                        episode: e,
+                        hlsUrl: streamResult.hlsUrl,
+                        backupHlsUrls: streamResult.backupHlsUrls,
+                      }),
+                    }).catch(() => {});
+
+                    const extracted: ExtractedStreamInfo = {
+                      providerId: "watchplay",
+                      ord: watchPlayItem.ord || 18,
+                      tag: watchPlayItem.ord ? `S${watchPlayItem.ord}` : "S18",
+                      lang: "pt",
+                      hlsUrl: streamResult.hlsUrl,
+                      backupUrls: (streamResult.backupHlsUrls || []).filter(Boolean),
+                    };
+                    extractedList.push(extracted);
+
+                    if (hasStartedPlaybackRef.current) {
+                      setSources((prev) => {
+                        const merged = mergeExtractedStreams(prev, [extracted]);
+                        return sortSourcesByPriority(merged, lang);
+                      });
+                    }
+                  }
+                } catch {}
+              })()
+            );
+          }
+
+          if (nasriItem) {
+            extractionTasks.push(
+              (async () => {
+                try {
+                  const { fetchNasriPlayStream } = await import("@/lib/nasriplay");
+                  const streamResult = await fetchNasriPlayStream({
+                    id: targetId,
+                    type,
+                    season: s,
+                    episode: e,
+                  });
+                  if (streamResult?.hlsUrl) {
+                    fetch("/api/resolve/cache-stream", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        providerId: "nasriplay",
+                        type,
+                        targetId,
+                        season: s,
+                        episode: e,
+                        hlsUrl: streamResult.hlsUrl,
+                        backupHlsUrls: streamResult.backupHlsUrls,
+                      }),
+                    }).catch(() => {});
+
+                    const extracted: ExtractedStreamInfo = {
+                      providerId: "nasriplay",
+                      ord: nasriItem.ord || 17,
+                      tag: nasriItem.ord ? `S${nasriItem.ord}` : "S17",
+                      lang: "es",
+                      hlsUrl: streamResult.hlsUrl,
+                      backupUrls: (streamResult.backupHlsUrls || []).filter(Boolean),
+                    };
+                    extractedList.push(extracted);
+
+                    if (hasStartedPlaybackRef.current) {
+                      setSources((prev) => {
+                        const merged = mergeExtractedStreams(prev, [extracted]);
+                        return sortSourcesByPriority(merged, lang);
+                      });
+                    }
+                  }
+                } catch {}
+              })()
+            );
+          }
+
+          // 3. Fase de Coordinación Pre-Reproducción: Esperar a que terminen o hasta 2.8s
+          if (extractionTasks.length > 0) {
+            const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2800));
+            await Promise.race([Promise.allSettled(extractionTasks), timeoutPromise]);
+          }
+
+          // 4. Consolidar todas las extracciones completadas en la lista inicial
+          const mergedInitial = mergeExtractedStreams(rawList, extractedList);
+          const sortedFinal = sortSourcesByPriority(mergedInitial, lang);
+
+          setSources(sortedFinal);
+          setRecommendedSourceId(sortedFinal[0]?.id || "");
+          setLoading(false);
         } else {
           setError(true);
+          setLoading(false);
         }
-        setLoading(false);
       })
       .catch((err) => {
         if (String((err as Error)?.message) === "locked") {
@@ -519,7 +521,10 @@ function WatchInner() {
         onRetry={loadSources}
         onCycleNext={handleCycleNext}
         onSourceError={handleSourceError}
-        onSourceLoad={handleSourceLoad}
+        onSourceLoad={() => {
+          hasStartedPlaybackRef.current = true;
+          handleSourceLoad();
+        }}
         lang={lang}
         playbackKey={getPlaybackKey(type, id, s, e)}
       />

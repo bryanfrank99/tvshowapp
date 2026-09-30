@@ -101,6 +101,7 @@ const PlayerContainer = forwardRef<HTMLDivElement, PlayerContainerProps>(
             source={source}
             title={title}
             onError={onSourceError}
+            onLoad={onSourceLoad}
             playbackKey={playbackKey}
           />
         )}

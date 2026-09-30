@@ -13,6 +13,7 @@ interface NativeSourcePlayerProps {
   title: string;
   onEnded?: () => void;
   onError?: () => void;
+  onLoad?: () => void;
   playbackKey?: string;
 }
 
@@ -38,6 +39,7 @@ export default function NativeSourcePlayer({
   title,
   onEnded,
   onError,
+  onLoad,
   playbackKey,
 }: NativeSourcePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -199,6 +201,7 @@ export default function NativeSourcePlayer({
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        onLoad?.();
         video.play().then(() => {
           setIsPlaying(true);
           resetHideTimerRef.current();
