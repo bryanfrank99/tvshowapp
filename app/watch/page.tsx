@@ -103,7 +103,7 @@ function WatchInner() {
 
         const data: ResolveResponse = await res.json();
         if (data && Array.isArray(data.sources)) {
-          const rawList = [...data.sources];
+          let rawList = [...data.sources];
           setVersion(data.version || "");
           const targetId = data.effectiveTmdbId || data.effectiveImdbId || id;
 
@@ -226,8 +226,33 @@ function WatchInner() {
                         return sorted;
                       });
                     }
+                  } else {
+                    // Si falló la extracción o MegaEmbed no tiene contenido disponible, purgar S14
+                    const pruneMega = (list: Source[]) =>
+                      list.filter(
+                        (s) =>
+                          s.id !== megaItem.id &&
+                          s.providerId !== "megaembed" &&
+                          !s.id.startsWith("megaembed")
+                      );
+                    rawList = pruneMega(rawList);
+                    if (isInitialPhaseDoneRef.current) {
+                      setSources((prev) => {
+                        const filtered = pruneMega(prev);
+                        return sortSourcesByPriority(filtered, lang);
+                      });
+                    }
                   }
-                } catch {}
+                } catch {
+                  const pruneMega = (list: Source[]) =>
+                    list.filter(
+                      (s) =>
+                        s.id !== megaItem.id &&
+                        s.providerId !== "megaembed" &&
+                        !s.id.startsWith("megaembed")
+                    );
+                  rawList = pruneMega(rawList);
+                }
               })()
             );
           }

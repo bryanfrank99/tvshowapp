@@ -31,6 +31,60 @@ export interface MegaEmbedExtractParams {
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
+export function normalizeStreamUrl(rawUrl: string, baseHost: string): string {
+  let u = (rawUrl || "").trim();
+  if (!u) return "";
+  if (u.startsWith("//")) u = "https:" + u;
+  if (u.startsWith("/")) u = `${baseHost}${u}`;
+  u = u.replace(/\/+\.\.\/+/g, "/"); // ej: https://mgeb.top/../cache/ -> https://mgeb.top/cache/
+  return u;
+}
+
+export async function verifyStreamUrl(url: string): Promise<boolean> {
+  if (!url) return false;
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "*/*",
+        Range: "bytes=0-1024",
+        "User-Agent": USER_AGENT,
+      },
+      signal: AbortSignal.timeout(2000),
+      cache: "no-store",
+    });
+
+    if (!res.ok) return false;
+
+    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    const text = await res.text();
+
+    // Detección de rechazo explícito de firmas o errores JSON de CDN
+    if (
+      text.includes("Assinatura") ||
+      text.includes('"error"') ||
+      text.includes("não encontrado") ||
+      text.includes("not found")
+    ) {
+      return false;
+    }
+
+    // Comprobar cabecera HLS estándar o streams válidos
+    if (text.includes("#EXTM3U") || contentType.includes("mpegurl")) {
+      return true;
+    }
+
+    // Streams MP4 o binarios válidos
+    if (contentType.includes("video/mp4") || contentType.includes("video/") || contentType.includes("application/octet-stream")) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchMegaEmbedStream(
   params: MegaEmbedExtractParams
 ): Promise<MegaEmbedStreamResult | null> {
@@ -90,21 +144,29 @@ export async function fetchMegaEmbedStream(
       throw new Error(`No sources found in HTML from ${host}`);
     }
 
-    return { html, sources, status: res.status };
+    // Normalizar URLs de cada fuente
+    const normalizedSources = sources.map((s) => ({
+      ...s,
+      file: normalizeStreamUrl(s.file, host),
+    }));
+
+    return { html, sources: normalizedSources, status: res.status };
   };
 
   try {
     const winner = await Promise.any(hosts.map(fetchFromHost));
     const { sources, status } = winner;
 
-    // Extraer todos los streams HLS disponibles
-    const hlsSources = sources.filter(
-      (s) => s.type === "hls" || s.file.includes(".m3u8")
-    );
-    const mp4Source =
-      sources.find((s) => s.type === "mp4" || s.file.includes(".mp4")) || null;
+    // Extraer todos los streams HLS candidatos
+    const hlsCandidates = sources
+      .filter((s) => s.type === "hls" || s.file.includes(".m3u8"))
+      .map((s) => s.file)
+      .filter((u): u is string => Boolean(u));
 
-    if (!hlsSources.length && !mp4Source) {
+    const mp4Candidate =
+      sources.find((s) => s.type === "mp4" || s.file.includes(".mp4"))?.file;
+
+    if (!hlsCandidates.length && !mp4Candidate) {
       return {
         success: false,
         debugStatus: status,
@@ -112,14 +174,42 @@ export async function fetchMegaEmbedStream(
       };
     }
 
-    const primaryHls = hlsSources[0]?.file;
-    const backupHlsUrls = hlsSources.slice(1).map((s) => s.file);
+    // 2. Verificar disponibilidad real de los streams candidatos concurrentemente
+    const verifiedHls: string[] = [];
+    const checkPromises = hlsCandidates.map(async (cand) => {
+      const ok = await verifyStreamUrl(cand);
+      return ok ? cand : null;
+    });
+
+    const checkedResults = await Promise.all(checkPromises);
+    for (const valid of checkedResults) {
+      if (valid && !verifiedHls.includes(valid)) {
+        verifiedHls.push(valid);
+      }
+    }
+
+    let validMp4: string | undefined;
+    if (mp4Candidate) {
+      const ok = await verifyStreamUrl(mp4Candidate);
+      if (ok) validMp4 = mp4Candidate;
+    }
+
+    if (!verifiedHls.length && !validMp4) {
+      return {
+        success: false,
+        debugStatus: status,
+        error: "All extracted stream candidates failed verification or have invalid signatures",
+      };
+    }
+
+    const primaryHls = verifiedHls[0];
+    const backupHlsUrls = verifiedHls.slice(1);
 
     return {
-      success: !!(primaryHls || mp4Source?.file),
+      success: !!(primaryHls || validMp4),
       hlsUrl: primaryHls,
       backupHlsUrls,
-      mp4Url: mp4Source?.file,
+      mp4Url: validMp4,
       allSources: sources,
       debugStatus: status,
     };
@@ -130,3 +220,4 @@ export async function fetchMegaEmbedStream(
     };
   }
 }
+

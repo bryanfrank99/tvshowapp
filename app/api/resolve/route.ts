@@ -419,8 +419,12 @@ export async function GET(req: NextRequest) {
               needsTmdb: prov.needs_tmdb,
               tvOk: prov.tv_ok,
             });
-            return provSources; // Ya agregamos el servidor S14 con su stream directo HLS
+            return provSources; // Ya agregamos el servidor S14 con su stream directo HLS verificado
           }
+
+          // Si no se obtuvo directHlsUrl verificado, MegaEmbed no tiene el contenido disponible.
+          // Excluir completamente S14 para no emitir una fuente iframe 404/rota.
+          return provSources;
         }
 
         // Si es WatchPlay (S18), consultamos la caché de BD de streams M3U8 o extraemos rápidamente
