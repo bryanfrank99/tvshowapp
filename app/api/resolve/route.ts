@@ -304,6 +304,70 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // Si es WatchPlay (S18), consultamos la caché de BD de streams M3U8 o extraemos rápidamente
+      if (prov.id === "watchplay" || String(prov.movie_tpl || "").includes("watchplay.shop")) {
+        let cachedHls: { hlsUrl: string; backupHlsUrls?: string[] } | null = null;
+        try {
+          const { getCachedStream } = await import("@/lib/stream-cache");
+          cachedHls = await getCachedStream({
+            providerId: prov.id,
+            type,
+            targetId,
+            season: s,
+            episode: e,
+          });
+        } catch {}
+
+        if (!cachedHls?.hlsUrl) {
+          try {
+            const { fetchWatchPlayStream } = await import("@/lib/watchplay");
+            const extractPromise = fetchWatchPlayStream({
+              id: targetId,
+              type,
+              season: s,
+              episode: e,
+            });
+            const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 1500));
+            const fresh = await Promise.race([extractPromise, timeoutPromise]);
+            if (fresh?.success && fresh.hlsUrl) {
+              cachedHls = { hlsUrl: fresh.hlsUrl, backupHlsUrls: fresh.backupHlsUrls };
+              const { setCachedStream } = await import("@/lib/stream-cache");
+              setCachedStream({
+                providerId: prov.id,
+                type,
+                targetId,
+                season: s,
+                episode: e,
+                hlsUrl: fresh.hlsUrl,
+                backupHlsUrls: fresh.backupHlsUrls,
+                ttlHours: 24,
+              }).catch(() => {});
+            }
+          } catch {}
+        }
+
+        if (cachedHls?.hlsUrl) {
+          rawSources.push({
+            id: prov.id,
+            providerId: prov.id,
+            providerName: prov.simulated_name || prov.name,
+            realName: prov.real_name || prov.name,
+            ord: prov.ord,
+            type: "hls",
+            url: cachedHls.hlsUrl,
+            backupUrls: cachedHls.backupHlsUrls,
+            lang: (prov.lang as any) || "pt",
+            languages: prov.languages || ["pt"],
+            subtitles: prov.subtitles || [],
+            priority: 120, // Mayor prioridad para selección automática en TV
+            isBeta: false,
+            needsTmdb: prov.needs_tmdb,
+            tvOk: prov.tv_ok,
+          });
+          continue;
+        }
+      }
+
       const adapted = providersToSources([prov], {
         type,
         id: targetId,

@@ -142,6 +142,53 @@ function WatchInner() {
               } catch {}
             });
           }
+
+          // Extracción client-side para WatchPlay (S18)
+          const watchPlayItem = rawList.find(
+            (s) => s.providerId === "watchplay" || s.id.startsWith("watchplay")
+          );
+
+          if (watchPlayItem && watchPlayItem.type !== "hls") {
+            import("@/lib/watchplay").then(async ({ fetchWatchPlayStream }) => {
+              try {
+                const targetWatchPlayId = data.effectiveTmdbId || data.effectiveImdbId || id;
+                const streamResult = await fetchWatchPlayStream({
+                  id: targetWatchPlayId,
+                  type,
+                  season: s,
+                  episode: e,
+                });
+                if (streamResult?.hlsUrl) {
+                  fetch("/api/resolve/cache-stream", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      providerId: watchPlayItem.providerId || "watchplay",
+                      type,
+                      targetId: targetWatchPlayId,
+                      season: s,
+                      episode: e,
+                      hlsUrl: streamResult.hlsUrl,
+                      backupHlsUrls: streamResult.backupHlsUrls,
+                    }),
+                  }).catch(() => {});
+
+                  setSources((prev) =>
+                    prev.map((src) =>
+                      src.id === watchPlayItem.id
+                        ? {
+                            ...src,
+                            type: "hls",
+                            url: streamResult.hlsUrl!,
+                            backupUrls: streamResult.backupHlsUrls,
+                          }
+                        : src
+                    )
+                  );
+                }
+              } catch {}
+            });
+          }
         } else {
           setError(true);
         }
@@ -361,6 +408,43 @@ function WatchInner() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       providerId: source.providerId || "megaembed",
+                      type,
+                      targetId: id,
+                      season: s,
+                      episode: e,
+                      hlsUrl: streamResult.hlsUrl,
+                      backupHlsUrls: streamResult.backupHlsUrls,
+                    }),
+                  }).catch(() => {});
+
+                  setSources((prev) =>
+                    prev.map((src) =>
+                      src.id === source.id
+                        ? {
+                            ...src,
+                            type: "hls",
+                            url: streamResult.hlsUrl!,
+                            backupUrls: streamResult.backupHlsUrls,
+                          }
+                        : src
+                    )
+                  );
+                }
+              }).catch(() => {});
+            }
+
+            if (
+              (source.providerId === "watchplay" || source.id.startsWith("watchplay")) &&
+              source.type !== "hls"
+            ) {
+              import("@/lib/watchplay").then(async ({ fetchWatchPlayStream }) => {
+                const streamResult = await fetchWatchPlayStream({ id, type, season: s, episode: e });
+                if (streamResult?.hlsUrl) {
+                  fetch("/api/resolve/cache-stream", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      providerId: source.providerId || "watchplay",
                       type,
                       targetId: id,
                       season: s,
