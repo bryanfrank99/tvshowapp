@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   let fallbackHlsConfig: Record<string, { enabled: boolean; extractor: string }> = {
     megaembed: { enabled: true, extractor: "megaembed" },
     watchplay: { enabled: true, extractor: "watchplay" },
+    cinecalidad: { enabled: true, extractor: "direct" },
   };
   try {
     if (hlsConfigRes.data?.value) {
@@ -85,8 +86,8 @@ export async function GET(req: NextRequest) {
       (isRedeflix ? "https://redeflixapi.store/list-dorama-ids.txt" : "");
 
     const hlsCfg = fallbackHlsConfig[x.id] || {
-      enabled: x.id === "megaembed" || x.id === "watchplay",
-      extractor: x.id === "megaembed" ? "megaembed" : x.id === "watchplay" ? "watchplay" : "none",
+      enabled: x.id === "megaembed" || x.id === "watchplay" || x.id === "cinecalidad",
+      extractor: x.id === "megaembed" ? "megaembed" : x.id === "watchplay" ? "watchplay" : x.id === "cinecalidad" ? "direct" : "none",
     };
 
     return {
@@ -423,6 +424,7 @@ export async function PUT(req: NextRequest) {
       let hlsMap: Record<string, any> = {
         megaembed: { enabled: true, extractor: "megaembed" },
         watchplay: { enabled: true, extractor: "watchplay" },
+        cinecalidad: { enabled: true, extractor: "direct" },
       };
       if (currHls?.value) {
         try {

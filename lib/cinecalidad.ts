@@ -75,3 +75,144 @@ export async function fetchCinecalidadEmbeds(
     clearTimeout(timer);
   }
 }
+
+export interface CinecalidadSubtitleTrack {
+  file: string;
+  label: string;
+  kind?: string;
+  default?: boolean;
+}
+
+export interface CinecalidadStreamResult {
+  success: boolean;
+  hlsUrl?: string;
+  backupHlsUrls?: string[];
+  subtitles?: CinecalidadSubtitleTrack[];
+  lang?: string;
+  embeds?: CinecalidadEmbed[];
+  error?: string;
+}
+
+/**
+ * Desempaqueta scripts ofuscados con eval(function(p,a,c,k,e,d))
+ */
+function unpackScript(p: string, a: number, c: number, k: string[]): string {
+  while (c--) {
+    if (k[c]) {
+      p = p.replace(new RegExp('\\b' + c.toString(a) + '\\b', 'g'), k[c]);
+    }
+  }
+  return p;
+}
+
+/**
+ * Extrae el stream HLS directo y subtítulos desde un embed de Vimeos
+ */
+async function extractVimeosStream(embedUrl: string, timeoutMs: number = 6000): Promise<{ hlsUrl?: string; subtitles?: CinecalidadSubtitleTrack[] } | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(embedUrl, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        Referer: "https://cinecalidad.am/",
+      },
+    });
+
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    const regex = /eval\(function\(p,a,c,k,e,d\)\{[\s\S]*?\}\('([\s\S]*?)',(\d+),(\d+),'([\s\S]*?)'\.split\('\|'\)/;
+    const match = html.match(regex);
+    if (!match) return null;
+
+    const [_, p, a, c, kStr] = match;
+    const unpacked = unpackScript(p, parseInt(a, 10), parseInt(c, 10), kStr.split("|"));
+
+    const m3u8Match = unpacked.match(/https?:\/\/[^\s"']+\.m3u8[^\s"']*/);
+    if (!m3u8Match) return null;
+
+    const subtitles: CinecalidadSubtitleTrack[] = [];
+    const tracksMatch = unpacked.match(/tracks\s*:\s*\[([\s\S]*?)\]/);
+    if (tracksMatch && tracksMatch[1]) {
+      const trackRegex = /\{file:\s*"([^"]+)",label:\s*"([^"]+)"(?:,kind:\s*"([^"]+)")?(?:,"default":\s*(true|false))?\}/g;
+      let tm;
+      while ((tm = trackRegex.exec(tracksMatch[1])) !== null) {
+        if (tm[1] && !tm[1].includes("empty.srt")) {
+          subtitles.push({
+            file: tm[1],
+            label: tm[2] || "Subtítulo",
+            kind: tm[3] || "captions",
+            default: tm[4] === "true",
+          });
+        }
+      }
+    }
+
+    return {
+      hlsUrl: m3u8Match[0],
+      subtitles,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Extrae el stream directo HLS (.m3u8) para Cinecalidad (S19).
+ * Permite reproducción nativa en Android TV, WebOS, Tizen y navegadores modernos sin iframes.
+ */
+export async function fetchCinecalidadStream(
+  opts: CinecalidadFetchOptions
+): Promise<CinecalidadStreamResult | null> {
+  const embeds = await fetchCinecalidadEmbeds(opts);
+  if (!embeds || embeds.length === 0) {
+    return {
+      success: false,
+      error: "No se encontraron embeds en Cinecalidad para este contenido",
+    };
+  }
+
+  // 1. Priorizar host Vimeos que entrega streams HLS directos con audio Latino
+  const vimeosEmbed = embeds.find(
+    (e) => String(e.host || e.url).toLowerCase().includes("vimeos")
+  );
+
+  if (vimeosEmbed) {
+    const extracted = await extractVimeosStream(vimeosEmbed.url, opts.timeoutMs);
+    if (extracted?.hlsUrl) {
+      return {
+        success: true,
+        hlsUrl: extracted.hlsUrl,
+        backupHlsUrls: [],
+        subtitles: extracted.subtitles,
+        lang: "es",
+        embeds,
+      };
+    }
+  }
+
+  // 2. Si no es Vimeos o falló, buscar cualquier otro embed que contenga .m3u8 directo
+  for (const emb of embeds) {
+    if (emb.url.includes(".m3u8")) {
+      return {
+        success: true,
+        hlsUrl: emb.url,
+        backupHlsUrls: [],
+        lang: "es",
+        embeds,
+      };
+    }
+  }
+
+  return {
+    success: false,
+    embeds,
+    error: "No se pudo extraer stream HLS directo; usar reproductor iframe como respaldo",
+  };
+}

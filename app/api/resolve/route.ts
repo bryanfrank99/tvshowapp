@@ -240,19 +240,89 @@ export async function GET(req: NextRequest) {
     for (const prov of eligibleProviders) {
       const targetId = prov.needs_tmdb ? (effectiveTmdbId as string) : (effectiveImdbId || rawId);
 
-      // Si es Cinecalidad, resolvemos directamente los embeds de los reproductores con audio Latino
+      // Si es Cinecalidad (S19), consultamos la caché de BD de streams M3U8 o extraemos el stream HLS directo con audio Latino
       if (prov.id === "cinecalidad" || String(prov.movie_tpl || "").includes("cinecalidad")) {
+        let cachedHls: { hlsUrl: string; backupHlsUrls?: string[] } | null = null;
+        try {
+          const { getCachedStream } = await import("@/lib/stream-cache");
+          cachedHls = await getCachedStream({
+            providerId: prov.id,
+            type,
+            targetId,
+            season: s,
+            episode: e,
+          });
+        } catch {}
+
+        let directHlsUrl = cachedHls?.hlsUrl;
+        let subtitles: any[] = [];
+
+        if (!directHlsUrl) {
+          try {
+            const { fetchCinecalidadStream } = await import("@/lib/cinecalidad");
+            const extractPromise = fetchCinecalidadStream({
+              type,
+              tmdbId: targetId,
+              season: s,
+              episode: e,
+            });
+            const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 3000));
+            const fresh = await Promise.race([extractPromise, timeoutPromise]);
+            if (fresh?.success && fresh.hlsUrl) {
+              directHlsUrl = fresh.hlsUrl;
+              subtitles = (fresh.subtitles || []).map((st: any, idx: number) => ({
+                id: `sub-cc-${idx}`,
+                lang: "es",
+                label: st.label || "Español",
+                url: st.file,
+                isDefault: st.default,
+              }));
+
+              const { setCachedStream } = await import("@/lib/stream-cache");
+              setCachedStream({
+                providerId: prov.id,
+                type,
+                targetId,
+                season: s,
+                episode: e,
+                hlsUrl: fresh.hlsUrl,
+                backupHlsUrls: fresh.backupHlsUrls,
+                ttlHours: 12,
+              }).catch(() => {});
+            }
+          } catch {}
+        }
+
+        if (directHlsUrl) {
+          rawSources.push({
+            id: prov.id,
+            providerId: prov.id,
+            providerName: prov.simulated_name || prov.name,
+            realName: prov.real_name || prov.name,
+            ord: prov.ord,
+            type: "hls",
+            url: directHlsUrl,
+            backupUrls: cachedHls?.backupHlsUrls || [],
+            lang: "es",
+            languages: ["es", "lat"],
+            subtitles: subtitles.length > 0 ? subtitles : (prov.subtitles || []),
+            priority: 120, // Máxima prioridad para reproducción directa HLS
+            isBeta: false,
+            needsTmdb: prov.needs_tmdb,
+            tvOk: prov.tv_ok,
+          });
+          continue; // Ya agregamos el servidor S19 como stream nativo HLS
+        }
+
+        // Fallback a embeds iframe clásicos si no se pudo extraer stream directo
         try {
           const { fetchCinecalidadEmbeds } = await import("@/lib/cinecalidad");
-          const embedsPromise = fetchCinecalidadEmbeds({
+          const embeds = await fetchCinecalidadEmbeds({
             type,
             tmdbId: targetId,
             season: s,
             episode: e,
           });
-          const timeoutPromise = new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 1500));
-          const embeds = await Promise.race([embedsPromise, timeoutPromise]);
-
           if (embeds && embeds.length > 0) {
             embeds.forEach((emb, idx) => {
               const hostName = emb.host ? ` (${emb.host.split(".")[0]})` : "";
@@ -265,9 +335,9 @@ export async function GET(req: NextRequest) {
                 type: "iframe",
                 url: emb.url,
                 lang: "es",
-                languages: ["es"],
+                languages: ["es", "lat"],
                 subtitles: [],
-                priority: 100,
+                priority: 90,
                 isBeta: false,
                 needsTmdb: true,
                 tvOk: true,
