@@ -31,12 +31,12 @@ export default function SourceSelectorGrid({
           </p>
           <p className="text-base sm:text-lg font-black text-white flex items-center gap-2 mt-0.5">
             <span className="text-[#008CFF] flex items-center gap-1.5">
-              {p?.type !== "hls" && p?.ord ? (
+              {p?.ord && p.ord > 0 ? (
                 <span className="text-xs font-mono font-bold bg-[#008CFF]/20 text-[#008CFF] border border-[#008CFF]/30 px-2 py-0.5 rounded-lg">
                   #{p.ord}
                 </span>
               ) : null}
-              <span>{p?.type === "hls" ? "HLS" : (p?.providerName || "…")}</span>
+              <span>{p?.ord === 0 || p?.providerName === "HLS" ? "HLS" : (p?.providerName || "…")}</span>
             </span>
             {p?.id === recommendedSourceId && (
               <span className="text-[10px] bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full text-emerald-300 font-bold inline-flex items-center gap-1">
@@ -176,13 +176,13 @@ export default function SourceSelectorGrid({
             >
               <div className="flex items-center justify-between gap-1 w-full">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  {x.type !== "hls" && x.ord ? (
+                  {x.ord && x.ord > 0 ? (
                     <span className="text-[10px] font-mono font-extrabold text-zinc-400 bg-white/10 px-1.5 py-0.5 rounded shrink-0">
                       #{x.ord}
                     </span>
                   ) : null}
                   <span className={`text-sm font-bold truncate ${isSelected ? "text-white" : "text-zinc-100"}`}>
-                    {x.type === "hls" ? "HLS" : x.providerName}
+                    {x.ord === 0 || x.providerName === "HLS" ? "HLS" : x.providerName}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">

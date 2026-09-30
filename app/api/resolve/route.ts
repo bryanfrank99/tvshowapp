@@ -659,7 +659,11 @@ export async function GET(req: NextRequest) {
 
           primaryHls.backupUrls = Array.from(
             new Set([...(primaryHls.backupUrls || []), ...otherBackupUrls])
-          );
+          ).filter((u) => u && u !== primaryHls.url);
+        } else {
+          primaryHls.backupUrls = Array.from(
+            new Set(primaryHls.backupUrls || [])
+          ).filter((u) => u && u !== primaryHls.url);
         }
 
         for (const u of primaryHls.backupUrls || []) {

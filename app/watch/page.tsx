@@ -125,19 +125,52 @@ function WatchInner() {
                     }),
                   }).catch(() => {});
 
-                  // Actualizar directamente la fuente existente del servidor SIN duplicar tarjeta
-                  setSources((prev) =>
-                    prev.map((src) =>
+                  setSources((prev) => {
+                    const existingPtPool = prev.find(
+                      (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "pt" || s.languages?.includes("pt"))
+                    );
+
+                    if (existingPtPool) {
+                      return prev.map((src) => {
+                        if (src.id === existingPtPool.id) {
+                          const newBackups = Array.from(
+                            new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
+                          ).filter((u) => u && u !== src.url);
+
+                          const updatedMap = { ...(src.urlServerMap || {}) };
+                          const serverTag = megaItem.ord ? `S${megaItem.ord}` : "S14";
+                          if (!updatedMap[streamResult.hlsUrl!]) updatedMap[streamResult.hlsUrl!] = serverTag;
+                          for (const b of streamResult.backupHlsUrls || []) {
+                            if (!updatedMap[b]) updatedMap[b] = serverTag;
+                          }
+
+                          return {
+                            ...src,
+                            backupUrls: newBackups,
+                            urlServerMap: updatedMap,
+                          };
+                        }
+                        return src;
+                      });
+                    }
+
+                    return prev.map((src) =>
                       src.id === megaItem.id
                         ? {
                             ...src,
+                            ord: 0,
+                            providerName: "HLS",
+                            realName: "HLS (PT)",
                             type: "hls",
                             url: streamResult.hlsUrl!,
-                            backupUrls: streamResult.backupHlsUrls,
+                            backupUrls: (streamResult.backupHlsUrls || []).filter((u: string) => u && u !== streamResult.hlsUrl),
+                            urlServerMap: {
+                              [streamResult.hlsUrl!]: megaItem.ord ? `S${megaItem.ord}` : "S14",
+                            },
                           }
                         : src
-                    )
-                  );
+                    );
+                  });
                 }
               } catch {}
             });
@@ -145,7 +178,7 @@ function WatchInner() {
 
           // Extracción client-side para WatchPlay (S18)
           const watchPlayItem = rawList.find(
-            (s) => s.providerId === "watchplay" || s.id.startsWith("watchplay")
+            (s) => s.providerId === "watchplay" || s.id.startsWith("watchplay") || s.providerId === "EmbedMovies-V2"
           );
 
           if (watchPlayItem && watchPlayItem.type !== "hls") {
@@ -173,18 +206,52 @@ function WatchInner() {
                     }),
                   }).catch(() => {});
 
-                  setSources((prev) =>
-                    prev.map((src) =>
+                  setSources((prev) => {
+                    const existingPtPool = prev.find(
+                      (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "pt" || s.languages?.includes("pt"))
+                    );
+
+                    if (existingPtPool) {
+                      return prev.map((src) => {
+                        if (src.id === existingPtPool.id) {
+                          const newBackups = Array.from(
+                            new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
+                          ).filter((u) => u && u !== src.url);
+
+                          const updatedMap = { ...(src.urlServerMap || {}) };
+                          const serverTag = watchPlayItem.ord ? `S${watchPlayItem.ord}` : "S18";
+                          if (!updatedMap[streamResult.hlsUrl!]) updatedMap[streamResult.hlsUrl!] = serverTag;
+                          for (const b of streamResult.backupHlsUrls || []) {
+                            if (!updatedMap[b]) updatedMap[b] = serverTag;
+                          }
+
+                          return {
+                            ...src,
+                            backupUrls: newBackups,
+                            urlServerMap: updatedMap,
+                          };
+                        }
+                        return src;
+                      });
+                    }
+
+                    return prev.map((src) =>
                       src.id === watchPlayItem.id
                         ? {
                             ...src,
+                            ord: 0,
+                            providerName: "HLS",
+                            realName: "HLS (PT)",
                             type: "hls",
                             url: streamResult.hlsUrl!,
-                            backupUrls: streamResult.backupHlsUrls,
+                            backupUrls: (streamResult.backupHlsUrls || []).filter((u: string) => u && u !== streamResult.hlsUrl),
+                            urlServerMap: {
+                              [streamResult.hlsUrl!]: watchPlayItem.ord ? `S${watchPlayItem.ord}` : "S18",
+                            },
                           }
                         : src
-                    )
-                  );
+                    );
+                  });
                 }
               } catch {}
             });
@@ -452,8 +519,36 @@ function WatchInner() {
                     }),
                   }).catch(() => {});
 
-                  setSources((prev) =>
-                    prev.map((src) =>
+                  setSources((prev) => {
+                    const existingPtPool = prev.find(
+                      (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "pt" || s.languages?.includes("pt"))
+                    );
+
+                    if (existingPtPool) {
+                      return prev.map((src) => {
+                        if (src.id === existingPtPool.id) {
+                          const newBackups = Array.from(
+                            new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
+                          ).filter((u) => u && u !== src.url);
+
+                          const updatedMap = { ...(src.urlServerMap || {}) };
+                          const serverTag = source.ord ? `S${source.ord}` : "S14";
+                          if (!updatedMap[streamResult.hlsUrl!]) updatedMap[streamResult.hlsUrl!] = serverTag;
+                          for (const b of streamResult.backupHlsUrls || []) {
+                            if (!updatedMap[b]) updatedMap[b] = serverTag;
+                          }
+
+                          return {
+                            ...src,
+                            backupUrls: newBackups,
+                            urlServerMap: updatedMap,
+                          };
+                        }
+                        return src;
+                      });
+                    }
+
+                    return prev.map((src) =>
                       src.id === source.id
                         ? {
                             ...src,
@@ -462,14 +557,14 @@ function WatchInner() {
                             backupUrls: streamResult.backupHlsUrls,
                           }
                         : src
-                    )
-                  );
+                    );
+                  });
                 }
               }).catch(() => {});
             }
 
             if (
-              (source.providerId === "watchplay" || source.id.startsWith("watchplay")) &&
+              (source.providerId === "watchplay" || source.id.startsWith("watchplay") || source.providerId === "EmbedMovies-V2") &&
               source.type !== "hls"
             ) {
               import("@/lib/watchplay").then(async ({ fetchWatchPlayStream }) => {
@@ -489,8 +584,36 @@ function WatchInner() {
                     }),
                   }).catch(() => {});
 
-                  setSources((prev) =>
-                    prev.map((src) =>
+                  setSources((prev) => {
+                    const existingPtPool = prev.find(
+                      (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "pt" || s.languages?.includes("pt"))
+                    );
+
+                    if (existingPtPool) {
+                      return prev.map((src) => {
+                        if (src.id === existingPtPool.id) {
+                          const newBackups = Array.from(
+                            new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
+                          ).filter((u) => u && u !== src.url);
+
+                          const updatedMap = { ...(src.urlServerMap || {}) };
+                          const serverTag = source.ord ? `S${source.ord}` : "S18";
+                          if (!updatedMap[streamResult.hlsUrl!]) updatedMap[streamResult.hlsUrl!] = serverTag;
+                          for (const b of streamResult.backupHlsUrls || []) {
+                            if (!updatedMap[b]) updatedMap[b] = serverTag;
+                          }
+
+                          return {
+                            ...src,
+                            backupUrls: newBackups,
+                            urlServerMap: updatedMap,
+                          };
+                        }
+                        return src;
+                      });
+                    }
+
+                    return prev.map((src) =>
                       src.id === source.id
                         ? {
                             ...src,
@@ -499,8 +622,8 @@ function WatchInner() {
                             backupUrls: streamResult.backupHlsUrls,
                           }
                         : src
-                    )
-                  );
+                    );
+                  });
                 }
               }).catch(() => {});
             }
