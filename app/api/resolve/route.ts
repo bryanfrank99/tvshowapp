@@ -604,23 +604,16 @@ export async function GET(req: NextRequest) {
     const sorted = sortSourcesByPriority(rawSources, userLang, primaryByLang);
 
     // 4. Unificación de servidores compatibles con HLS aislados estrictamente por idioma de audio
-    // Regla de aislamiento: NUNCA mezclar streams de diferentes idiomas (ej. español con portugués) en un mismo pool
-    const getLanguageFamily = (langCode: string = "es"): string => {
-      const l = (langCode || "").toLowerCase().trim();
-      if (l === "es" || l === "lat" || l.includes("es") || l.includes("lat")) return "es";
-      if (l === "pt" || l.includes("pt")) return "pt";
-      if (l === "en" || l.includes("en")) return "en";
-      return l || "other";
-    };
-
-    const hlsSources = sorted.filter((s) => s.type === "hls");
-    const iframeSources = sorted.filter((s) => s.type !== "hls");
+    // REGLA: Los servidores HLS en modo beta (isBeta: true) NUNCA se colocan dentro de la pool unificada.
+    // Se mantienen como fuentes independientes para permitir testearlos individualmente.
+    const hlsPoolSources = sorted.filter((s) => s.type === "hls" && !s.isBeta);
+    const standaloneSources = sorted.filter((s) => s.type !== "hls" || s.isBeta);
     let sources: Source[] = sorted;
 
-    if (hlsSources.length > 0) {
+    if (hlsPoolSources.length > 0) {
       // Agrupar por familia de idioma
       const hlsByLang = new Map<string, Source[]>();
-      for (const src of hlsSources) {
+      for (const src of hlsPoolSources) {
         const audios = src.languages && src.languages.length ? src.languages : [src.lang];
         const fam = getLanguageFamily(audios[0] || src.lang);
         const existing = hlsByLang.get(fam) || [];
@@ -681,8 +674,8 @@ export async function GET(req: NextRequest) {
         consolidatedHls.push(primaryHls);
       }
 
-      // Reordenar conservando afinidad lingüística y prioridad del usuario
-      sources = sortSourcesByPriority([...consolidatedHls, ...iframeSources], userLang, primaryByLang);
+      // Reordenar conservando afinidad lingüística, pool HLS en pos 0 y servidores individuales/beta
+      sources = sortSourcesByPriority([...consolidatedHls, ...standaloneSources], userLang, primaryByLang);
     }
 
     const recommendedSourceId = sources[0]?.id || "";

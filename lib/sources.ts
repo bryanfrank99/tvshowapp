@@ -118,6 +118,9 @@ export function scoreSourceForUser(
  */
 export function isHlsPoolSource(s: Source): boolean {
   if (!s) return false;
+  // Los servidores en modo beta NUNCA forman parte de la pool unificada (permitiendo su testeo individual)
+  if (s.isBeta) return false;
+
   const idLower = (s.id || "").toLowerCase().trim();
   const provIdLower = (s.providerId || "").toLowerCase().trim();
   const nameLower = (s.providerName || "").toLowerCase().trim();

@@ -115,6 +115,9 @@ function WatchInner() {
             lang: "es" | "pt" | "en";
             hlsUrl: string;
             backupUrls: string[];
+            isBeta?: boolean;
+            simulatedName?: string;
+            realName?: string;
           }
 
           const extractedList: ExtractedStreamInfo[] = [];
@@ -124,8 +127,38 @@ function WatchInner() {
             if (!itemsToMerge || itemsToMerge.length === 0) return baseSources;
 
             let updated = [...baseSources];
+
+            // REGLA: Los servidores en modo beta (isBeta: true) NUNCA se colocan dentro de la pool unificada.
+            // Se mantienen como fuentes independientes para permitir testearlos individualmente.
+            const betaItems = itemsToMerge.filter((it) => !!it.isBeta);
+            const stableItems = itemsToMerge.filter((it) => !it.isBeta);
+
+            for (const bItem of betaItems) {
+              const betaSource: Source = {
+                id: `${bItem.providerId}-hls-beta`,
+                providerId: bItem.providerId,
+                providerName: bItem.simulatedName || bItem.tag,
+                realName: `${bItem.realName || bItem.tag} (Beta)`,
+                ord: bItem.ord,
+                type: "hls",
+                lang: bItem.lang as any,
+                languages: [bItem.lang as any],
+                priority: 80,
+                url: bItem.hlsUrl,
+                backupUrls: bItem.backupUrls,
+                isBeta: true,
+                tvOk: true,
+                needsTmdb: true,
+              };
+
+              // Reemplazar la versión previa de este proveedor por su versión HLS Beta individual
+              updated = updated.filter((s) => s.id !== bItem.providerId && s.id !== betaSource.id);
+              updated.push(betaSource);
+            }
+
+            // Unificar únicamente los streams estables en la pool oficial
             const byLang = new Map<string, ExtractedStreamInfo[]>();
-            for (const item of itemsToMerge) {
+            for (const item of stableItems) {
               const list = byLang.get(item.lang) || [];
               list.push(item);
               byLang.set(item.lang, list);
@@ -136,6 +169,7 @@ function WatchInner() {
 
               const existingPoolIndex = updated.findIndex(
                 (s) =>
+                  !s.isBeta &&
                   (s.ord === 0 || s.providerName === "HLS" || s.type === "hls") &&
                   (s.lang === itemLang || s.languages?.includes(itemLang as any))
               );
@@ -246,6 +280,9 @@ function WatchInner() {
                       lang: "pt",
                       hlsUrl: streamResult.hlsUrl,
                       backupUrls: (streamResult.backupHlsUrls || []).filter(Boolean),
+                      isBeta: Boolean(megaItem.isBeta),
+                      simulatedName: megaItem.providerName,
+                      realName: megaItem.realName,
                     };
                     extractedList.push(extracted);
 
@@ -295,6 +332,9 @@ function WatchInner() {
                       lang: "pt",
                       hlsUrl: streamResult.hlsUrl,
                       backupUrls: (streamResult.backupHlsUrls || []).filter(Boolean),
+                      isBeta: Boolean(watchPlayItem.isBeta),
+                      simulatedName: watchPlayItem.providerName,
+                      realName: watchPlayItem.realName,
                     };
                     extractedList.push(extracted);
 
@@ -343,6 +383,9 @@ function WatchInner() {
                       lang: "es",
                       hlsUrl: streamResult.hlsUrl,
                       backupUrls: (streamResult.backupHlsUrls || []).filter(Boolean),
+                      isBeta: Boolean(nasriItem.isBeta),
+                      simulatedName: nasriItem.providerName,
+                      realName: nasriItem.realName,
                     };
                     extractedList.push(extracted);
 
