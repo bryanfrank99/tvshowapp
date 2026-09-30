@@ -97,8 +97,8 @@ export async function GET(req: NextRequest) {
   try {
     const sb = supa();
 
-    // 2. Consulta de proveedores, versión y preferencias de prioridad lingüística
-    const [provRes, verRes, primaryRes, availRes, prioritiesRes] = await Promise.all([
+    // 2. Consulta de proveedores, versión, prioridades lingüísticas y configuración HLS
+    const [provRes, verRes, primaryRes, availRes, prioritiesRes, hlsConfigRes] = await Promise.all([
       sb
         .from("providers")
         .select("*")
@@ -108,11 +108,22 @@ export async function GET(req: NextRequest) {
       sb.from("config").select("value").eq("key", "primary_providers_by_lang").maybeSingle(),
       sb.from("config").select("value").eq("key", "provider_availability_urls").maybeSingle(),
       sb.from("config").select("value").eq("key", "provider_priorities_by_lang").maybeSingle(),
+      sb.from("config").select("value").eq("key", "provider_hls_config").maybeSingle(),
     ]);
 
     if (provRes.error || !provRes.data) {
       return NextResponse.json({ error: "db", message: "Error cargando proveedores" }, { status: 500 });
     }
+
+    let hlsConfigMap: Record<string, { enabled: boolean; extractor: string }> = {
+      megaembed: { enabled: true, extractor: "megaembed" },
+      watchplay: { enabled: true, extractor: "watchplay" },
+    };
+    try {
+      if (hlsConfigRes.data?.value) {
+        hlsConfigMap = { ...hlsConfigMap, ...JSON.parse(hlsConfigRes.data.value) };
+      }
+    } catch {}
 
     const providersData = provRes.data;
     const version = (verRes.data as any)?.value || "1.0";
@@ -383,31 +394,56 @@ export async function GET(req: NextRequest) {
     // Ordenar TODAS las fuentes según afinidad lingüística real y prioridad de servidor por idioma
     const sorted = sortSourcesByPriority(rawSources, userLang, primaryByLang);
 
-    // Unificación de servidores compatibles con HLS en una sola fuente lógica con auto-fallback
+    // 4. Unificación de servidores compatibles con HLS aislados estrictamente por idioma de audio
+    // Regla de aislamiento: NUNCA mezclar streams de diferentes idiomas (ej. español con portugués) en un mismo pool
+    const getLanguageFamily = (langCode: string = "es"): string => {
+      const l = (langCode || "").toLowerCase().trim();
+      if (l === "es" || l === "lat" || l.includes("es") || l.includes("lat")) return "es";
+      if (l === "pt" || l.includes("pt")) return "pt";
+      if (l === "en" || l.includes("en")) return "en";
+      return l || "other";
+    };
+
     const hlsSources = sorted.filter((s) => s.type === "hls");
-    let sources = sorted;
+    const iframeSources = sorted.filter((s) => s.type !== "hls");
+    let sources: Source[] = sorted;
 
     if (hlsSources.length > 0) {
-      const primaryHls = hlsSources[0];
-      if (hlsSources.length > 1) {
-        const otherBackupUrls = hlsSources
-          .slice(1)
-          .flatMap((s) => [s.url, ...(s.backupUrls || [])])
-          .filter((u) => u && u !== primaryHls.url);
-
-        primaryHls.backupUrls = Array.from(
-          new Set([...(primaryHls.backupUrls || []), ...otherBackupUrls])
-        );
+      // Agrupar por familia de idioma
+      const hlsByLang = new Map<string, Source[]>();
+      for (const src of hlsSources) {
+        const audios = src.languages && src.languages.length ? src.languages : [src.lang];
+        const fam = getLanguageFamily(audios[0] || src.lang);
+        const existing = hlsByLang.get(fam) || [];
+        existing.push(src);
+        hlsByLang.set(fam, existing);
       }
 
-      // Nombrar la fuente agrupada como 'HLS' sin prefijo S14 ni número de orden
-      primaryHls.providerName = "HLS";
-      primaryHls.realName = "HLS";
-      primaryHls.ord = 0;
+      const consolidatedHls: Source[] = [];
+      for (const [langFam, groupSources] of hlsByLang.entries()) {
+        if (!groupSources.length) continue;
+        const primaryHls = groupSources[0];
 
-      // Conservar el servidor HLS primario que contiene todos los backups y mantener el resto de servidores iframe
-      const primaryHlsId = primaryHls.id;
-      sources = sorted.filter((s) => s.type !== "hls" || s.id === primaryHlsId);
+        // Los backups SOLO se enlazan entre servidores HLS del mismo idioma de audio
+        if (groupSources.length > 1) {
+          const otherBackupUrls = groupSources
+            .slice(1)
+            .flatMap((s) => [s.url, ...(s.backupUrls || [])])
+            .filter((u) => u && u !== primaryHls.url);
+
+          primaryHls.backupUrls = Array.from(
+            new Set([...(primaryHls.backupUrls || []), ...otherBackupUrls])
+          );
+        }
+
+        primaryHls.providerName = "HLS";
+        primaryHls.realName = `HLS (${langFam.toUpperCase()})`;
+        primaryHls.ord = 0;
+        consolidatedHls.push(primaryHls);
+      }
+
+      // Reordenar conservando afinidad lingüística y prioridad del usuario
+      sources = sortSourcesByPriority([...consolidatedHls, ...iframeSources], userLang, primaryByLang);
     }
 
     const recommendedSourceId = sources[0]?.id || "";

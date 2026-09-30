@@ -9,14 +9,25 @@ export async function GET(req: NextRequest) {
   const deny = await needAdmin(req);
   if (deny) return deny;
   const sb = supa();
-  const [p, c, primaryRes, availRes, prioritiesRes] = await Promise.all([
+  const [p, c, primaryRes, availRes, prioritiesRes, hlsConfigRes] = await Promise.all([
     sb.from("providers").select("*").order("ord"),
     sb.from("config").select("value").eq("key", "providers_version").maybeSingle(),
     sb.from("config").select("value").eq("key", "primary_providers_by_lang").maybeSingle(),
     sb.from("config").select("value").eq("key", "provider_availability_urls").maybeSingle(),
     sb.from("config").select("value").eq("key", "provider_priorities_by_lang").maybeSingle(),
+    sb.from("config").select("value").eq("key", "provider_hls_config").maybeSingle(),
   ]);
   if (p.error) return NextResponse.json({ error: "db" }, { status: 500 });
+
+  let fallbackHlsConfig: Record<string, { enabled: boolean; extractor: string }> = {
+    megaembed: { enabled: true, extractor: "megaembed" },
+    watchplay: { enabled: true, extractor: "watchplay" },
+  };
+  try {
+    if (hlsConfigRes.data?.value) {
+      fallbackHlsConfig = { ...fallbackHlsConfig, ...JSON.parse(hlsConfigRes.data.value) };
+    }
+  } catch {}
 
   let fallbackAvailUrls: Record<string, any> = {};
   try {
@@ -73,6 +84,11 @@ export async function GET(req: NextRequest) {
       provAvail.dorama_list_url ||
       (isRedeflix ? "https://redeflixapi.store/list-dorama-ids.txt" : "");
 
+    const hlsCfg = fallbackHlsConfig[x.id] || {
+      enabled: x.id === "megaembed" || x.id === "watchplay",
+      extractor: x.id === "megaembed" ? "megaembed" : x.id === "watchplay" ? "watchplay" : "none",
+    };
+
     return {
       ...x,
       real_name: x.name,
@@ -85,6 +101,8 @@ export async function GET(req: NextRequest) {
       tv_list_url: tvListUrl,
       anime_list_url: animeListUrl,
       dorama_list_url: doramaListUrl,
+      hls_enabled: !!hlsCfg.enabled,
+      hls_extractor: hlsCfg.extractor || (hlsCfg.enabled ? "direct" : "none"),
     };
   });
 
@@ -93,6 +111,7 @@ export async function GET(req: NextRequest) {
     version: c.data?.value || "",
     primary_providers_by_lang: primaryByLang,
     provider_priorities_by_lang: prioritiesByLang,
+    provider_hls_config: fallbackHlsConfig,
   });
 }
 
@@ -312,6 +331,23 @@ export async function PUT(req: NextRequest) {
     }
   }
 
+  // Acción 1B: Guardar configuración de compatibilidad HLS por proveedor
+  if (b.action === "save_hls_config" && b.provider_hls_config) {
+    try {
+      await supa().from("config").upsert(
+        { key: "provider_hls_config", value: JSON.stringify(b.provider_hls_config) },
+        { onConflict: "key" }
+      );
+      await bump();
+      return NextResponse.json({
+        ok: true,
+        provider_hls_config: b.provider_hls_config,
+      });
+    } catch {
+      return NextResponse.json({ error: "db" }, { status: 500 });
+    }
+  }
+
   // Acción 2: Guardar o actualizar proveedor
   if (!b.id || !b.name || !b.movie_tpl || !b.tv_tpl) {
     return NextResponse.json({ error: "params" }, { status: 400 });
@@ -377,6 +413,33 @@ export async function PUT(req: NextRequest) {
         { key: "provider_availability_urls", value: JSON.stringify(map) },
         { onConflict: "key" }
       );
+
+    if (b.hls_enabled !== undefined || b.hls_extractor) {
+      const { data: currHls } = await sb
+        .from("config")
+        .select("value")
+        .eq("key", "provider_hls_config")
+        .maybeSingle();
+      let hlsMap: Record<string, any> = {
+        megaembed: { enabled: true, extractor: "megaembed" },
+        watchplay: { enabled: true, extractor: "watchplay" },
+      };
+      if (currHls?.value) {
+        try {
+          hlsMap = { ...hlsMap, ...JSON.parse(currHls.value) };
+        } catch {}
+      }
+      hlsMap[row.id] = {
+        enabled: !!b.hls_enabled,
+        extractor: b.hls_extractor || (b.hls_enabled ? "direct" : "none"),
+      };
+      await sb
+        .from("config")
+        .upsert(
+          { key: "provider_hls_config", value: JSON.stringify(hlsMap) },
+          { onConflict: "key" }
+        );
+    }
   } catch {}
 
   // Intento de guardado en la tabla providers con fallback escalonado

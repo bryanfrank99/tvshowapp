@@ -83,6 +83,8 @@ type Prov = {
   tv_list_url?: string;
   anime_list_url?: string;
   dorama_list_url?: string;
+  hls_enabled?: boolean;
+  hls_extractor?: "megaembed" | "watchplay" | "direct" | "none";
 };
 
 type Live = {
@@ -2245,6 +2247,145 @@ export default function AdminPage() {
               <span>{isCheckingHealth ? d.prov_diagnosing : d.prov_diagnose}</span>
             </button>
           </div>
+
+          {/* PANEL DE SUPERVISIÓN Y CONTROL: POOLS HLS UNIFICADOS POR IDIOMA */}
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/20 to-black/60 border border-purple-500/30 space-y-3.5 shadow-xl">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-300 font-bold text-base shadow-sm">
+                  ⚡
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-white tracking-wide flex items-center gap-2">
+                    <span>Pools HLS Unificados con Auto-Failover</span>
+                    <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold">
+                      Aislamiento Estricto por Audio
+                    </span>
+                  </h3>
+                  <p className="text-xs text-zinc-300 mt-0.5">
+                    {lang === "pt"
+                      ? "Os servidores HLS são agrupados por idioma de áudio. Se um stream falhar, o player comuta para o próximo backup do mesmo idioma sem misturar idiomas."
+                      : "Los servidores HLS se agrupan por idioma de audio. Si un stream se corta, el reproductor conmuta al siguiente respaldo del mismo idioma sin mezclar audios."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Malla de Pools por Idioma */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+              {/* Pool Español */}
+              {(() => {
+                const esMembers = provs.filter(
+                  (p) => p.active && p.hls_enabled && (p.languages?.some((l) => l.includes("es") || l.includes("lat")) || p.lang?.includes("es") || p.lang?.includes("lat"))
+                );
+                return (
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex flex-col justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                          <span>🇪🇸</span>
+                          <span>Pool HLS Español / Latino</span>
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                          esMembers.length > 0
+                            ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                            : "bg-zinc-500/15 text-zinc-400 border-zinc-500/30"
+                        }`}>
+                          {esMembers.length} {esMembers.length === 1 ? "servidor" : "servidores"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400">
+                        {esMembers.length > 0
+                          ? `Enlaza automáticamente: ${esMembers.map((m) => m.simulated_name || m.name).join(" ➔ ")}`
+                          : "No hay servidores HLS con audio español asignados."}
+                      </p>
+                    </div>
+                    {esMembers.length > 1 && (
+                      <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg flex items-center gap-1">
+                        <span>✓</span>
+                        <span>Auto-failover transparente activado</span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Pool Portugués */}
+              {(() => {
+                const ptMembers = provs.filter(
+                  (p) => p.active && p.hls_enabled && (p.languages?.some((l) => l.includes("pt")) || p.lang?.includes("pt"))
+                );
+                return (
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex flex-col justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+                          <span>🇧🇷</span>
+                          <span>Pool HLS Português</span>
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                          ptMembers.length > 0
+                            ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                            : "bg-zinc-500/15 text-zinc-400 border-zinc-500/30"
+                        }`}>
+                          {ptMembers.length} {ptMembers.length === 1 ? "servidor" : "servidores"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400">
+                        {ptMembers.length > 0
+                          ? `Enlaza automáticamente: ${ptMembers.map((m) => m.simulated_name || m.name).join(" ➔ ")}`
+                          : "No hay servidores HLS con audio portugués asignados."}
+                      </p>
+                    </div>
+                    {ptMembers.length > 1 && (
+                      <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg flex items-center gap-1">
+                        <span>✓</span>
+                        <span>Auto-failover transparente activado</span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Pool Inglés */}
+              {(() => {
+                const enMembers = provs.filter(
+                  (p) => p.active && p.hls_enabled && (p.languages?.some((l) => l === "en") || p.lang === "en")
+                );
+                return (
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex flex-col justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className="text-xs font-black text-sky-300 flex items-center gap-1.5">
+                          <span>🇺🇸</span>
+                          <span>Pool HLS English / Original</span>
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                          enMembers.length > 0
+                            ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                            : "bg-zinc-500/15 text-zinc-400 border-zinc-500/30"
+                        }`}>
+                          {enMembers.length} {enMembers.length === 1 ? "servidor" : "servidores"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400">
+                        {enMembers.length > 0
+                          ? `Enlaza automáticamente: ${enMembers.map((m) => m.simulated_name || m.name).join(" ➔ ")}`
+                          : "No hay servidores HLS con audio en inglés asignados."}
+                      </p>
+                    </div>
+                    {enMembers.length > 1 && (
+                      <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg flex items-center gap-1">
+                        <span>✓</span>
+                        <span>Auto-failover transparente activado</span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
           {/* CONFIGURACIÓN DE SERVIDOR PRIORITARIO POR IDIOMA */}
           <div className="mb-6 p-4 rounded-2xl border border-white/10 bg-white/5 space-y-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -2367,10 +2508,16 @@ export default function AdminPage() {
                         <span>CATÁLOGO ACTIVO</span>
                       </span>
                     )}
-                    {(p.id === "watchplay" || p.id === "megaembed" || p.movie_tpl?.includes("watchplay") || p.movie_tpl?.includes("megaembed")) && (
-                      <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded font-bold flex items-center gap-1" title="Servidor compatible con Pool Unificado HLS directo">
+                    {p.hls_enabled ? (
+                      <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1" title={`Pool HLS Nativo (${p.hls_extractor || "direct"}) - Audio: ${langs.join(", ")}`}>
                         <span>⚡</span>
-                        <span>POOL HLS NATIVO</span>
+                        <span>HLS [{langs[0]?.toUpperCase() || "DIRECT"}]</span>
+                        <span className="text-[9px] font-normal text-purple-400 capitalize">({p.hls_extractor === "watchplay" ? "WatchPlay" : p.hls_extractor === "megaembed" ? "MegaEmbed" : "Directo"})</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-zinc-500/10 text-zinc-400 border border-zinc-500/25 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+                        <span>🌐</span>
+                        <span>Iframe</span>
                       </span>
                     )}
                     <div className="flex items-center gap-1 flex-wrap">
@@ -2856,6 +3003,74 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Modo de Entrega / Compatibilidad con Pool HLS Nativo */}
+              <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/25 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
+                    <span>⚡</span>
+                    <span>Modo de Entrega / Compatibilidad con Pool HLS</span>
+                  </span>
+                  <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold">
+                    {edit.hls_enabled ? "POOL HLS ACTIVO" : "IFRAME ESTÁNDAR"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-300">
+                  Define si este servidor entrega streams nativos HLS (.m3u8) para reproducción directa con mando de TV y auto-failover, o si se visualiza en un iframe web con adblock.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <label className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-xs transition-all ${
+                    !edit.hls_enabled
+                      ? "bg-white/10 border-[#008CFF] text-white shadow-sm"
+                      : "bg-black/40 border-white/10 text-zinc-400"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="delivery_mode"
+                      checked={!edit.hls_enabled}
+                      onChange={() => setEdit({ ...edit, hls_enabled: false, hls_extractor: "none" })}
+                      className="accent-[#008CFF]"
+                    />
+                    <span className="font-medium">🌐 Iframe Estándar (Web)</span>
+                  </label>
+
+                  <label className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-xs transition-all ${
+                    edit.hls_enabled
+                      ? "bg-purple-500/25 border-purple-500 text-purple-200 shadow-sm"
+                      : "bg-black/40 border-white/10 text-zinc-400"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="delivery_mode"
+                      checked={!!edit.hls_enabled}
+                      onChange={() => setEdit({ ...edit, hls_enabled: true, hls_extractor: edit.hls_extractor === "none" ? "direct" : (edit.hls_extractor || "direct") })}
+                      className="accent-purple-500"
+                    />
+                    <span className="font-bold">⚡ Pool HLS Nativo</span>
+                  </label>
+                </div>
+
+                {edit.hls_enabled && (
+                  <div className="space-y-1.5 pt-1 bg-black/40 p-2.5 rounded-lg border border-purple-500/20">
+                    <label className="block text-[11px] text-zinc-300 font-semibold">
+                      Tipo de Extractor HLS:
+                    </label>
+                    <select
+                      value={edit.hls_extractor || "direct"}
+                      onChange={(e) => setEdit({ ...edit, hls_extractor: e.target.value as any })}
+                      className={`${inp} text-xs py-1.5 font-sans`}
+                    >
+                      <option value="direct">Directo: La URL/Template devuelve directamente stream .m3u8</option>
+                      <option value="megaembed">MegaEmbed (S14): Extracción fMP4 de megaembed.com con bypass</option>
+                      <option value="watchplay">WatchPlay (S18): Extracción de v2.watchplay.shop con fMP4</option>
+                    </select>
+                    <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-200/90 mt-1">
+                      ⚠️ <b>Regla de Aislamiento de Idiomas:</b> Este servidor formará parte exclusivamente del Pool HLS de su idioma de audio configurado ({edit.languages?.map((l: string) => getProviderLangMeta(l).name).join(", ") || edit.lang || "ES"}). Los streams de diferentes idiomas nunca se mezclarán en el auto-failover.
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Opción Beta */}
