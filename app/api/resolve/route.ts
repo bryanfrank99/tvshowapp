@@ -513,7 +513,8 @@ export async function GET(req: NextRequest) {
             needsTmdb: prov.needs_tmdb,
             tvOk: prov.tv_ok,
           });
-          continue; // Ya agregamos el servidor S17 como stream nativo HLS
+          // Se mantiene también la fuente iframe original de S17 para que el usuario siempre
+          // tenga acceso directo a NasriPlay aunque esté agrupado en el pool HLS.
         }
       }
 

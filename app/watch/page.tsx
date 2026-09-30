@@ -189,6 +189,40 @@ function WatchInner() {
               } catch {}
             });
           }
+
+          // Extracción client-side para NasriPlay (S17)
+          const nasriItem = rawList.find(
+            (s) => (s.providerId === "nasriplay" || s.id.startsWith("nasriplay")) && s.type !== "hls"
+          );
+
+          if (nasriItem) {
+            import("@/lib/nasriplay").then(async ({ fetchNasriPlayStream }) => {
+              try {
+                const targetNasriId = data.effectiveTmdbId || id;
+                const streamResult = await fetchNasriPlayStream({
+                  id: targetNasriId,
+                  type,
+                  season: s,
+                  episode: e,
+                });
+                if (streamResult?.hlsUrl) {
+                  fetch("/api/resolve/cache-stream", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      providerId: "nasriplay",
+                      type,
+                      targetId: targetNasriId,
+                      season: s,
+                      episode: e,
+                      hlsUrl: streamResult.hlsUrl,
+                      backupHlsUrls: streamResult.backupHlsUrls,
+                    }),
+                  }).catch(() => {});
+                }
+              } catch {}
+            });
+          }
         } else {
           setError(true);
         }
@@ -467,6 +501,30 @@ function WatchInner() {
                         : src
                     )
                   );
+                }
+              }).catch(() => {});
+            }
+
+            if (
+              (source.providerId === "nasriplay" || source.id.startsWith("nasriplay")) &&
+              source.type !== "hls"
+            ) {
+              import("@/lib/nasriplay").then(async ({ fetchNasriPlayStream }) => {
+                const streamResult = await fetchNasriPlayStream({ id, type, season: s, episode: e });
+                if (streamResult?.hlsUrl) {
+                  fetch("/api/resolve/cache-stream", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      providerId: "nasriplay",
+                      type,
+                      targetId: id,
+                      season: s,
+                      episode: e,
+                      hlsUrl: streamResult.hlsUrl,
+                      backupHlsUrls: streamResult.backupHlsUrls,
+                    }),
+                  }).catch(() => {});
                 }
               }).catch(() => {});
             }
