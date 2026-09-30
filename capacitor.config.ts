@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://tvshowapp.net',
     cleartext: false,
-    allowNavigation: ['tvshowapp.net', 'tvshowapp-one.vercel.app', 'myembed.biz', '*.myembed.biz', 'redeflixapi.store', '*.redeflixapi.store', 'pipocacine.lat', 'vidcore.io', 'vidzy.org', 'vimeus.com', 'multiembed.mov', 'moviesapi.to', 'cinesrc.st', 'player.vidzee.wtf', 'embos.top', 'vidapi.xyz', 'streambetter.shop', 'megaembed.com', 'mgeb.top', 'vimeos.net', '*.vimeos.net', 'goodstream.one', '*.goodstream.one', 'cinecalidad.am', '*.cinecalidad.am', 'playerflix.ink', '*.playerflix.ink', 'watchplay.shop', '*.watchplay.shop', 'superflixapi.quest', '*.superflixapi.quest', 'reidoscanais.st', 'rdcanais.net', '*.qzz.io', 'youtube.com', '*.youtube.com', 'youtube-nocookie.com', '*.youtube-nocookie.com', '*.googlevideo.com', '*.ytimg.com'],
+    allowNavigation: ['tvshowapp.net', 'tvshowapp-one.vercel.app', 'myembed.biz', '*.myembed.biz', 'redeflixapi.store', '*.redeflixapi.store', 'pipocacine.lat', 'vidcore.io', 'vidzy.org', 'vimeus.com', 'multiembed.mov', 'moviesapi.to', 'cinesrc.st', 'player.vidzee.wtf', 'embos.top', 'vidapi.xyz', 'streambetter.shop', 'megaembed.com', 'mgeb.top', 'playercdn.xyz', '*.playercdn.xyz', 'cuevana4br.com', '*.cuevana4br.com', 's1q2105.com', '*.s1q2105.com', 'vimeos.net', '*.vimeos.net', 'goodstream.one', '*.goodstream.one', 'cinecalidad.am', '*.cinecalidad.am', 'playerflix.ink', '*.playerflix.ink', 'watchplay.shop', '*.watchplay.shop', 'superflixapi.quest', '*.superflixapi.quest', 'reidoscanais.st', 'rdcanais.net', '*.qzz.io', 'youtube.com', '*.youtube.com', 'youtube-nocookie.com', '*.youtube-nocookie.com', '*.googlevideo.com', '*.ytimg.com'],
   },
   android: {
     allowMixedContent: false,

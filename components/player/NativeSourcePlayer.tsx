@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
+import Hls from "hls.js";
 import type { Source } from "@/lib/sources";
 import { IconPlay } from "@/components/Icons";
 
@@ -57,16 +58,62 @@ export default function NativeSourcePlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    video.src = source.url;
-    video.load();
-    video.play().then(() => {
-      setIsPlaying(true);
-      resetHideTimer();
-    }).catch(() => {
-      setIsPlaying(false);
-      resetHideTimer();
-    });
-  }, [source.url, source.type, resetHideTimer]);
+    let hls: Hls | null = null;
+    const isHlsStream = source.type === "hls" || source.url.includes(".m3u8");
+
+    // 1. Soporte HLS nativo (Android TV WebView, Safari iOS/macOS)
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = source.url;
+      video.load();
+      video.play().then(() => {
+        setIsPlaying(true);
+        resetHideTimer();
+      }).catch(() => {
+        setIsPlaying(false);
+        resetHideTimer();
+      });
+    } else if (isHlsStream && Hls.isSupported()) {
+      // 2. Desktop Chrome / Windows Electron / Firefox vía hls.js
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+      });
+      hls.loadSource(source.url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().then(() => {
+          setIsPlaying(true);
+          resetHideTimer();
+        }).catch(() => {
+          setIsPlaying(false);
+          resetHideTimer();
+        });
+      });
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data.fatal) {
+          setError(true);
+          onError?.();
+        }
+      });
+    } else {
+      // 3. Fallback genérico para mp4 o streams directos
+      video.src = source.url;
+      video.load();
+      video.play().then(() => {
+        setIsPlaying(true);
+        resetHideTimer();
+      }).catch(() => {
+        setIsPlaying(false);
+        resetHideTimer();
+      });
+    }
+
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [source.url, source.type, resetHideTimer, onError]);
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;

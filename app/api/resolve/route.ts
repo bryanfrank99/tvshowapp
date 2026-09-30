@@ -258,6 +258,38 @@ export async function GET(req: NextRequest) {
         } catch {}
       }
 
+      // Si es MegaEmbed, intentamos extraer stream HLS nativo (.m3u8) para control 100% con mando de TV
+      if (prov.id === "megaembed" || String(prov.movie_tpl || "").includes("megaembed")) {
+        try {
+          const { fetchMegaEmbedStream } = await import("@/lib/megaembed");
+          const streamResult = await fetchMegaEmbedStream({
+            id: targetId,
+            type,
+            season: s,
+            episode: e,
+          });
+
+          if (streamResult?.hlsUrl) {
+            rawSources.push({
+              id: `${prov.id}-native`,
+              providerId: prov.id,
+              providerName: prov.simulated_name || prov.name,
+              realName: `${prov.real_name || prov.name} (Nativo TV)`,
+              ord: prov.ord,
+              type: "hls",
+              url: streamResult.hlsUrl,
+              lang: (prov.lang as any) || "und",
+              languages: prov.languages || ["und"],
+              subtitles: prov.subtitles || [],
+              priority: 120, // Mayor prioridad para selección automática en TV
+              isBeta: false,
+              needsTmdb: prov.needs_tmdb,
+              tvOk: prov.tv_ok,
+            });
+          }
+        } catch {}
+      }
+
       const adapted = providersToSources([prov], {
         type,
         id: targetId,

@@ -1,6 +1,6 @@
 {
   "name": "tvshow",
-  "version": "7.59.0",
+  "version": "7.61.0",
   "description": "TVShow Desktop Application for Windows",
   "author": "TVShow Team",
   "private": true,
@@ -41,6 +41,7 @@
     "@capacitor/core": "^8.5.1",
     "@supabase/supabase-js": "^2.116.0",
     "fast-xml-parser": "^5.11.1",
+    "hls.js": "^1.7.3",
     "next": "14.2.35",
     "react": "18.3.1",
     "react-dom": "18.3.1"

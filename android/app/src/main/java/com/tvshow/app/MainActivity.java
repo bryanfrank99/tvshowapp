@@ -74,24 +74,6 @@ public class MainActivity extends BridgeActivity {
                 }
                 return true;
             }
-
-            // D-Pad Derecha / Abajo: Traduce a TAB nativo (avanzar al siguiente control dentro del reproductor)
-            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                WebView webView = getBridge() != null ? getBridge().getWebView() : null;
-                if (webView != null) {
-                    KeyEvent tabEvent = new KeyEvent(event.getDownTime(), event.getEventTime(), action, KeyEvent.KEYCODE_TAB, event.getRepeatCount(), 0);
-                    return webView.dispatchKeyEvent(tabEvent);
-                }
-            }
-
-            // D-Pad Izquierda / Arriba: Traduce a SHIFT + TAB nativo (retroceder al control anterior dentro del reproductor)
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                WebView webView = getBridge() != null ? getBridge().getWebView() : null;
-                if (webView != null) {
-                    KeyEvent shiftTabEvent = new KeyEvent(event.getDownTime(), event.getEventTime(), action, KeyEvent.KEYCODE_TAB, event.getRepeatCount(), KeyEvent.META_SHIFT_ON | KeyEvent.META_SHIFT_LEFT_ON);
-                    return webView.dispatchKeyEvent(shiftTabEvent);
-                }
-            }
         }
         return super.dispatchKeyEvent(event);
     }

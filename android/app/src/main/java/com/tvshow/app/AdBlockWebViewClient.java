@@ -62,8 +62,8 @@ public class AdBlockWebViewClient extends BridgeWebViewClient {
         if (host == null) return false;
         host = host.toLowerCase();
         if (host.equals("tvshowapp.net") || host.endsWith(".tvshowapp.net") || host.equals("tvshowapp-one.vercel.app") || host.endsWith(".vercel.app") || host.equals("localhost") || host.equals("127.0.0.1") || host.equals("capacitor")) return true;
-        // Embeds / imágenes permitidos dentro del WebView (no navegador externo)
-        String[] allow = {"myembed.biz","redeflixapi.store","pipocacine.lat","vidcore.io","vidzy.org","vimeus.com","multiembed.mov","moviesapi.to","cinesrc.st","player.vidzee.wtf","embos.top","vidapi.xyz","streambetter.shop","megaembed.com","mgeb.top","vimeos.net","goodstream.one","cinecalidad.am","image.tmdb.org","via.placeholder.com","metahub.space","static.tvmaze.com","m.media-amazon.com","githubusercontent.com","playerflix.ink","watchplay.shop","superflixapi.quest","reidoscanais.st","rdcanais.net","qzz.io","youtube.com","youtube-nocookie.com","googlevideo.com","ytimg.com"};
+        // Embeds / imágenes / streams permitidos dentro del WebView (no navegador externo)
+        String[] allow = {"myembed.biz","redeflixapi.store","pipocacine.lat","vidcore.io","vidzy.org","vimeus.com","multiembed.mov","moviesapi.to","cinesrc.st","player.vidzee.wtf","embos.top","vidapi.xyz","streambetter.shop","megaembed.com","mgeb.top","playercdn.xyz","cuevana4br.com","s1q2105.com","vimeos.net","goodstream.one","cinecalidad.am","image.tmdb.org","via.placeholder.com","metahub.space","static.tvmaze.com","m.media-amazon.com","githubusercontent.com","playerflix.ink","watchplay.shop","superflixapi.quest","reidoscanais.st","rdcanais.net","qzz.io","youtube.com","youtube-nocookie.com","googlevideo.com","ytimg.com"};
         for (String a : allow) if (host.equals(a) || host.endsWith("." + a)) return true;
         return false;
     }
