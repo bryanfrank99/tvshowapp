@@ -119,7 +119,9 @@ export default function SourceSelectorGrid({
 
       {/* Cuadrícula interactiva de Servidores */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-        {sources.map((x) => {
+        {sources
+          .filter((x) => !x.id.endsWith("-native"))
+          .map((x) => {
           const isSelected = p?.id === x.id;
           const isRec = x.id === recommendedSourceId;
           const audios = x.languages && x.languages.length ? x.languages : [x.lang];

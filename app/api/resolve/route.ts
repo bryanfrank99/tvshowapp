@@ -157,66 +157,72 @@ export async function GET(req: NextRequest) {
 
     const defaultVimeusKey = process.env.VIMEUS_VIEW_KEY || "";
 
-    // 4. Adaptación y construcción de fuentes disponibles
-    const eligibleProviders: ProviderAdapterInput[] = [];
-    let serverIndex = 1;
+    // 4. Adaptación y construcción concurrente de fuentes disponibles con timeout
+    const eligibleProviderResults = await Promise.all(
+      providersData.map(async (p: any, idx: number) => {
+        const provAvail = fallbackAvailUrls[p.id] || {};
+        const movieListUrl = p.movie_list_url || provAvail.movie_list_url || "";
+        const tvListUrl = p.tv_list_url || provAvail.tv_list_url || "";
+        const animeListUrl = p.anime_list_url || provAvail.anime_list_url || "";
+        const doramaListUrl = p.dorama_list_url || provAvail.dorama_list_url || "";
 
-    for (const p of providersData) {
-      const provAvail = fallbackAvailUrls[p.id] || {};
-      const movieListUrl = p.movie_list_url || provAvail.movie_list_url || "";
-      const tvListUrl = p.tv_list_url || provAvail.tv_list_url || "";
-      const animeListUrl = p.anime_list_url || provAvail.anime_list_url || "";
-      const doramaListUrl = p.dorama_list_url || provAvail.dorama_list_url || "";
-
-      // Filtrar servidor si el contenido no está disponible en sus listas de catálogo
-      if (isRedeflixProvider({ ...p, movie_list_url: movieListUrl, tv_list_url: tvListUrl })) {
-        if (!effectiveTmdbId && !effectiveImdbId) {
-          continue;
+        // Filtrar servidor si el contenido no está disponible en sus listas de catálogo
+        if (isRedeflixProvider({ ...p, movie_list_url: movieListUrl, tv_list_url: tvListUrl })) {
+          if (!effectiveTmdbId && !effectiveImdbId) {
+            return null;
+          }
+          try {
+            const availPromise = isRedeflixAvailable({
+              type,
+              tmdbId: effectiveTmdbId,
+              imdbId: effectiveImdbId,
+              season: s,
+              episode: e,
+              movieListUrl,
+              tvListUrl,
+              animeListUrl,
+              doramaListUrl,
+              needsTmdb: !!p.needs_tmdb,
+            });
+            const timeoutPromise = new Promise<boolean>((resolve) =>
+              setTimeout(() => resolve(true), 1500)
+            );
+            const isAvail = await Promise.race([availPromise, timeoutPromise]);
+            if (!isAvail) return null;
+          } catch {
+            // En caso de fallo de red puntual, conservar proveedor como fallback
+          }
         }
-        const isAvail = await isRedeflixAvailable({
-          type,
-          tmdbId: effectiveTmdbId,
-          imdbId: effectiveImdbId,
-          season: s,
-          episode: e,
-          movieListUrl,
-          tvListUrl,
-          animeListUrl,
-          doramaListUrl,
-          needsTmdb: !!p.needs_tmdb,
-        });
-        if (!isAvail) {
-          continue;
-        }
-      }
 
-      const requiresTmdb = !!p.needs_tmdb;
-      // Mantener todos los proveedores disponibles; si falta TMDB ID, usar el ID original como fallback
-      const targetId = requiresTmdb
-        ? (effectiveTmdbId || rawId)
-        : (effectiveImdbId || rawId);
+        const requiresTmdb = !!p.needs_tmdb;
+        const targetId = requiresTmdb
+          ? (effectiveTmdbId || rawId)
+          : (effectiveImdbId || rawId);
 
-      const serverOrd = typeof p.ord === "number" ? p.ord : serverIndex++;
-      const canonicalSimulatedName = `S${serverOrd}`;
+        const serverOrd = typeof p.ord === "number" ? p.ord : idx + 1;
+        const canonicalSimulatedName = `S${serverOrd}`;
 
-      eligibleProviders.push({
-        id: p.id,
-        name: canonicalSimulatedName,
-        real_name: p.name,
-        simulated_name: canonicalSimulatedName,
-        ord: serverOrd,
-        movie_tpl: p.movie_tpl,
-        tv_tpl: p.tv_tpl,
-        needs_tmdb: requiresTmdb,
-        tv_ok: !!p.tv_ok,
-        lang: p.lang,
-        languages: parseLangs(p.lang, p.id),
-        subtitles: parseSubs(p.subtitles, p.id),
-        is_beta: !!p.is_beta,
-        entry_key: p.entry_key || defaultVimeusKey,
-        key: p.entry_key || defaultVimeusKey,
-      });
-    }
+        return {
+          id: p.id,
+          name: canonicalSimulatedName,
+          real_name: p.name,
+          simulated_name: canonicalSimulatedName,
+          ord: serverOrd,
+          movie_tpl: p.movie_tpl,
+          tv_tpl: p.tv_tpl,
+          needs_tmdb: requiresTmdb,
+          tv_ok: !!p.tv_ok,
+          lang: p.lang,
+          languages: parseLangs(p.lang, p.id),
+          subtitles: parseSubs(p.subtitles, p.id),
+          is_beta: !!p.is_beta,
+          entry_key: p.entry_key || defaultVimeusKey,
+          key: p.entry_key || defaultVimeusKey,
+        } as ProviderAdapterInput;
+      })
+    );
+
+    const eligibleProviders = eligibleProviderResults.filter(Boolean) as ProviderAdapterInput[];
 
     // 5. Transformación y ordenamiento estricto por prioridad lingüística
     const rawSources: Source[] = [];
@@ -227,13 +233,16 @@ export async function GET(req: NextRequest) {
       if (prov.id === "cinecalidad" || String(prov.movie_tpl || "").includes("cinecalidad")) {
         try {
           const { fetchCinecalidadEmbeds } = await import("@/lib/cinecalidad");
-          const embeds = await fetchCinecalidadEmbeds({
+          const embedsPromise = fetchCinecalidadEmbeds({
             type,
             tmdbId: targetId,
             season: s,
             episode: e,
           });
-          if (embeds.length > 0) {
+          const timeoutPromise = new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 1500));
+          const embeds = await Promise.race([embedsPromise, timeoutPromise]);
+
+          if (embeds && embeds.length > 0) {
             embeds.forEach((emb, idx) => {
               const hostName = emb.host ? ` (${emb.host.split(".")[0]})` : "";
               rawSources.push({
@@ -258,37 +267,41 @@ export async function GET(req: NextRequest) {
         } catch {}
       }
 
-      // Si es MegaEmbed, intentamos extraer stream HLS nativo (.m3u8) para control 100% con mando de TV
+      // Si es MegaEmbed, consultamos la caché de BD de streams M3U8 para entrega instantánea (< 20ms)
       if (prov.id === "megaembed" || String(prov.movie_tpl || "").includes("megaembed")) {
+        let cachedHls: { hlsUrl: string; backupHlsUrls?: string[] } | null = null;
         try {
-          const { fetchMegaEmbedStream } = await import("@/lib/megaembed");
-          const streamResult = await fetchMegaEmbedStream({
-            id: targetId,
+          const { getCachedStream } = await import("@/lib/stream-cache");
+          cachedHls = await getCachedStream({
+            providerId: prov.id,
             type,
+            targetId,
             season: s,
             episode: e,
           });
-
-          if (streamResult?.hlsUrl) {
-            rawSources.push({
-              id: `${prov.id}-native`,
-              providerId: prov.id,
-              providerName: prov.simulated_name || prov.name,
-              realName: `${prov.real_name || prov.name} (Nativo TV)`,
-              ord: prov.ord,
-              type: "hls",
-              url: streamResult.hlsUrl,
-              backupUrls: streamResult.backupHlsUrls,
-              lang: (prov.lang as any) || "und",
-              languages: prov.languages || ["und"],
-              subtitles: prov.subtitles || [],
-              priority: 120, // Mayor prioridad para selección automática en TV
-              isBeta: false,
-              needsTmdb: prov.needs_tmdb,
-              tvOk: prov.tv_ok,
-            });
-          }
         } catch {}
+
+        if (cachedHls?.hlsUrl) {
+          // Asignar el stream HLS directamente al servidor S14 sin duplicar tarjeta
+          rawSources.push({
+            id: prov.id,
+            providerId: prov.id,
+            providerName: prov.simulated_name || prov.name,
+            realName: prov.real_name || prov.name,
+            ord: prov.ord,
+            type: "hls",
+            url: cachedHls.hlsUrl,
+            backupUrls: cachedHls.backupHlsUrls,
+            lang: (prov.lang as any) || "und",
+            languages: prov.languages || ["und"],
+            subtitles: prov.subtitles || [],
+            priority: 120, // Mayor prioridad para selección automática en TV
+            isBeta: false,
+            needsTmdb: prov.needs_tmdb,
+            tvOk: prov.tv_ok,
+          });
+          continue; // Ya agregamos el servidor S14 con su stream directo HLS
+        }
       }
 
       const adapted = providersToSources([prov], {

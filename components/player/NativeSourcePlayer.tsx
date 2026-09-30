@@ -261,16 +261,14 @@ export default function NativeSourcePlayer({
         setIsPlaying(true);
         setCenterPulse("play");
         pulseTimerRef.current = setTimeout(() => setCenterPulse(null), 600);
-        triggerFeedback("▶", "Reproducir");
       }).catch(() => {});
     } else {
       video.pause();
       setIsPlaying(false);
       setCenterPulse("pause");
       pulseTimerRef.current = setTimeout(() => setCenterPulse(null), 600);
-      triggerFeedback("⏸", "Pausa");
     }
-  }, [triggerFeedback]);
+  }, []);
 
   const seek = useCallback((deltaSeconds: number) => {
     const video = videoRef.current;

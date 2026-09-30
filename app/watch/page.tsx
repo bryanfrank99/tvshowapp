@@ -98,11 +98,8 @@ function WatchInner() {
           const megaItem = rawList.find(
             (s) => s.providerId === "megaembed" || s.id.startsWith("megaembed")
           );
-          const hasNative = rawList.some(
-            (s) => s.providerId === "megaembed" && s.type === "hls"
-          );
 
-          if (megaItem && !hasNative) {
+          if (megaItem && megaItem.type !== "hls") {
             import("@/lib/megaembed").then(async ({ fetchMegaEmbedStream }) => {
               try {
                 const targetMegaId = data.effectiveTmdbId || data.effectiveImdbId || id;
@@ -113,31 +110,34 @@ function WatchInner() {
                   episode: e,
                 });
                 if (streamResult?.hlsUrl) {
-                  const nativeSource: Source = {
-                    ...megaItem,
-                    id: `${megaItem.providerId}-native`,
-                    type: "hls",
-                    url: streamResult.hlsUrl,
-                    backupUrls: streamResult.backupHlsUrls,
-                    realName: `${megaItem.realName || megaItem.providerName} (Nativo TV)`,
-                    priority: 120,
-                  };
-                  setSources((prev) => {
-                    const exists = prev.some((x) => x.id === nativeSource.id);
-                    if (exists) return prev;
-                    const idx = prev.findIndex(
-                      (x) => x.providerId === "megaembed" || x.id.startsWith("megaembed")
-                    );
-                    const next = [...prev];
-                    if (idx !== -1) {
-                      next.splice(idx, 0, nativeSource);
-                    } else {
-                      next.unshift(nativeSource);
-                    }
-                    return next;
-                  });
-                  setRecommendedSourceId(nativeSource.id);
-                  setUserSourceId((prev) => (!prev || prev === megaItem.id ? nativeSource.id : prev));
+                  // Guardar en la base de datos Supabase para futuras consultas rápidas
+                  fetch("/api/resolve/cache-stream", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      providerId: megaItem.providerId || "megaembed",
+                      type,
+                      targetId: targetMegaId,
+                      season: s,
+                      episode: e,
+                      hlsUrl: streamResult.hlsUrl,
+                      backupHlsUrls: streamResult.backupHlsUrls,
+                    }),
+                  }).catch(() => {});
+
+                  // Actualizar directamente la fuente existente del servidor SIN duplicar tarjeta
+                  setSources((prev) =>
+                    prev.map((src) =>
+                      src.id === megaItem.id
+                        ? {
+                            ...src,
+                            type: "hls",
+                            url: streamResult.hlsUrl!,
+                            backupUrls: streamResult.backupHlsUrls,
+                          }
+                        : src
+                    )
+                  );
                 }
               } catch {}
             });
@@ -296,61 +296,35 @@ function WatchInner() {
         lang={lang}
       />
 
-      {/* 3. Barra de Acciones Rápidas del Reproductor */}
-      <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            id="btn-fullscreen"
-            onClick={goFullscreen}
-            className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-semibold text-zinc-200 hover:text-white hover:border-[#008CFF]/60 hover:bg-[#008CFF]/10 active:scale-95 transition inline-flex items-center gap-2 touch-manipulation focus:ring-2 focus:ring-[#008CFF] outline-none"
-            title={d.fullscreen}
-          >
-            <span>⛶</span>
-            <span>{d.fullscreen}</span>
-          </button>
-
-          {sources.length > 1 && (
-            <button
-              id="btn-cycle-server"
-              onClick={handleCycleNext}
-              className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-semibold text-zinc-300 hover:text-white hover:border-[#008CFF]/60 hover:bg-[#008CFF]/10 active:scale-95 transition inline-flex items-center gap-2 touch-manipulation focus:ring-2 focus:ring-[#008CFF] outline-none"
-              title="Cambiar al siguiente servidor"
+      {/* 3. Navegación de Episodios (Solo para series TV) */}
+      {type === "tv" && (
+        <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
+          {e > 1 && (
+            <Link
+              id="btn-prev-ep"
+              href={`/watch?type=tv&id=${id}&s=${s}&e=${e - 1}`}
+              className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-medium text-zinc-300 hover:text-white active:scale-95 transition focus:ring-2 focus:ring-[#008CFF] outline-none"
             >
-              <span>🔄</span>
-              <span>{lang === "pt" ? "Trocar servidor" : "Cambiar servidor"}</span>
-            </button>
+              ← E{e - 1}
+            </Link>
           )}
+          <Link
+            id="btn-next-ep"
+            href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`}
+            className="px-4 py-2 rounded-xl bg-[#008CFF] hover:bg-[#0077dd] text-white text-xs sm:text-sm font-bold active:scale-95 transition shadow-[0_0_16px_rgba(0,140,255,0.4)] inline-flex items-center gap-1.5 focus:ring-2 focus:ring-white outline-none"
+          >
+            <span>{d.siguiente} {d.ep_e}{e + 1}</span>
+            <span>→</span>
+          </Link>
+          <Link
+            id="btn-all-ep"
+            href={`/title?type=tv&id=${id}&season=${s}`}
+            className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm text-zinc-300 hover:text-white active:scale-95 transition hidden sm:inline-flex focus:ring-2 focus:ring-[#008CFF] outline-none"
+          >
+            {d.todos_capitulos}
+          </Link>
         </div>
-
-        {type === "tv" && (
-          <div className="flex items-center gap-2 flex-wrap">
-            {e > 1 && (
-              <Link
-                id="btn-prev-ep"
-                href={`/watch?type=tv&id=${id}&s=${s}&e=${e - 1}`}
-                className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm font-medium text-zinc-300 hover:text-white active:scale-95 transition focus:ring-2 focus:ring-[#008CFF] outline-none"
-              >
-                ← E{e - 1}
-              </Link>
-            )}
-            <Link
-              id="btn-next-ep"
-              href={`/watch?type=tv&id=${id}&s=${s}&e=${e + 1}`}
-              className="px-4 py-2 rounded-xl bg-[#008CFF] hover:bg-[#0077dd] text-white text-xs sm:text-sm font-bold active:scale-95 transition shadow-[0_0_16px_rgba(0,140,255,0.4)] inline-flex items-center gap-1.5 focus:ring-2 focus:ring-white outline-none"
-            >
-              <span>{d.siguiente} {d.ep_e}{e + 1}</span>
-              <span>→</span>
-            </Link>
-            <Link
-              id="btn-all-ep"
-              href={`/title?type=tv&id=${id}&season=${s}`}
-              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs sm:text-sm text-zinc-300 hover:text-white active:scale-95 transition hidden sm:inline-flex focus:ring-2 focus:ring-[#008CFF] outline-none"
-            >
-              {d.todos_capitulos}
-            </Link>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* 4. Banner Informativo de Calidad para Películas en Cines */}
       {inTheaters && (
@@ -374,37 +348,43 @@ function WatchInner() {
           activeSource={activeSource}
           recommendedSourceId={recommendedSourceId}
           onSelectSource={(source) => {
+            setUserSourceId(source.id);
             if (
               (source.providerId === "megaembed" || source.id.startsWith("megaembed")) &&
               source.type !== "hls"
             ) {
-              const nativeMega = sources.find(
-                (x) => x.providerId === "megaembed" && x.type === "hls"
-              );
-              if (nativeMega) {
-                setUserSourceId(nativeMega.id);
-                return;
-              }
-              setUserSourceId(source.id);
               import("@/lib/megaembed").then(async ({ fetchMegaEmbedStream }) => {
                 const streamResult = await fetchMegaEmbedStream({ id, type, season: s, episode: e });
                 if (streamResult?.hlsUrl) {
-                  const nativeSource: Source = {
-                    ...source,
-                    id: `${source.providerId}-native`,
-                    type: "hls",
-                    url: streamResult.hlsUrl,
-                    backupUrls: streamResult.backupHlsUrls,
-                    realName: `${source.realName || source.providerName} (Nativo TV)`,
-                    priority: 120,
-                  };
-                  setSources((prev) => [nativeSource, ...prev.filter((x) => x.id !== nativeSource.id)]);
-                  setUserSourceId(nativeSource.id);
+                  fetch("/api/resolve/cache-stream", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      providerId: source.providerId || "megaembed",
+                      type,
+                      targetId: id,
+                      season: s,
+                      episode: e,
+                      hlsUrl: streamResult.hlsUrl,
+                      backupHlsUrls: streamResult.backupHlsUrls,
+                    }),
+                  }).catch(() => {});
+
+                  setSources((prev) =>
+                    prev.map((src) =>
+                      src.id === source.id
+                        ? {
+                            ...src,
+                            type: "hls",
+                            url: streamResult.hlsUrl!,
+                            backupUrls: streamResult.backupHlsUrls,
+                          }
+                        : src
+                    )
+                  );
                 }
               }).catch(() => {});
-              return;
             }
-            setUserSourceId(source.id);
           }}
           lang={lang}
           version={version}
