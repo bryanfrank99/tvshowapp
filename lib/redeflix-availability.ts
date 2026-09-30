@@ -358,6 +358,130 @@ export async function probeUrlAvailability(targetUrl: string, timeoutMs: number 
   return promise;
 }
 
+let _cachedSupabaseClient: any = null;
+
+async function getSupabaseClient() {
+  if (_cachedSupabaseClient) return _cachedSupabaseClient;
+  try {
+    const url = process.env.SUPABASE_URL || "";
+    const key = process.env.SUPABASE_SERVICE_KEY || "";
+    if (!url || !key) return null;
+    const { createClient } = await import("@supabase/supabase-js");
+    _cachedSupabaseClient = createClient(url, key, {
+      auth: { persistSession: false },
+      global: {
+        fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+      },
+    });
+    return _cachedSupabaseClient;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recupera el catálogo persistente desde la tabla config de Supabase
+ * (utilizado como fallback ante bloqueos 403 de Cloudflare en entornos serverless/Vercel)
+ */
+async function fetchCatalogFromSupabase(targetUrl: string): Promise<string | null> {
+  try {
+    const sb = await getSupabaseClient();
+    if (!sb) return null;
+    const cleanUrl = String(targetUrl || "").trim().replace(/\/+$/, "");
+    if (!cleanUrl) return null;
+    const { data } = await sb
+      .from("config")
+      .select("value")
+      .in("key", [`catalog_cache:${cleanUrl}`, `catalog_cache:${cleanUrl}/`])
+      .limit(1);
+    return data && data.length > 0 ? data[0].value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Guarda asíncronamente el catálogo en Supabase si el fetch directo tuvo éxito
+ */
+function saveCatalogToSupabaseAsync(targetUrl: string, content: string): void {
+  if (!content || content.length < 10) return;
+  (async () => {
+    try {
+      const sb = await getSupabaseClient();
+      if (!sb) return;
+      const cleanUrl = String(targetUrl || "").trim().replace(/\/+$/, "");
+      await sb.from("config").upsert(
+        [
+          { key: `catalog_cache:${cleanUrl}`, value: content },
+          { key: `catalog_cache:${cleanUrl}/`, value: content },
+        ],
+        { onConflict: "key" }
+      );
+    } catch {}
+  })().catch(() => {});
+}
+
+/**
+ * Parsea el texto del catálogo de películas (JSON array, objetos, o líneas TXT) a un Set O(1)
+ */
+export function parseMovieCatalogText(text: string): Set<string> {
+  const movieSet = new Set<string>();
+  const trimmed = text.trim();
+
+  // Detección y parseo de formato JSON
+  if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (typeof item === "string" || typeof item === "number") {
+            const s = String(item).trim();
+            if (s) movieSet.add(s);
+          } else if (item && typeof item === "object") {
+            const id = item.id_tmdb || item.id || item.tmdb_id || item.tmdb;
+            if (id) movieSet.add(String(id).trim());
+            const imdb = item.id_imdb || item.imdb_id || item.imdb;
+            if (imdb) movieSet.add(String(imdb).trim());
+          }
+        }
+      } else if (parsed && typeof parsed === "object") {
+        const items = parsed.items || parsed.movies || parsed.results || parsed.data;
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            if (typeof item === "object" && item) {
+              const id = item.id_tmdb || item.id || item.tmdb_id || item.tmdb;
+              if (id) movieSet.add(String(id).trim());
+              const imdb = item.id_imdb || item.imdb_id || item.imdb;
+              if (imdb) movieSet.add(String(imdb).trim());
+            } else if (item) {
+              movieSet.add(String(item).trim());
+            }
+          }
+        } else {
+          for (const k of Object.keys(parsed)) {
+            if (k && k !== "status" && k !== "success" && k !== "count") {
+              movieSet.add(String(k).trim());
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // Si no es JSON o el set quedó vacío, procesar como líneas TXT
+  if (movieSet.size === 0) {
+    const lines = text.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const id = lines[i].trim();
+      if (id) {
+        movieSet.add(id);
+      }
+    }
+  }
+
+  return movieSet;
+}
+
 /**
  * Obtiene el Set O(1) de películas para la URL en lote indicada (TXT o JSON)
  */
@@ -376,65 +500,25 @@ export async function getRedeflixMovieSet(url: string = DEFAULT_REDEFLIX_MOVIE_U
 
   const promise = (async () => {
     try {
-      const res = await fetchWithTimeout(targetUrl, 10000);
-      if (!res.ok) {
-        throw new Error(`HTTP error ${res.status} al descargar lista de películas`);
-      }
-      const text = await res.text();
-      const movieSet = new Set<string>();
-      const trimmed = text.trim();
-
-      // Detección y parseo de formato JSON
-      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-        try {
-          const parsed = JSON.parse(trimmed);
-          if (Array.isArray(parsed)) {
-            for (const item of parsed) {
-              if (typeof item === "string" || typeof item === "number") {
-                const s = String(item).trim();
-                if (s) movieSet.add(s);
-              } else if (item && typeof item === "object") {
-                const id = item.id_tmdb || item.id || item.tmdb_id || item.tmdb;
-                if (id) movieSet.add(String(id).trim());
-                const imdb = item.id_imdb || item.imdb_id || item.imdb;
-                if (imdb) movieSet.add(String(imdb).trim());
-              }
-            }
-          } else if (parsed && typeof parsed === "object") {
-            const items = parsed.items || parsed.movies || parsed.results || parsed.data;
-            if (Array.isArray(items)) {
-              for (const item of items) {
-                if (typeof item === "object" && item) {
-                  const id = item.id_tmdb || item.id || item.tmdb_id || item.tmdb;
-                  if (id) movieSet.add(String(id).trim());
-                  const imdb = item.id_imdb || item.imdb_id || item.imdb;
-                  if (imdb) movieSet.add(String(imdb).trim());
-                } else if (item) {
-                  movieSet.add(String(item).trim());
-                }
-              }
-            } else {
-              for (const k of Object.keys(parsed)) {
-                if (k && k !== "status" && k !== "success" && k !== "count") {
-                  movieSet.add(String(k).trim());
-                }
-              }
-            }
-          }
-        } catch {}
-      }
-
-      // Si no es JSON o el set quedó vacío, procesar como líneas TXT
-      if (movieSet.size === 0) {
-        const lines = text.split("\n");
-        for (let i = 0; i < lines.length; i++) {
-          const id = lines[i].trim();
-          if (id) {
-            movieSet.add(id);
-          }
+      let text = "";
+      try {
+        const res = await fetchWithTimeout(targetUrl, 10000);
+        if (!res.ok) {
+          throw new Error(`HTTP error ${res.status} al descargar lista de películas`);
+        }
+        text = await res.text();
+        saveCatalogToSupabaseAsync(targetUrl, text);
+      } catch (fetchErr: any) {
+        // Fallback a catálogo persistente en Supabase (evita bloqueos Cloudflare 403 en Vercel)
+        const sbText = await fetchCatalogFromSupabase(targetUrl);
+        if (sbText) {
+          text = sbText;
+        } else {
+          throw fetchErr;
         }
       }
 
+      const movieSet = parseMovieCatalogText(text);
       movieCache.set(targetUrl, { set: movieSet, lastFetch: Date.now() });
       return movieSet;
     } catch (err: any) {
@@ -480,9 +564,25 @@ export async function getRedeflixTvMap(urls?: TvFetchUrls): Promise<Map<string, 
     try {
       const tvMap = new Map<string, Record<string, Record<string, string>>>();
 
-      const fetchTargets: Promise<any>[] = [fetchWithTimeout(tvUrl, 15000).then((r) => r.json())];
-      if (animeUrl) fetchTargets.push(fetchWithTimeout(animeUrl, 10000).then((r) => r.json()));
-      if (doramaUrl) fetchTargets.push(fetchWithTimeout(doramaUrl, 10000).then((r) => r.json()));
+      const fetchJsonWithFallback = async (u: string, timeout: number) => {
+        try {
+          const res = await fetchWithTimeout(u, timeout);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const text = await res.text();
+          saveCatalogToSupabaseAsync(u, text);
+          return JSON.parse(text);
+        } catch (fetchErr: any) {
+          const sbText = await fetchCatalogFromSupabase(u);
+          if (sbText) {
+            return JSON.parse(sbText);
+          }
+          throw fetchErr;
+        }
+      };
+
+      const fetchTargets: Promise<any>[] = [fetchJsonWithFallback(tvUrl, 15000)];
+      if (animeUrl) fetchTargets.push(fetchJsonWithFallback(animeUrl, 10000));
+      if (doramaUrl) fetchTargets.push(fetchJsonWithFallback(doramaUrl, 10000));
 
       const results = await Promise.allSettled(fetchTargets);
 

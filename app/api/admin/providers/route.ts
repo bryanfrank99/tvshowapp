@@ -164,6 +164,76 @@ export async function PUT(req: NextRequest) {
     }
   }
 
+  // Acción: Sincronizar catálogo persistente en Supabase (Bypass Cloudflare 403)
+  if (b.action === "sync_catalog") {
+    try {
+      const { url, content } = b;
+      if (!url) {
+        return NextResponse.json({ error: "Falta la URL para sincronizar" }, { status: 400 });
+      }
+      const cleanUrl = String(url).trim().replace(/\/+$/, "");
+      let catalogText = content ? String(content).trim() : "";
+
+      if (!catalogText) {
+        const tryFetch = async (u: string) => {
+          const res = await fetch(u, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+              Accept: "application/json, text/plain, */*",
+            },
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.text();
+        };
+
+        try {
+          catalogText = await tryFetch(cleanUrl);
+        } catch {
+          if (cleanUrl.includes("mgeb.top")) {
+            const fallbackUrl = cleanUrl.replace("mgeb.top", "megaembed.com");
+            try {
+              catalogText = await tryFetch(fallbackUrl);
+            } catch {}
+          }
+        }
+      }
+
+      if (!catalogText) {
+        return NextResponse.json(
+          { ok: false, error: "No se pudo descargar el catálogo (bloqueado por Cloudflare en datacenter)" },
+          { status: 502 }
+        );
+      }
+
+      let count = 0;
+      try {
+        const parsed = JSON.parse(catalogText);
+        count = Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length;
+      } catch {
+        count = catalogText.split("\n").filter(Boolean).length;
+      }
+
+      const sb = supa();
+      await sb.from("config").upsert([
+        { key: `catalog_cache:${cleanUrl}`, value: catalogText },
+        { key: `catalog_cache:${cleanUrl}/`, value: catalogText },
+      ], { onConflict: "key" });
+
+      const { clearRedeflixCache } = await import("@/lib/redeflix-availability");
+      clearRedeflixCache();
+
+      return NextResponse.json({
+        ok: true,
+        count,
+        url: cleanUrl,
+        syncedAt: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      return NextResponse.json({ ok: false, error: err?.message || "Error al sincronizar catálogo" }, { status: 500 });
+    }
+  }
+
   // Acción 1A: Guardar sistema multicapa de prioridades por idioma
   if (b.action === "save_priorities_by_lang" || b.provider_priorities_by_lang) {
     const payload = b.provider_priorities_by_lang || {};

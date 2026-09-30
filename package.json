@@ -1,6 +1,6 @@
 {
   "name": "tvshow",
-  "version": "7.65.0",
+  "version": "7.67.0",
   "description": "TVShow Desktop Application for Windows",
   "author": "TVShow Team",
   "private": true,
@@ -12,6 +12,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:static": "cross-env STATIC_EXPORT=1 next build",
+    "sync:mgeb": "node scripts/sync-mgeb-catalog.mjs",
     "start": "next start",
     "lint": "next lint",
     "sync": "node scripts/sync-tmdb.mjs",
