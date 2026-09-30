@@ -37,6 +37,17 @@ export default function NativeSourcePlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const progressContainerRef = useRef<HTMLDivElement>(null);
 
+  // Referencias para navegación espacial y foco automático en TV
+  const fullscreenBtnRef = useRef<HTMLButtonElement>(null);
+  const playPauseBtnRef = useRef<HTMLButtonElement>(null);
+  const rewindBtnRef = useRef<HTMLButtonElement>(null);
+  const forwardBtnRef = useRef<HTMLButtonElement>(null);
+  const volumeBtnRef = useRef<HTMLButtonElement>(null);
+  const subtitlesBtnRef = useRef<HTMLButtonElement>(null);
+  const speedBtnRef = useRef<HTMLButtonElement>(null);
+  const pipBtnRef = useRef<HTMLButtonElement>(null);
+  const scrubberBtnRef = useRef<HTMLDivElement>(null);
+
   // Lista de URLs candidatas para failover automático
   const candidateUrls = [
     source.url,
@@ -59,10 +70,12 @@ export default function NativeSourcePlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPipAvailable, setIsPipAvailable] = useState(false);
 
-  // Visibilidad de controles tipo Netflix TV
+  // Feedback OSD y visibilidad de controles
   const [showControls, setShowControls] = useState(true);
+  const [centerPulse, setCenterPulse] = useState<"play" | "pause" | null>(null);
   const [osdFeedback, setOsdFeedback] = useState<{ icon: string; text: string } | null>(null);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pulseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Scrubbing interactivo
   const [isDragging, setIsDragging] = useState(false);
@@ -77,13 +90,24 @@ export default function NativeSourcePlayer({
         setShowControls(false);
         setOsdFeedback(null);
       }
-    }, 4000);
+    }, 4500);
   }, [isDragging, showSettings, showSubtitlesMenu]);
 
   const triggerFeedback = useCallback((icon: string, text: string) => {
     setOsdFeedback({ icon, text });
     resetHideTimer();
   }, [resetHideTimer]);
+
+  // Foco automático en el botón de Pantalla Completa para Smart TV / Android TV
+  const autoFocusFullscreen = useCallback(() => {
+    if (typeof document !== "undefined" && document.fullscreenElement) return;
+    setTimeout(() => {
+      if (fullscreenBtnRef.current) {
+        fullscreenBtnRef.current.focus({ preventScroll: true });
+        setShowControls(true);
+      }
+    }, 350);
+  }, []);
 
   // Detección de soporte Picture-in-Picture
   useEffect(() => {
@@ -145,8 +169,10 @@ export default function NativeSourcePlayer({
       video.play().then(() => {
         setIsPlaying(true);
         resetHideTimerRef.current();
+        autoFocusFullscreen();
       }).catch(() => {
         setIsPlaying(false);
+        autoFocusFullscreen();
       });
     } else if (isHlsStream && Hls.isSupported()) {
       // 2. Desktop Chrome / Windows Electron / Firefox vía hls.js
@@ -173,8 +199,10 @@ export default function NativeSourcePlayer({
         video.play().then(() => {
           setIsPlaying(true);
           resetHideTimerRef.current();
+          autoFocusFullscreen();
         }).catch(() => {
           setIsPlaying(false);
+          autoFocusFullscreen();
         });
       });
 
@@ -207,8 +235,10 @@ export default function NativeSourcePlayer({
       video.play().then(() => {
         setIsPlaying(true);
         resetHideTimerRef.current();
+        autoFocusFullscreen();
       }).catch(() => {
         setIsPlaying(false);
+        autoFocusFullscreen();
       });
     }
 
@@ -217,20 +247,27 @@ export default function NativeSourcePlayer({
         hls.destroy();
       }
     };
-  }, [activeUrl, currentUrlIndex, candidateUrls.length, isHlsStream]);
+  }, [activeUrl, currentUrlIndex, candidateUrls.length, isHlsStream, autoFocusFullscreen]);
 
   // Controles de reproducción
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
+
     if (video.paused) {
       video.play().then(() => {
         setIsPlaying(true);
+        setCenterPulse("play");
+        pulseTimerRef.current = setTimeout(() => setCenterPulse(null), 600);
         triggerFeedback("▶", "Reproducir");
       }).catch(() => {});
     } else {
       video.pause();
       setIsPlaying(false);
+      setCenterPulse("pause");
+      pulseTimerRef.current = setTimeout(() => setCenterPulse(null), 600);
       triggerFeedback("⏸", "Pausa");
     }
   }, [triggerFeedback]);
@@ -339,7 +376,7 @@ export default function NativeSourcePlayer({
     triggerFeedback("💬", subId === "off" ? "Subtítulos desactivados" : `Subtítulos: ${subId}`);
   };
 
-  // Manejo de teclado y mando a distancia de TV (D-Pad)
+  // Manejo de teclado y mando a distancia de TV (D-Pad y navegación espacial)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -347,24 +384,48 @@ export default function NativeSourcePlayer({
 
       const k = e.keyCode;
 
-      // Play / Pause: DPAD_CENTER (23), Enter (13), Espacio (32), MediaPlayPause (179), k/K
-      if (k === 23 || k === 13 || k === 32 || k === 179 || e.key === "MediaPlayPause" || e.key === "k" || e.key === "K") {
-        if (!target || target === document.body || containerRef.current?.contains(target)) {
+      // Si los controles estaban ocultos y el usuario presiona cualquier tecla del mando,
+      // despertar controles y posicionar foco en pantalla completa (o play/pause)
+      if (!showControls) {
+        resetHideTimer();
+        if (k === 13 || k === 23 || k === 32 || e.key === "MediaPlayPause") {
           e.preventDefault();
           togglePlay();
           return;
         }
+        if (k === 37 || k === 21) {
+          e.preventDefault();
+          seek(-10);
+          return;
+        }
+        if (k === 39 || k === 22) {
+          e.preventDefault();
+          seek(10);
+          return;
+        }
+        autoFocusFullscreen();
+        return;
       }
 
-      // Fast Forward: D-Pad Right (22, 39), MediaFastForward (228), l/L
-      if (k === 228 || (containerRef.current?.contains(target) && (k === 22 || k === 39 || e.key === "ArrowRight" || e.key === "l" || e.key === "L"))) {
+      // Play / Pause: DPAD_CENTER (23), Enter (13) sobre video/contenedor, Espacio (32), MediaPlayPause (179), k/K
+      if (
+        (k === 32 || k === 179 || e.key === "MediaPlayPause" || e.key === "k" || e.key === "K") ||
+        ((k === 23 || k === 13) && (!target || target === containerRef.current || target === videoRef.current))
+      ) {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
+
+      // Fast Forward: MediaFastForward (228), l/L
+      if (k === 228 || e.key === "l" || e.key === "L") {
         e.preventDefault();
         seek(10);
         return;
       }
 
-      // Rewind: D-Pad Left (21, 37), MediaRewind (227), j/J
-      if (k === 227 || (containerRef.current?.contains(target) && (k === 21 || k === 37 || e.key === "ArrowLeft" || e.key === "j" || e.key === "J"))) {
+      // Rewind: MediaRewind (227), j/J
+      if (k === 227 || e.key === "j" || e.key === "J") {
         e.preventDefault();
         seek(-10);
         return;
@@ -391,8 +452,8 @@ export default function NativeSourcePlayer({
         return;
       }
 
-      // Volumen / OSD: D-Pad Up / Down
-      if (containerRef.current?.contains(target)) {
+      // Volumen / OSD: Flechas Up / Down cuando el foco está libre o en el contenedor
+      if (!target || target === containerRef.current || target === videoRef.current) {
         if (k === 19 || k === 38 || e.key === "ArrowUp") {
           e.preventDefault();
           adjustVolume(0.1);
@@ -413,7 +474,7 @@ export default function NativeSourcePlayer({
       window.removeEventListener("keydown", onKeyDown, true);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
-  }, [togglePlay, seek, adjustVolume, resetHideTimer]);
+  }, [showControls, togglePlay, seek, adjustVolume, resetHideTimer, autoFocusFullscreen]);
 
   const onTimeUpdate = () => {
     const video = videoRef.current;
@@ -428,6 +489,7 @@ export default function NativeSourcePlayer({
     const video = videoRef.current;
     if (!video) return;
     setDuration(video.duration || 0);
+    autoFocusFullscreen();
   };
 
   // Lógica de Scrubbing en la barra de progreso
@@ -579,69 +641,22 @@ export default function NativeSourcePlayer({
             </div>
           </div>
 
-          {/* 2. Trío de Controles Centrales (Netflix TV Style) */}
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
-              togglePlay();
-            }}
-            className={`absolute inset-0 flex items-center justify-center gap-8 sm:gap-14 pointer-events-auto transition-opacity duration-300 z-10 ${
-              !isPlaying || showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
-          >
-            {/* Retroceder 10s */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                seek(-10);
-              }}
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black/40 hover:bg-black/60 border border-white/20 backdrop-blur-md text-white flex flex-col items-center justify-center transition-all hover:scale-110 active:scale-95 focus:ring-2 focus:ring-white focus:outline-none shadow-xl cursor-pointer"
-              title="Retroceder 10s"
-            >
-              <svg className="w-6 h-6 sm:w-7 sm:h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 0 1 5 5v2m-15-7l4-4m-4 4l4 4" />
-              </svg>
-              <span className="text-[9px] font-extrabold -mt-1 font-mono">10</span>
-            </button>
-
-            {/* Botón Central Play / Pausa Principal */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                togglePlay();
-              }}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/20 hover:bg-white/30 border border-white/30 backdrop-blur-xl text-white shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-center transition-all hover:scale-110 active:scale-95 focus:ring-2 focus:ring-white focus:outline-none cursor-pointer"
-              title={isPlaying ? "Pausar" : "Reproducir"}
-            >
-              {isPlaying ? (
-                <svg className="w-8 h-8 sm:w-10 sm:h-10 text-white fill-current" viewBox="0 0 24 24">
-                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                </svg>
-              ) : (
-                <svg className="w-8 h-8 sm:w-10 sm:h-10 text-white fill-current ml-1" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              )}
-            </button>
-
-            {/* Avanzar 10s */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                seek(10);
-              }}
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black/40 hover:bg-black/60 border border-white/20 backdrop-blur-md text-white flex flex-col items-center justify-center transition-all hover:scale-110 active:scale-95 focus:ring-2 focus:ring-white focus:outline-none shadow-xl cursor-pointer"
-              title="Avanzar 10s"
-            >
-              <svg className="w-6 h-6 sm:w-7 sm:h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 10H11a5 5 0 0 0-5 5v2m15-7l-4-4m4 4l-4 4" />
-              </svg>
-              <span className="text-[9px] font-extrabold -mt-1 font-mono">10</span>
-            </button>
-          </div>
+          {/* 2. Pulso animado central transitorio (NO botón interactivo duplicado) */}
+          {centerPulse && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 animate-scale-in">
+              <div className="w-20 h-20 rounded-full bg-black/60 border border-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-2xl">
+                {centerPulse === "play" ? (
+                  <svg className="w-10 h-10 fill-current ml-1" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                ) : (
+                  <svg className="w-10 h-10 fill-current" viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                  </svg>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* 3. Feedback OSD Flotante (Saltos de tiempo, volumen, fallbacks) */}
           {osdFeedback && (
@@ -669,7 +684,7 @@ export default function NativeSourcePlayer({
                   key={rate}
                   type="button"
                   onClick={() => changeSpeed(rate)}
-                  className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors focus:ring-1 focus:ring-white outline-none ${
+                  className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors focus:ring-2 focus:ring-white outline-none ${
                     playbackRate === rate
                       ? "bg-[#E50914] text-white"
                       : "text-zinc-200 hover:bg-white/10"
@@ -694,7 +709,7 @@ export default function NativeSourcePlayer({
               <button
                 type="button"
                 onClick={() => selectSubtitleTrack("off")}
-                className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors focus:ring-1 focus:ring-white outline-none ${
+                className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors focus:ring-2 focus:ring-white outline-none ${
                   selectedSubtitle === "off"
                     ? "bg-[#E50914] text-white"
                     : "text-zinc-200 hover:bg-white/10"
@@ -708,7 +723,7 @@ export default function NativeSourcePlayer({
                   key={sub.id}
                   type="button"
                   onClick={() => selectSubtitleTrack(sub.label || sub.lang)}
-                  className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors focus:ring-1 focus:ring-white outline-none ${
+                  className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors focus:ring-2 focus:ring-white outline-none ${
                     selectedSubtitle === (sub.label || sub.lang)
                       ? "bg-[#E50914] text-white"
                       : "text-zinc-200 hover:bg-white/10"
@@ -721,23 +736,44 @@ export default function NativeSourcePlayer({
             </div>
           )}
 
-          {/* 6. Barra de Controles Inferior (Estilo Netflix TV: simple, limpio, perfectamente alineado) */}
+          {/* 6. Barra de Controles Inferior (Estilo Netflix TV: 1 solo botón Play/Pausa, D-Pad optimizado) */}
           <div
             onClick={(e) => e.stopPropagation()}
             className={`absolute inset-x-0 bottom-0 pt-16 pb-4 px-6 sm:px-10 bg-gradient-to-t from-black/95 via-black/60 to-transparent z-20 transition-opacity duration-300 pointer-events-auto flex flex-col gap-2.5 ${
               showControls ? "opacity-100" : "opacity-0 pointer-events-none"
             }`}
           >
-            {/* Barra de progreso interactiva (Scrubbing tipo Netflix con rastro rojo) */}
+            {/* Barra de progreso interactiva (Scrubbing D-Pad navega con Left/Right) */}
             <div
-              ref={progressContainerRef}
-              onMouseDown={handleProgressBarMouseDown}
-              onMouseMove={handleProgressBarMouseMove}
-              onMouseLeave={handleProgressBarMouseLeave}
-              className="relative w-full h-4 flex items-center cursor-pointer group/progress py-1"
+              ref={scrubberBtnRef}
+              id="btn-scrubber"
+              tabIndex={0}
+              role="slider"
+              aria-label="Línea de tiempo del video"
+              aria-valuemin={0}
+              aria-valuemax={duration || 100}
+              aria-valuenow={currentTime}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowLeft") {
+                  e.preventDefault();
+                  seek(-10);
+                } else if (e.key === "ArrowRight") {
+                  e.preventDefault();
+                  seek(10);
+                } else if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  playPauseBtnRef.current?.focus();
+                }
+              }}
+              className="relative w-full h-4 flex items-center cursor-pointer group/progress py-1 outline-none focus:ring-2 focus:ring-white rounded-full transition-all"
             >
-              {/* Pista de fondo */}
-              <div className="relative w-full h-1 sm:h-1.5 bg-white/20 rounded-full overflow-hidden transition-all duration-200 group-hover/progress:h-2.5">
+              <div
+                ref={progressContainerRef}
+                onMouseDown={handleProgressBarMouseDown}
+                onMouseMove={handleProgressBarMouseMove}
+                onMouseLeave={handleProgressBarMouseLeave}
+                className="relative w-full h-1 sm:h-1.5 bg-white/20 rounded-full overflow-hidden transition-all duration-200 group-hover/progress:h-2.5 group-focus/progress:h-2.5"
+              >
                 {/* Buffer */}
                 <div
                   className="absolute top-0 bottom-0 left-0 bg-white/35 transition-all duration-200 rounded-full"
@@ -752,7 +788,7 @@ export default function NativeSourcePlayer({
 
               {/* Cabezal deslizante / Thumb */}
               <div
-                className="absolute w-3.5 h-3.5 sm:w-4 sm:h-4 bg-[#E50914] border-2 border-white rounded-full shadow-[0_0_8px_rgba(0,0,0,0.8)] -translate-x-1/2 pointer-events-none scale-0 group-hover/progress:scale-100 transition-transform duration-150"
+                className="absolute w-3.5 h-3.5 sm:w-4 sm:h-4 bg-[#E50914] border-2 border-white rounded-full shadow-[0_0_8px_rgba(0,0,0,0.8)] -translate-x-1/2 pointer-events-none scale-0 group-hover/progress:scale-100 group-focus/progress:scale-100 transition-transform duration-150"
                 style={{ left: `${Math.min(100, progressPct)}%` }}
               />
 
@@ -767,16 +803,29 @@ export default function NativeSourcePlayer({
               )}
             </div>
 
-            {/* Fila de controles principales: Izquierda y Derecha simétricas y perfectamente alineadas */}
+            {/* Fila de controles principales: D-Pad navegable de izquierda a derecha */}
             <div className="flex items-center justify-between text-white">
-              {/* Sección Izquierda: Play/Pausa, -10s, +10s, Volumen y Tiempo */}
+              {/* Sección Izquierda: [Play/Pausa ÚNICO], [-10s], [+10s], [Volumen] y [Tiempo] */}
               <div className="flex items-center gap-2 sm:gap-3">
-                {/* Botón Play/Pausa */}
+                {/* ÚNICO Botón de Play/Pausa interactivo del reproductor */}
                 <button
+                  ref={playPauseBtnRef}
+                  id="btn-play-pause"
                   type="button"
+                  tabIndex={0}
                   onClick={togglePlay}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-white/10 active:scale-95 flex items-center justify-center text-white transition-all focus:ring-2 focus:ring-white focus:outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      scrubberBtnRef.current?.focus();
+                    } else if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      rewindBtnRef.current?.focus();
+                    }
+                  }}
+                  className="w-10 h-10 rounded-full hover:bg-white/20 active:scale-95 flex items-center justify-center text-white transition-all outline-none focus:outline-none focus:ring-2 focus:ring-white focus:bg-white/20 focus:scale-110"
                   title={isPlaying ? "Pausar" : "Reproducir"}
+                  aria-label={isPlaying ? "Pausar video" : "Reproducir video"}
                 >
                   {isPlaying ? (
                     <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
@@ -791,10 +840,26 @@ export default function NativeSourcePlayer({
 
                 {/* Retroceder 10s */}
                 <button
+                  ref={rewindBtnRef}
+                  id="btn-rewind-10"
                   type="button"
+                  tabIndex={0}
                   onClick={() => seek(-10)}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-white/10 active:scale-95 flex items-center justify-center text-white transition-all focus:ring-2 focus:ring-white focus:outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      scrubberBtnRef.current?.focus();
+                    } else if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      playPauseBtnRef.current?.focus();
+                    } else if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      forwardBtnRef.current?.focus();
+                    }
+                  }}
+                  className="w-10 h-10 rounded-full hover:bg-white/20 active:scale-95 flex items-center justify-center text-white transition-all outline-none focus:outline-none focus:ring-2 focus:ring-white focus:bg-white/20 focus:scale-110"
                   title="Retroceder 10s"
+                  aria-label="Retroceder 10 segundos"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 0 1 5 5v2m-15-7l4-4m-4 4l4 4" />
@@ -803,23 +868,62 @@ export default function NativeSourcePlayer({
 
                 {/* Avanzar 10s */}
                 <button
+                  ref={forwardBtnRef}
+                  id="btn-forward-10"
                   type="button"
+                  tabIndex={0}
                   onClick={() => seek(10)}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-white/10 active:scale-95 flex items-center justify-center text-white transition-all focus:ring-2 focus:ring-white focus:outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      scrubberBtnRef.current?.focus();
+                    } else if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      rewindBtnRef.current?.focus();
+                    } else if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      volumeBtnRef.current?.focus();
+                    }
+                  }}
+                  className="w-10 h-10 rounded-full hover:bg-white/20 active:scale-95 flex items-center justify-center text-white transition-all outline-none focus:outline-none focus:ring-2 focus:ring-white focus:bg-white/20 focus:scale-110"
                   title="Avanzar 10s"
+                  aria-label="Avanzar 10 segundos"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 10H11a5 5 0 0 0-5 5v2m15-7l-4-4m4 4l-4 4" />
                   </svg>
                 </button>
 
-                {/* Control de Volumen con slider suave */}
+                {/* Control de Volumen */}
                 <div className="flex items-center gap-1.5 group/vol ml-1">
                   <button
+                    ref={volumeBtnRef}
+                    id="btn-volume"
                     type="button"
+                    tabIndex={0}
                     onClick={toggleMute}
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-white/10 active:scale-95 flex items-center justify-center text-white transition-all focus:ring-2 focus:ring-white focus:outline-none"
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        adjustVolume(0.1);
+                      } else if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        adjustVolume(-0.1);
+                      } else if (e.key === "ArrowLeft") {
+                        e.preventDefault();
+                        forwardBtnRef.current?.focus();
+                      } else if (e.key === "ArrowRight") {
+                        e.preventDefault();
+                        if (subtitlesBtnRef.current) {
+                          subtitlesBtnRef.current.focus();
+                        } else {
+                          speedBtnRef.current?.focus();
+                        }
+                      }
+                    }}
+                    className="w-10 h-10 rounded-full hover:bg-white/20 active:scale-95 flex items-center justify-center text-white transition-all outline-none focus:outline-none focus:ring-2 focus:ring-white focus:bg-white/20 focus:scale-110"
                     title={isMuted ? "Activar sonido" : "Silenciar"}
+                    aria-label={isMuted ? "Activar sonido" : "Silenciar sonido"}
                   >
                     {isMuted || volume === 0 ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -846,6 +950,7 @@ export default function NativeSourcePlayer({
                     onChange={(e) => setExactVolume(parseFloat(e.target.value))}
                     className="w-0 group-hover/vol:w-16 sm:group-hover/vol:w-20 focus-within:w-20 transition-all duration-200 accent-[#E50914] cursor-pointer h-1.5 bg-white/20 rounded-full"
                     title={`Volumen: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
+                    aria-label="Control deslizante de volumen"
                   />
                 </div>
 
@@ -857,23 +962,39 @@ export default function NativeSourcePlayer({
                 </div>
               </div>
 
-              {/* Sección Derecha: Subtítulos, Velocidad, PiP, Pantalla Completa */}
-              <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* Sección Derecha: [Subtítulos] -> [Velocidad] -> [PiP] -> [PANTALLA COMPLETA POR DEFECTO] */}
+              <div className="flex items-center gap-2 sm:gap-3">
                 {/* Botón Subtítulos (si existen pistas) */}
                 {source.subtitles && source.subtitles.length > 0 && (
                   <button
+                    ref={subtitlesBtnRef}
+                    id="btn-subtitles"
                     type="button"
+                    tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowSubtitlesMenu(!showSubtitlesMenu);
                       setShowSettings(false);
                     }}
-                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all focus:ring-2 focus:ring-white focus:outline-none ${
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        scrubberBtnRef.current?.focus();
+                      } else if (e.key === "ArrowLeft") {
+                        e.preventDefault();
+                        volumeBtnRef.current?.focus();
+                      } else if (e.key === "ArrowRight") {
+                        e.preventDefault();
+                        speedBtnRef.current?.focus();
+                      }
+                    }}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all outline-none focus:outline-none focus:ring-2 focus:ring-white focus:scale-110 ${
                       showSubtitlesMenu || selectedSubtitle !== "off"
                         ? "bg-white/20 text-[#E50914]"
-                        : "hover:bg-white/10 text-zinc-300 hover:text-white"
+                        : "hover:bg-white/20 text-zinc-300 hover:text-white"
                     }`}
                     title="Subtítulos y audio"
+                    aria-label="Configuración de subtítulos"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
@@ -881,20 +1002,44 @@ export default function NativeSourcePlayer({
                   </button>
                 )}
 
-                {/* Selector de Velocidad (Pill compacto tipo Netflix) */}
+                {/* Selector de Velocidad */}
                 <button
+                  ref={speedBtnRef}
+                  id="btn-speed"
                   type="button"
+                  tabIndex={0}
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowSettings(!showSettings);
                     setShowSubtitlesMenu(false);
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-extrabold tracking-wide transition-all border focus:ring-2 focus:ring-white focus:outline-none ${
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      scrubberBtnRef.current?.focus();
+                    } else if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      if (subtitlesBtnRef.current) {
+                        subtitlesBtnRef.current.focus();
+                      } else {
+                        volumeBtnRef.current?.focus();
+                      }
+                    } else if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      if (pipBtnRef.current) {
+                        pipBtnRef.current.focus();
+                      } else {
+                        fullscreenBtnRef.current?.focus();
+                      }
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold tracking-wide transition-all border outline-none focus:outline-none focus:ring-2 focus:ring-white focus:scale-110 ${
                     showSettings || playbackRate !== 1
                       ? "bg-[#E50914] text-white border-[#E50914]"
-                      : "bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white border-white/10"
+                      : "bg-white/10 hover:bg-white/20 text-zinc-200 hover:text-white border-white/15"
                   }`}
                   title="Velocidad de reproducción"
+                  aria-label="Velocidad de reproducción"
                 >
                   {playbackRate}x
                 </button>
@@ -902,10 +1047,26 @@ export default function NativeSourcePlayer({
                 {/* Botón Picture-in-Picture (PiP) */}
                 {isPipAvailable && (
                   <button
+                    ref={pipBtnRef}
+                    id="btn-pip"
                     type="button"
+                    tabIndex={0}
                     onClick={togglePip}
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-white/10 active:scale-95 flex items-center justify-center text-zinc-300 hover:text-white transition-all focus:ring-2 focus:ring-white focus:outline-none"
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        scrubberBtnRef.current?.focus();
+                      } else if (e.key === "ArrowLeft") {
+                        e.preventDefault();
+                        speedBtnRef.current?.focus();
+                      } else if (e.key === "ArrowRight") {
+                        e.preventDefault();
+                        fullscreenBtnRef.current?.focus();
+                      }
+                    }}
+                    className="w-10 h-10 rounded-full hover:bg-white/20 active:scale-95 flex items-center justify-center text-zinc-200 hover:text-white transition-all outline-none focus:outline-none focus:ring-2 focus:ring-white focus:scale-110"
                     title="Ventana flotante (Picture in Picture)"
+                    aria-label="Activar Picture in Picture"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <rect x="2" y="3" width="20" height="14" rx="2" />
@@ -914,19 +1075,36 @@ export default function NativeSourcePlayer({
                   </button>
                 )}
 
-                {/* Botón Pantalla Completa */}
+                {/* Botón Pantalla Completa: FOCO POR DEFECTO PARA TV (Selector de Alto Contraste) */}
                 <button
+                  ref={fullscreenBtnRef}
+                  id="btn-fullscreen-native"
                   type="button"
+                  tabIndex={0}
                   onClick={toggleFullscreen}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-white/10 active:scale-95 flex items-center justify-center text-zinc-300 hover:text-white transition-all focus:ring-2 focus:ring-white focus:outline-none"
-                  title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      scrubberBtnRef.current?.focus();
+                    } else if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      if (pipBtnRef.current) {
+                        pipBtnRef.current.focus();
+                      } else {
+                        speedBtnRef.current?.focus();
+                      }
+                    }
+                  }}
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white/10 hover:bg-white/25 active:scale-95 flex items-center justify-center text-white transition-all outline-none focus:outline-none focus:ring-4 focus:ring-[#E50914] focus:bg-white/25 focus:scale-125 focus:shadow-[0_0_20px_rgba(229,9,20,0.9)]"
+                  title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa (Enter en TV)"}
+                  aria-label={isFullscreen ? "Salir de pantalla completa" : "Entrar a pantalla completa"}
                 >
                   {isFullscreen ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 9L4 4m0 0l5 0m-5 0l0 5m11 0l5-5m0 0l-5 0m5 0l0 5M9 15l-5 5m0 0l5 0m-5 0l0-5m11 0l5 5m0 0l-5 0m5 0l0-5" />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                     </svg>
                   )}
