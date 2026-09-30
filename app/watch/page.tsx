@@ -87,9 +87,59 @@ function WatchInner() {
 
         const data: ResolveResponse = await res.json();
         if (data && Array.isArray(data.sources)) {
-          setSources(data.sources);
-          setRecommendedSourceId(data.recommendedSourceId || data.sources[0]?.id || "");
+          const rawList = [...data.sources];
+          setSources(rawList);
+          setRecommendedSourceId(data.recommendedSourceId || rawList[0]?.id || "");
           setVersion(data.version || "");
+
+          // Extracción client-side para MegaEmbed:
+          // Las IPs de centros de datos de Vercel/AWS son bloqueadas por Cloudflare (HTTP 403),
+          // pero el cliente (navegador, Electron, Android TV) corre desde IP residencial donde megaembed.com permite CORS '*'
+          const megaItem = rawList.find(
+            (s) => s.providerId === "megaembed" || s.id.startsWith("megaembed")
+          );
+          const hasNative = rawList.some(
+            (s) => s.providerId === "megaembed" && s.type === "hls"
+          );
+
+          if (megaItem && !hasNative) {
+            import("@/lib/megaembed").then(async ({ fetchMegaEmbedStream }) => {
+              try {
+                const targetMegaId = data.effectiveImdbId || data.effectiveTmdbId || id;
+                const streamResult = await fetchMegaEmbedStream({
+                  id: targetMegaId,
+                  type,
+                  season: s,
+                  episode: e,
+                });
+                if (streamResult?.hlsUrl) {
+                  const nativeSource: Source = {
+                    ...megaItem,
+                    id: `${megaItem.providerId}-native`,
+                    type: "hls",
+                    url: streamResult.hlsUrl,
+                    realName: `${megaItem.realName || megaItem.providerName} (Nativo TV)`,
+                    priority: 120,
+                  };
+                  setSources((prev) => {
+                    const exists = prev.some((x) => x.id === nativeSource.id);
+                    if (exists) return prev;
+                    const idx = prev.findIndex(
+                      (x) => x.providerId === "megaembed" || x.id.startsWith("megaembed")
+                    );
+                    const next = [...prev];
+                    if (idx !== -1) {
+                      next.splice(idx, 0, nativeSource);
+                    } else {
+                      next.unshift(nativeSource);
+                    }
+                    return next;
+                  });
+                  setRecommendedSourceId(nativeSource.id);
+                }
+              } catch {}
+            });
+          }
         } else {
           setError(true);
         }
@@ -321,7 +371,36 @@ function WatchInner() {
           sources={sources}
           activeSource={activeSource}
           recommendedSourceId={recommendedSourceId}
-          onSelectSource={(source) => setUserSourceId(source.id)}
+          onSelectSource={(source) => {
+            if (
+              (source.providerId === "megaembed" || source.id.startsWith("megaembed")) &&
+              source.type !== "hls"
+            ) {
+              const nativeMega = sources.find(
+                (x) => x.providerId === "megaembed" && x.type === "hls"
+              );
+              if (nativeMega) {
+                setUserSourceId(nativeMega.id);
+                return;
+              }
+              import("@/lib/megaembed").then(async ({ fetchMegaEmbedStream }) => {
+                const streamResult = await fetchMegaEmbedStream({ id, type, season: s, episode: e });
+                if (streamResult?.hlsUrl) {
+                  const nativeSource: Source = {
+                    ...source,
+                    id: `${source.providerId}-native`,
+                    type: "hls",
+                    url: streamResult.hlsUrl,
+                    realName: `${source.realName || source.providerName} (Nativo TV)`,
+                    priority: 120,
+                  };
+                  setSources((prev) => [nativeSource, ...prev.filter((x) => x.id !== nativeSource.id)]);
+                  setUserSourceId(nativeSource.id);
+                }
+              }).catch(() => {});
+            }
+            setUserSourceId(source.id);
+          }}
           lang={lang}
           version={version}
         />

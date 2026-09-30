@@ -45,11 +45,15 @@ export async function fetchMegaEmbedStream(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 9000);
 
+    const headers: Record<string, string> = {
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    };
+    if (typeof window === "undefined") {
+      headers["User-Agent"] = USER_AGENT;
+    }
+
     const res = await fetch(targetUrl, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
+      headers,
       signal: controller.signal,
       cache: "no-store",
     });
