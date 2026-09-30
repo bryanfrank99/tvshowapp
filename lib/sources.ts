@@ -125,22 +125,47 @@ export function sortSourcesByPriority(
 
   const rankMap = new Map<string, number>();
   priorityList.forEach((pid, idx) => {
-    if (pid && !rankMap.has(pid)) {
-      rankMap.set(pid, idx);
+    if (pid) {
+      const clean = pid.toLowerCase().trim();
+      if (!rankMap.has(clean)) {
+        rankMap.set(clean, idx);
+      }
     }
   });
 
   return [...sources].sort((a, b) => {
     // 0. Si el administrador definió una o más prioridades explícitas para este idioma
     if (rankMap.size > 0) {
-      const idA = a.providerId || a.id;
-      const idB = b.providerId || b.id;
-      const rankA = rankMap.has(idA) ? rankMap.get(idA)! : Infinity;
-      const rankB = rankMap.has(idB) ? rankMap.get(idB)! : Infinity;
+      const getRank = (s: Source): number => {
+        const idLower = (s.id || "").toLowerCase().trim();
+        const provIdLower = (s.providerId || "").toLowerCase().trim();
+        const isHls =
+          s.type === "hls" ||
+          s.providerName === "HLS" ||
+          idLower === "hls" ||
+          provIdLower === "hls";
+
+        // Si es un pool HLS y el admin configuró 'hls' como prioritario para este idioma:
+        if (isHls && rankMap.has("hls")) {
+          // Solo se aplica la prioridad al pool HLS lingüísticamente compatible con el usuario
+          const isLangCompatible = scoreSourceForUser(s, userLang) > 0;
+          if (isLangCompatible) {
+            return rankMap.get("hls")!;
+          }
+          // Si no es del idioma del usuario, no debe usurpar la posición del pool HLS de este idioma
+          return Infinity;
+        }
+
+        if (rankMap.has(idLower)) return rankMap.get(idLower)!;
+        if (rankMap.has(provIdLower)) return rankMap.get(provIdLower)!;
+        return Infinity;
+      };
+
+      const rankA = getRank(a);
+      const rankB = getRank(b);
 
       if (rankA !== rankB) {
-        const isAPrimary = rankA < rankB;
-        return isAPrimary ? -1 : 1;
+        return rankA < rankB ? -1 : 1;
       }
     }
 

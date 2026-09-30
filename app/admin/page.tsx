@@ -177,6 +177,17 @@ function LanguagePriorityManager({
   const activeProvs = provs.filter((p) => p.active);
   const currentList = prioritiesByLang[activeTab] || [];
 
+  // Miembros HLS activos correspondientes a la pestaña de idioma activa
+  const tabHlsMembers = activeProvs.filter((p) => {
+    if (!p.hls_enabled) return false;
+    if (activeTab === "es") return p.languages?.some((l) => l.includes("es") || l.includes("lat")) || p.lang?.includes("es") || p.lang?.includes("lat");
+    if (activeTab === "pt") return p.languages?.some((l) => l.includes("pt")) || p.lang?.includes("pt");
+    if (activeTab === "en") return p.languages?.some((l) => l === "en") || p.lang === "en";
+    return false;
+  });
+
+  const isHlsInList = currentList.includes("hls");
+
   // Proveedores que aún no están en la lista de prioridades de este idioma
   const unprioritizedProvs = activeProvs.filter((p) => !currentList.includes(p.id));
 
@@ -222,6 +233,8 @@ function LanguagePriorityManager({
     { key: "pt" as const, label: "Português (PT)" },
     { key: "en" as const, label: "English (EN)" },
   ];
+
+  const canAddMore = !isHlsInList || unprioritizedProvs.length > 0;
 
   return (
     <div className="space-y-4">
@@ -292,9 +305,82 @@ function LanguagePriorityManager({
       ) : (
         <div className="space-y-2">
           {currentList.map((provId, index) => {
-            const p = activeProvs.find((x) => x.id === provId) || provs.find((x) => x.id === provId);
             const isFirst = index === 0;
             const isLast = index === currentList.length - 1;
+
+            // CASO ESPECIAL: Pool HLS Unificado
+            if (provId === "hls") {
+              return (
+                <div
+                  key="hls"
+                  className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-purple-950/40 via-[#12121c] to-amber-950/30 border border-purple-500/40 hover:border-purple-400/60 transition gap-3 shadow-sm shadow-purple-950/50"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-black tracking-wide shrink-0 ${
+                        index === 0
+                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                          : index === 1
+                          ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
+                          : "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                      }`}
+                    >
+                      #{index + 1} {lang === "en" ? `Priority ${index + 1}` : lang === "pt" ? `Prioridade ${index + 1}` : `Prioridad ${index + 1}`}
+                    </span>
+                    <span className="font-mono font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded text-xs shrink-0 flex items-center gap-1">
+                      <span>⚡</span>
+                      <span>POOL HLS</span>
+                    </span>
+                    <b className="text-white text-xs truncate">
+                      {lang === "en"
+                        ? `Unified HLS Pool (${activeTab.toUpperCase()})`
+                        : lang === "pt"
+                        ? `Pool HLS Unificado (${activeTab.toUpperCase()})`
+                        : `Pool HLS Unificado (${activeTab.toUpperCase()})`}
+                    </b>
+                    <span className="text-[10px] text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded border border-purple-500/30 font-semibold shrink-0">
+                      {tabHlsMembers.length} {tabHlsMembers.length === 1 ? "stream nativo" : "streams con Failover"}
+                    </span>
+                    {index === 0 && (
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold shrink-0">
+                        ⭐ {lang === "en" ? "Top 1" : "Principal"}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      disabled={isFirst}
+                      onClick={() => handleMove(index, index - 1)}
+                      className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-xs text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer flex items-center justify-center font-bold"
+                      title={lang === "en" ? "Move up" : lang === "pt" ? "Subir prioridade" : "Subir prioridad"}
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isLast}
+                      onClick={() => handleMove(index, index + 1)}
+                      className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-xs text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer flex items-center justify-center font-bold"
+                      title={lang === "en" ? "Move down" : lang === "pt" ? "Descer prioridade" : "Bajar prioridad"}
+                    >
+                      ▼
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(index)}
+                      className="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-xs text-red-300 hover:text-red-200 transition cursor-pointer flex items-center justify-center font-bold ml-1"
+                      title={lang === "en" ? "Remove" : lang === "pt" ? "Remover" : "Quitar de prioridades"}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            const p = activeProvs.find((x) => x.id === provId) || provs.find((x) => x.id === provId);
             const simName = p?.simulated_name || (p?.ord ? `S${p.ord}` : "S-");
 
             return (
@@ -366,8 +452,8 @@ function LanguagePriorityManager({
         </div>
       )}
 
-      {/* Control para agregar servidores a la lista de prioridades */}
-      {unprioritizedProvs.length > 0 ? (
+      {/* Control para agregar servidores o Pool HLS a la lista de prioridades */}
+      {canAddMore ? (
         <div className="flex items-center gap-2 pt-1 flex-wrap">
           <select
             value={selectedToAdd}
@@ -376,11 +462,16 @@ function LanguagePriorityManager({
           >
             <option value="" className="bg-[#141420] text-zinc-400">
               {lang === "en"
-                ? "-- Select server to add to priority list --"
+                ? "-- Select server or HLS Pool to add to priority list --"
                 : lang === "pt"
-                ? "-- Selecionar servidor para adicionar à prioridade --"
-                : "-- Seleccionar servidor para añadir a la prioridad --"}
+                ? "-- Selecionar servidor ou Pool HLS para adicionar à prioridade --"
+                : "-- Seleccionar servidor o Pool HLS para añadir a la prioridad --"}
             </option>
+            {!isHlsInList && (
+              <option value="hls" className="bg-[#1b1530] text-amber-300 font-bold">
+                ⚡ {lang === "en" ? "Unified HLS Pool (Multi-Stream Failover)" : lang === "pt" ? "Pool HLS Unificado (Failover Multi-Stream)" : "Pool HLS Unificado (Failover Multi-Stream)"} ({tabHlsMembers.length} {tabHlsMembers.length === 1 ? "stream" : "streams"})
+              </option>
+            )}
             {unprioritizedProvs.map((p) => (
               <option key={p.id} value={p.id} className="bg-[#141420] text-white">
                 {p.simulated_name || `S${p.ord}`} - {p.real_name || p.name} ({p.lang || "multi"})
@@ -396,9 +487,9 @@ function LanguagePriorityManager({
             <span>+</span>
             <span>
               {lang === "en"
-                ? "Add Server"
+                ? "Add to Priorities"
                 : lang === "pt"
-                ? "Adicionar Servidor"
+                ? "Adicionar às Prioridades"
                 : "Añadir a Prioridades"}
             </span>
           </button>
@@ -406,10 +497,10 @@ function LanguagePriorityManager({
       ) : (
         <p className="text-[11px] text-zinc-500 italic pt-1">
           ✓ {lang === "en"
-            ? "All active servers have been added to this language's priority order."
+            ? "All active servers and the HLS Pool have been added to this language's priority order."
             : lang === "pt"
-            ? "Todos os servidores ativos foram adicionados à ordem de prioridade deste idioma."
-            : "Todos los servidores activos han sido añadidos al orden de prioridad de este idioma."}
+            ? "Todos os servidores ativos e o Pool HLS foram adicionados à ordem de prioridade deste idioma."
+            : "Todos los servidores activos y el Pool HLS han sido añadidos al orden de prioridad de este idioma."}
         </p>
       )}
     </div>
@@ -1199,7 +1290,8 @@ export default function AdminPage() {
     } else setMsg(lang === "en" ? "Error saving server" : lang === "pt" ? "Erro ao salvar servidor" : "Error guardando servidor");
   };
 
-  const savePrioritiesByLang = async () => {
+  const savePrioritiesByLang = async (overridePriorities?: { es: string[]; pt: string[]; en: string[] }) => {
+    const payload = overridePriorities || prioritiesByLang;
     setSavingPrimary(true);
     setSavedPrimaryMsg("");
     try {
@@ -1208,7 +1300,7 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "save_priorities_by_lang",
-          provider_priorities_by_lang: prioritiesByLang,
+          provider_priorities_by_lang: payload,
         }),
       });
       if (r.ok) {
@@ -2278,6 +2370,9 @@ export default function AdminPage() {
                 const esMembers = provs.filter(
                   (p) => p.active && p.hls_enabled && (p.languages?.some((l) => l.includes("es") || l.includes("lat")) || p.lang?.includes("es") || p.lang?.includes("lat"))
                 );
+                const isHlsTop = prioritiesByLang.es?.[0] === "hls";
+                const isHlsRanked = prioritiesByLang.es?.includes("hls");
+
                 return (
                   <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex flex-col justify-between gap-2.5">
                     <div>
@@ -2300,12 +2395,43 @@ export default function AdminPage() {
                           : "No hay servidores HLS con audio español asignados."}
                       </p>
                     </div>
-                    {esMembers.length > 1 && (
-                      <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg flex items-center gap-1">
-                        <span>✓</span>
-                        <span>Auto-failover transparente activado</span>
-                      </span>
-                    )}
+
+                    <div className="space-y-1.5 pt-1 border-t border-white/5">
+                      {esMembers.length > 1 && (
+                        <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                          <span>✓</span>
+                          <span>Auto-failover transparente activado</span>
+                        </span>
+                      )}
+
+                      <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+                        {isHlsTop ? (
+                          <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
+                            ⭐ {lang === "en" ? "Priority #1 (ES) Active" : lang === "pt" ? "Prioridade #1 (ES) Ativa" : "Prioridad #1 (ES) Activa"}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const filtered = (prioritiesByLang.es || []).filter((id) => id !== "hls");
+                              const nextPriorities = { ...prioritiesByLang, es: ["hls", ...filtered] };
+                              setPrioritiesByLang(nextPriorities);
+                              savePrioritiesByLang(nextPriorities);
+                            }}
+                            className="text-[10px] font-bold text-amber-300 hover:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 hover:border-amber-500/50 px-2 py-0.5 rounded-lg flex items-center gap-1 transition cursor-pointer"
+                            title={lang === "en" ? "Set HLS Pool as Top 1 priority for Spanish" : lang === "pt" ? "Definir Pool HLS como prioridade #1 para Espanhol" : "Fijar Pool HLS como prioridad #1 para Español"}
+                          >
+                            <span>⚡</span>
+                            <span>{lang === "en" ? "Set as Priority #1" : lang === "pt" ? "Definir como Prioridade #1" : "Fijar como Prioridad #1"}</span>
+                          </button>
+                        )}
+                        {isHlsRanked && !isHlsTop && (
+                          <span className="text-[10px] text-zinc-400 font-mono">
+                            #{prioritiesByLang.es.indexOf("hls") + 1} {lang === "en" ? "in queue" : "en cola"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
@@ -2315,6 +2441,9 @@ export default function AdminPage() {
                 const ptMembers = provs.filter(
                   (p) => p.active && p.hls_enabled && (p.languages?.some((l) => l.includes("pt")) || p.lang?.includes("pt"))
                 );
+                const isHlsTop = prioritiesByLang.pt?.[0] === "hls";
+                const isHlsRanked = prioritiesByLang.pt?.includes("hls");
+
                 return (
                   <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex flex-col justify-between gap-2.5">
                     <div>
@@ -2337,12 +2466,43 @@ export default function AdminPage() {
                           : "No hay servidores HLS con audio portugués asignados."}
                       </p>
                     </div>
-                    {ptMembers.length > 1 && (
-                      <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg flex items-center gap-1">
-                        <span>✓</span>
-                        <span>Auto-failover transparente activado</span>
-                      </span>
-                    )}
+
+                    <div className="space-y-1.5 pt-1 border-t border-white/5">
+                      {ptMembers.length > 1 && (
+                        <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                          <span>✓</span>
+                          <span>Auto-failover transparente activado</span>
+                        </span>
+                      )}
+
+                      <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+                        {isHlsTop ? (
+                          <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
+                            ⭐ {lang === "en" ? "Priority #1 (PT) Active" : lang === "pt" ? "Prioridade #1 (PT) Ativa" : "Prioridad #1 (PT) Activa"}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const filtered = (prioritiesByLang.pt || []).filter((id) => id !== "hls");
+                              const nextPriorities = { ...prioritiesByLang, pt: ["hls", ...filtered] };
+                              setPrioritiesByLang(nextPriorities);
+                              savePrioritiesByLang(nextPriorities);
+                            }}
+                            className="text-[10px] font-bold text-emerald-300 hover:text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 hover:border-emerald-500/50 px-2 py-0.5 rounded-lg flex items-center gap-1 transition cursor-pointer"
+                            title={lang === "en" ? "Set HLS Pool as Top 1 priority for Portuguese" : lang === "pt" ? "Definir Pool HLS como prioridade #1 para Português" : "Fijar Pool HLS como prioridad #1 para Portugués"}
+                          >
+                            <span>⚡</span>
+                            <span>{lang === "en" ? "Set as Priority #1" : lang === "pt" ? "Definir como Prioridade #1" : "Fijar como Prioridad #1"}</span>
+                          </button>
+                        )}
+                        {isHlsRanked && !isHlsTop && (
+                          <span className="text-[10px] text-zinc-400 font-mono">
+                            #{prioritiesByLang.pt.indexOf("hls") + 1} {lang === "en" ? "in queue" : "en cola"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
@@ -2352,6 +2512,9 @@ export default function AdminPage() {
                 const enMembers = provs.filter(
                   (p) => p.active && p.hls_enabled && (p.languages?.some((l) => l === "en") || p.lang === "en")
                 );
+                const isHlsTop = prioritiesByLang.en?.[0] === "hls";
+                const isHlsRanked = prioritiesByLang.en?.includes("hls");
+
                 return (
                   <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex flex-col justify-between gap-2.5">
                     <div>
@@ -2374,12 +2537,43 @@ export default function AdminPage() {
                           : "No hay servidores HLS con audio en inglés asignados."}
                       </p>
                     </div>
-                    {enMembers.length > 1 && (
-                      <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg flex items-center gap-1">
-                        <span>✓</span>
-                        <span>Auto-failover transparente activado</span>
-                      </span>
-                    )}
+
+                    <div className="space-y-1.5 pt-1 border-t border-white/5">
+                      {enMembers.length > 1 && (
+                        <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                          <span>✓</span>
+                          <span>Auto-failover transparente activado</span>
+                        </span>
+                      )}
+
+                      <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+                        {isHlsTop ? (
+                          <span className="text-[10px] font-bold text-sky-300 bg-sky-500/20 border border-sky-500/40 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
+                            ⭐ {lang === "en" ? "Priority #1 (EN) Active" : lang === "pt" ? "Prioridade #1 (EN) Ativa" : "Prioridad #1 (EN) Activa"}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const filtered = (prioritiesByLang.en || []).filter((id) => id !== "hls");
+                              const nextPriorities = { ...prioritiesByLang, en: ["hls", ...filtered] };
+                              setPrioritiesByLang(nextPriorities);
+                              savePrioritiesByLang(nextPriorities);
+                            }}
+                            className="text-[10px] font-bold text-sky-300 hover:text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 hover:border-sky-500/50 px-2 py-0.5 rounded-lg flex items-center gap-1 transition cursor-pointer"
+                            title={lang === "en" ? "Set HLS Pool as Top 1 priority for English" : lang === "pt" ? "Definir Pool HLS como prioridade #1 para Inglês" : "Fijar Pool HLS como prioridad #1 para Inglés"}
+                          >
+                            <span>⚡</span>
+                            <span>{lang === "en" ? "Set as Priority #1" : lang === "pt" ? "Definir como Prioridade #1" : "Fijar como Prioridad #1"}</span>
+                          </button>
+                        )}
+                        {isHlsRanked && !isHlsTop && (
+                          <span className="text-[10px] text-zinc-400 font-mono">
+                            #{prioritiesByLang.en.indexOf("hls") + 1} {lang === "en" ? "in queue" : "en cola"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
@@ -2410,7 +2604,7 @@ export default function AdminPage() {
               </div>
               <button
                 type="button"
-                onClick={savePrioritiesByLang}
+                onClick={() => savePrioritiesByLang()}
                 disabled={savingPrimary}
                 className="px-4 py-2 rounded-xl bg-[#008CFF] hover:bg-[#0070cc] text-white text-xs font-bold transition shadow-md shadow-[#008CFF]/20 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
