@@ -1,7 +1,7 @@
 // @ts-nocheck
 "use client";
 import { Suspense, useEffect, useRef, useState, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useHistory } from "@/hooks/useHistory";
 import { useLang } from "@/hooks/useLang";
@@ -16,6 +16,7 @@ import { getPlaybackKey } from "@/lib/playback-progress";
 import { sortSourcesByPriority, type Source } from "@/lib/sources";
 
 function WatchInner() {
+  const router = useRouter();
   const sp = useSearchParams();
   const type = (sp.get("type") || "movie") as "movie" | "tv";
   const id = sp.get("id") || "";
@@ -24,6 +25,13 @@ function WatchInner() {
   const { save } = useHistory();
   const { lang } = useLang();
   const d = t(lang);
+
+  const onSelectEpisode = useCallback(
+    (newSeason: number, newEpisode: number) => {
+      router.push(`/watch?type=tv&id=${encodeURIComponent(id)}&s=${newSeason}&e=${newEpisode}`);
+    },
+    [id, router]
+  );
 
   const [title, setTitle] = useState(`#${id}`);
   const [sources, setSources] = useState<Source[]>([]);
@@ -570,6 +578,18 @@ function WatchInner() {
         }}
         lang={lang}
         playbackKey={getPlaybackKey(type, id, s, e)}
+        seriesInfo={
+          type === "tv"
+            ? {
+                type: "tv",
+                id,
+                season: s,
+                episode: e,
+                lang,
+                onSelectEpisode,
+              }
+            : undefined
+        }
       />
 
       {/* 3. Navegación de Episodios (Solo para series TV) */}

@@ -19,6 +19,14 @@ interface PlayerContainerProps {
   onSourceLoad?: () => void;
   lang: string;
   playbackKey?: string;
+  seriesInfo?: {
+    type: "movie" | "tv";
+    id: string;
+    season: number;
+    episode: number;
+    lang: string;
+    onSelectEpisode: (season: number, episode: number) => void;
+  };
 }
 
 const PlayerContainer = forwardRef<HTMLDivElement, PlayerContainerProps>(
@@ -36,6 +44,7 @@ const PlayerContainer = forwardRef<HTMLDivElement, PlayerContainerProps>(
       onSourceLoad,
       lang,
       playbackKey,
+      seriesInfo,
     },
     ref
   ) => {
@@ -103,6 +112,7 @@ const PlayerContainer = forwardRef<HTMLDivElement, PlayerContainerProps>(
             onError={onSourceError}
             onLoad={onSourceLoad}
             playbackKey={playbackKey}
+            seriesInfo={seriesInfo}
           />
         )}
       </div>

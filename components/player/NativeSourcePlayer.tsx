@@ -8,6 +8,8 @@ import {
   clearPlaybackProgress,
 } from "@/lib/playback-progress";
 
+import EpisodesDrawer from "./EpisodesDrawer";
+
 interface NativeSourcePlayerProps {
   source: Source;
   title: string;
@@ -15,6 +17,14 @@ interface NativeSourcePlayerProps {
   onError?: () => void;
   onLoad?: () => void;
   playbackKey?: string;
+  seriesInfo?: {
+    type: "movie" | "tv";
+    id: string;
+    season: number;
+    episode: number;
+    lang: string;
+    onSelectEpisode: (season: number, episode: number) => void;
+  };
 }
 
 function formatTime(seconds: number): string {
@@ -41,6 +51,7 @@ export default function NativeSourcePlayer({
   onError,
   onLoad,
   playbackKey,
+  seriesInfo,
 }: NativeSourcePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -86,8 +97,12 @@ export default function NativeSourcePlayer({
   const [showControls, setShowControls] = useState(true);
   const [centerPulse, setCenterPulse] = useState<"play" | "pause" | null>(null);
   const [osdFeedback, setOsdFeedback] = useState<{ icon: string; text: string } | null>(null);
+  const [resumeNotice, setResumeNotice] = useState<string | null>(null);
+  const [showEpisodesDrawer, setShowEpisodesDrawer] = useState(false);
+  const episodesBtnRef = useRef<HTMLButtonElement>(null);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pulseTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const resumeTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Scrubbing interactivo
   const [isDragging, setIsDragging] = useState(false);
@@ -523,7 +538,11 @@ export default function NativeSourcePlayer({
         try {
           video.currentTime = saved.currentTime;
           setCurrentTime(saved.currentTime);
-          triggerFeedback("▶️", `Reanudando en ${formatTime(saved.currentTime)}`);
+          setResumeNotice(`Reanudando en ${formatTime(saved.currentTime)}`);
+          if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+          resumeTimerRef.current = setTimeout(() => {
+            setResumeNotice(null);
+          }, 2200);
         } catch {}
       }
     }
@@ -546,6 +565,12 @@ export default function NativeSourcePlayer({
       handleSave();
     };
   }, [playbackKey]);
+
+  useEffect(() => {
+    return () => {
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    };
+  }, []);
 
   // Lógica de Scrubbing en la barra de progreso
   const calculateScrubPosition = (e: React.MouseEvent<HTMLDivElement> | MouseEvent) => {
@@ -737,6 +762,16 @@ export default function NativeSourcePlayer({
               </span>
             </div>
           </div>
+
+          {/* Cartel de reanudación translúcido en la esquina (discreto y rápido auto-dismiss) */}
+          {resumeNotice && (
+            <div className="absolute top-4 right-4 sm:top-5 sm:right-6 z-40 pointer-events-none animate-fade-in">
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/65 backdrop-blur-md border border-white/20 text-white shadow-2xl text-xs font-semibold">
+                <span className="text-emerald-400">▶</span>
+                <span>{resumeNotice}</span>
+              </div>
+            </div>
+          )}
 
           {/* 2. Pulso animado central transitorio (NO botón interactivo duplicado) */}
           {centerPulse && (
@@ -1002,7 +1037,7 @@ export default function NativeSourcePlayer({
                     onKeyDown={(e) => {
                       if (e.key === "ArrowUp") {
                         e.preventDefault();
-                        adjustVolume(0.1);
+                        scrubberBtnRef.current?.focus();
                       } else if (e.key === "ArrowDown") {
                         e.preventDefault();
                         adjustVolume(-0.1);
@@ -1011,7 +1046,9 @@ export default function NativeSourcePlayer({
                         forwardBtnRef.current?.focus();
                       } else if (e.key === "ArrowRight") {
                         e.preventDefault();
-                        if (subtitlesBtnRef.current) {
+                        if (episodesBtnRef.current) {
+                          episodesBtnRef.current.focus();
+                        } else if (subtitlesBtnRef.current) {
                           subtitlesBtnRef.current.focus();
                         } else {
                           speedBtnRef.current?.focus();
@@ -1038,17 +1075,19 @@ export default function NativeSourcePlayer({
                     )}
                   </button>
 
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => setExactVolume(parseFloat(e.target.value))}
-                    className="w-0 group-hover/vol:w-16 sm:group-hover/vol:w-20 focus-within:w-20 transition-all duration-200 accent-[#E50914] cursor-pointer h-1.5 bg-white/20 rounded-full"
-                    title={`Volumen: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
-                    aria-label="Control deslizante de volumen"
-                  />
+                  <div className="overflow-hidden transition-all duration-200 w-0 group-hover/vol:w-16 sm:group-hover/vol:w-20 focus-within:w-16 sm:focus-within:w-20 flex items-center">
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={isMuted ? 0 : volume}
+                      onChange={(e) => setExactVolume(parseFloat(e.target.value))}
+                      className="w-16 sm:w-20 opacity-0 pointer-events-none group-hover/vol:opacity-100 group-hover/vol:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity duration-150 accent-[#E50914] cursor-pointer h-1.5 bg-white/20 rounded-full"
+                      title={`Volumen: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
+                      aria-label="Control deslizante de volumen"
+                    />
+                  </div>
                 </div>
 
                 {/* Contador de Tiempo Formato Netflix: Transcurrido / Restante */}
@@ -1059,8 +1098,52 @@ export default function NativeSourcePlayer({
                 </div>
               </div>
 
-              {/* Sección Derecha: [Subtítulos] -> [Velocidad] -> [PiP] -> [PANTALLA COMPLETA POR DEFECTO] */}
+              {/* Sección Derecha: [Episodios] -> [Subtítulos] -> [Velocidad] -> [PiP] -> [PANTALLA COMPLETA POR DEFECTO] */}
               <div className="flex items-center gap-2 sm:gap-3">
+                {/* Botón Episodios estilo Netflix */}
+                {seriesInfo?.type === "tv" && (
+                  <button
+                    ref={episodesBtnRef}
+                    id="btn-episodes"
+                    type="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowEpisodesDrawer(!showEpisodesDrawer);
+                      setShowSettings(false);
+                      setShowSubtitlesMenu(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        scrubberBtnRef.current?.focus();
+                      } else if (e.key === "ArrowLeft") {
+                        e.preventDefault();
+                        volumeBtnRef.current?.focus();
+                      } else if (e.key === "ArrowRight") {
+                        e.preventDefault();
+                        if (subtitlesBtnRef.current) {
+                          subtitlesBtnRef.current.focus();
+                        } else {
+                          speedBtnRef.current?.focus();
+                        }
+                      }
+                    }}
+                    className={`h-9 px-3 rounded-full flex items-center gap-1.5 transition-all outline-none focus:outline-none focus:ring-2 focus:ring-white focus:scale-105 active:scale-95 ${
+                      showEpisodesDrawer
+                        ? "bg-[#E50914] text-white"
+                        : "bg-white/10 hover:bg-white/20 text-zinc-200 hover:text-white"
+                    }`}
+                    title="Episodios y Temporadas"
+                    aria-label="Selector de episodios y temporadas"
+                  >
+                    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                      <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z" />
+                    </svg>
+                    <span className="text-xs font-bold hidden sm:inline">Episodios</span>
+                  </button>
+                )}
+
                 {/* Botón Subtítulos (si existen pistas) */}
                 {source.subtitles && source.subtitles.length > 0 && (
                   <button
@@ -1079,7 +1162,11 @@ export default function NativeSourcePlayer({
                         scrubberBtnRef.current?.focus();
                       } else if (e.key === "ArrowLeft") {
                         e.preventDefault();
-                        volumeBtnRef.current?.focus();
+                        if (episodesBtnRef.current) {
+                          episodesBtnRef.current.focus();
+                        } else {
+                          volumeBtnRef.current?.focus();
+                        }
                       } else if (e.key === "ArrowRight") {
                         e.preventDefault();
                         speedBtnRef.current?.focus();
@@ -1118,6 +1205,8 @@ export default function NativeSourcePlayer({
                       e.preventDefault();
                       if (subtitlesBtnRef.current) {
                         subtitlesBtnRef.current.focus();
+                      } else if (episodesBtnRef.current) {
+                        episodesBtnRef.current.focus();
                       } else {
                         volumeBtnRef.current?.focus();
                       }
@@ -1210,6 +1299,23 @@ export default function NativeSourcePlayer({
             </div>
           </div>
         </>
+      )}
+
+      {/* Selector de Episodios Estilo Netflix */}
+      {seriesInfo && seriesInfo.type === "tv" && (
+        <EpisodesDrawer
+          isOpen={showEpisodesDrawer}
+          onClose={() => setShowEpisodesDrawer(false)}
+          seriesTitle={title}
+          id={seriesInfo.id}
+          currentSeason={seriesInfo.season}
+          currentEpisode={seriesInfo.episode}
+          lang={seriesInfo.lang}
+          onSelectEpisode={(newSeason, newEpisode) => {
+            setShowEpisodesDrawer(false);
+            seriesInfo.onSelectEpisode(newSeason, newEpisode);
+          }}
+        />
       )}
     </div>
   );
