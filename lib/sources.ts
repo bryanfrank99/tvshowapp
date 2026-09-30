@@ -114,6 +114,20 @@ export function scoreSourceForUser(
 }
 
 /**
+ * Calcula la puntuación global de una fuente considerando afinidad de idioma y prioridad intrínseca.
+ * La afinidad de idioma tiene peso predominante (* 1000) para garantizar que los servidores compatibles
+ * siempre superen a los servidores en idiomas ajenos.
+ */
+export function getSourceTotalScore(s: Source, userLang: string): number {
+  const langScore = scoreSourceForUser(s, userLang);
+  const isCompatible = langScore > 0;
+  const langWeight = isCompatible ? langScore * 1000 : 0;
+  const intrinsicPriority = s.priority !== undefined ? s.priority : 10;
+  const betaPenalty = s.isBeta ? -500 : 0;
+  return langWeight + intrinsicPriority + betaPenalty;
+}
+
+/**
  * Ordena las fuentes de mayor a menor prioridad según el idioma del usuario y la preferencia administrativa.
  * Si el administrador definió una lista de prioridades para userLang ([p1, p2, p3...]), se ordenan según su posición.
  * Soporta tanto string individual como array multicapa de prioridades.
@@ -144,9 +158,15 @@ export function sortSourcesByPriority(
   });
 
   return [...sources].sort((a, b) => {
+    const isLangCompatA = scoreSourceForUser(a, userLang) > 0;
+    const isLangCompatB = scoreSourceForUser(b, userLang) > 0;
+
     // 0. Si el administrador definió una o más prioridades explícitas para este idioma
     if (rankMap.size > 0) {
-      const getRank = (s: Source): number => {
+      const getRank = (s: Source, isCompat: boolean): number => {
+        // Los servidores en idiomas ajenos nunca deben beneficiarse de las prioridades de este idioma
+        if (!isCompat) return Infinity;
+
         const idLower = (s.id || "").toLowerCase().trim();
         const provIdLower = (s.providerId || "").toLowerCase().trim();
         const isHls =
@@ -157,13 +177,7 @@ export function sortSourcesByPriority(
 
         // Si es un pool HLS y el admin configuró 'hls' como prioritario para este idioma:
         if (isHls && rankMap.has("hls")) {
-          // Solo se aplica la prioridad al pool HLS lingüísticamente compatible con el usuario
-          const isLangCompatible = scoreSourceForUser(s, userLang) > 0;
-          if (isLangCompatible) {
-            return rankMap.get("hls")!;
-          }
-          // Si no es del idioma del usuario, no debe usurpar la posición del pool HLS de este idioma
-          return Infinity;
+          return rankMap.get("hls")!;
         }
 
         if (rankMap.has(idLower)) return rankMap.get(idLower)!;
@@ -171,26 +185,35 @@ export function sortSourcesByPriority(
         return Infinity;
       };
 
-      const rankA = getRank(a);
-      const rankB = getRank(b);
+      const rankA = getRank(a, isLangCompatA);
+      const rankB = getRank(b, isLangCompatB);
 
       if (rankA !== rankB) {
         return rankA < rankB ? -1 : 1;
       }
     }
 
-    // 1. Los servidores no-beta tienen prioridad sobre los beta
+    // 1. Compatibilidad lingüística absoluta: los idiomas compatibles SIEMPRE van antes que idiomas ajenos
+    if (isLangCompatA !== isLangCompatB) {
+      return isLangCompatA ? -1 : 1;
+    }
+
+    // 2. Los servidores no-beta tienen prioridad sobre los beta
     if (!!a.isBeta !== !!b.isBeta) {
       return a.isBeta ? 1 : -1;
     }
-    // 2. Mayor prioridad calculada
-    const scoreA = a.priority !== undefined ? a.priority : scoreSourceForUser(a, userLang);
-    const scoreB = b.priority !== undefined ? b.priority : scoreSourceForUser(b, userLang);
+
+    // 3. Puntuación calculada integrada (afinidad de idioma + prioridad intrínseca HLS/Iframe)
+    const scoreA = getSourceTotalScore(a, userLang);
+    const scoreB = getSourceTotalScore(b, userLang);
     if (scoreB !== scoreA) {
       return scoreB - scoreA;
     }
-    // 3. Empate: mantener orden original
-    return 0;
+
+    // 4. Empate: mantener orden original determinista por ord
+    const ordA = typeof a.ord === "number" && a.ord > 0 ? a.ord : 999;
+    const ordB = typeof b.ord === "number" && b.ord > 0 ? b.ord : 999;
+    return ordA - ordB;
   });
 }
 
