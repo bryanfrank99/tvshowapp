@@ -9,10 +9,10 @@ import { t } from "@/lib/dict";
 import { PlayerSkeleton } from "@/components/Skeleton";
 import { ensureSession } from "@/hooks/useSession";
 import { isMovieInTheaters } from "@/lib/theaters";
-import type { Source, ResolveResponse } from "@/lib/sources";
 import PlayerContainer from "@/components/player/PlayerContainer";
 import SourceSelectorGrid from "@/components/player/SourceSelectorGrid";
 import { useSourceFallback } from "@/hooks/useSourceFallback";
+import { getPlaybackKey } from "@/lib/playback-progress";
 
 function WatchInner() {
   const sp = useSearchParams();
@@ -341,6 +341,7 @@ function WatchInner() {
         onSourceError={handleSourceError}
         onSourceLoad={handleSourceLoad}
         lang={lang}
+        playbackKey={getPlaybackKey(type, id, s, e)}
       />
 
       {/* 3. Navegación de Episodios (Solo para series TV) */}

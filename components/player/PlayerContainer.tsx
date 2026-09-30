@@ -18,6 +18,7 @@ interface PlayerContainerProps {
   onSourceError?: () => void;
   onSourceLoad?: () => void;
   lang: string;
+  playbackKey?: string;
 }
 
 const PlayerContainer = forwardRef<HTMLDivElement, PlayerContainerProps>(
@@ -34,6 +35,7 @@ const PlayerContainer = forwardRef<HTMLDivElement, PlayerContainerProps>(
       onSourceError,
       onSourceLoad,
       lang,
+      playbackKey,
     },
     ref
   ) => {
@@ -99,6 +101,7 @@ const PlayerContainer = forwardRef<HTMLDivElement, PlayerContainerProps>(
             source={source}
             title={title}
             onError={onSourceError}
+            playbackKey={playbackKey}
           />
         )}
       </div>

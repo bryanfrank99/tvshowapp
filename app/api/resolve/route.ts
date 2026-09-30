@@ -327,7 +327,7 @@ export async function GET(req: NextRequest) {
               season: s,
               episode: e,
             });
-            const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 1500));
+            const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 2800));
             const fresh = await Promise.race([extractPromise, timeoutPromise]);
             if (fresh?.success && fresh.hlsUrl) {
               cachedHls = { hlsUrl: fresh.hlsUrl, backupHlsUrls: fresh.backupHlsUrls };
@@ -340,7 +340,6 @@ export async function GET(req: NextRequest) {
                 episode: e,
                 hlsUrl: fresh.hlsUrl,
                 backupHlsUrls: fresh.backupHlsUrls,
-                ttlHours: 24,
               }).catch(() => {});
             }
           } catch {}
@@ -384,8 +383,32 @@ export async function GET(req: NextRequest) {
     // Ordenar TODAS las fuentes según afinidad lingüística real y prioridad de servidor por idioma
     const sorted = sortSourcesByPriority(rawSources, userLang, primaryByLang);
 
-    // Conservar identificadores canónicos (S{ord}) para coincidir 1:1 con administración
-    const sources = sorted;
+    // Unificación de servidores compatibles con HLS en una sola fuente lógica con auto-fallback
+    const hlsSources = sorted.filter((s) => s.type === "hls");
+    let sources = sorted;
+
+    if (hlsSources.length > 0) {
+      const primaryHls = hlsSources[0];
+      if (hlsSources.length > 1) {
+        const otherBackupUrls = hlsSources
+          .slice(1)
+          .flatMap((s) => [s.url, ...(s.backupUrls || [])])
+          .filter((u) => u && u !== primaryHls.url);
+
+        primaryHls.backupUrls = Array.from(
+          new Set([...(primaryHls.backupUrls || []), ...otherBackupUrls])
+        );
+      }
+
+      // Nombrar la fuente agrupada como 'HLS' sin prefijo S14 ni número de orden
+      primaryHls.providerName = "HLS";
+      primaryHls.realName = "HLS";
+      primaryHls.ord = 0;
+
+      // Conservar el servidor HLS primario que contiene todos los backups y mantener el resto de servidores iframe
+      const primaryHlsId = primaryHls.id;
+      sources = sorted.filter((s) => s.type !== "hls" || s.id === primaryHlsId);
+    }
 
     const recommendedSourceId = sources[0]?.id || "";
 

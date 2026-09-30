@@ -29,6 +29,8 @@ export interface SetCachedStreamParams extends GetCachedStreamParams {
   hlsUrl: string;
   backupHlsUrls?: string[];
   ttlHours?: number;
+  ttlMinutes?: number;
+  ttlSeconds?: number;
 }
 
 // Caché en memoria para evitar llamadas redundantes a BD en la misma instancia de Node/Next.js
@@ -64,6 +66,18 @@ export async function getCachedStream(
   try {
     const sb = supa();
     const nowIso = new Date().toISOString();
+
+    // Auto-purga asíncrona de registros vencidos en base de datos (probabilidad del 15% para no saturar)
+    if (Math.random() < 0.15) {
+      try {
+        (sb as any)
+          .from("stream_cache")
+          .delete()
+          .lt("expires_at", nowIso)
+          .then(() => {})
+          .catch(() => {});
+      } catch {}
+    }
 
     // Intentar consultar tabla dedicada `stream_cache`
     const { data, error } = await (sb as any)
@@ -132,14 +146,33 @@ export async function getCachedStream(
 }
 
 /**
- * Guarda un stream M3U8 extraído en la base de datos Supabase con TTL configurable.
+ * Guarda un stream M3U8 extraído en la base de datos Supabase con TTL configurable o dinámico según expiración de token.
  */
 export async function setCachedStream(
   params: SetCachedStreamParams
 ): Promise<boolean> {
   const key = buildStreamCacheKey(params);
-  const ttlHours = params.ttlHours || 24;
-  const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000).toISOString();
+
+  // Cálculo inteligente de TTL:
+  // 1. Si la URL contiene un token de expiración Unix (ej. ?expires=1790748066), respetarlo estrictamente
+  let ttlMs = (params.ttlHours || 24) * 3600 * 1000;
+  if (params.ttlSeconds) {
+    ttlMs = params.ttlSeconds * 1000;
+  } else if (params.ttlMinutes) {
+    ttlMs = params.ttlMinutes * 60 * 1000;
+  } else {
+    const expMatch = params.hlsUrl.match(/[?&]expires=([0-9]{10})/i);
+    if (expMatch && expMatch[1]) {
+      const tokenExpiresSec = parseInt(expMatch[1], 10);
+      const nowSec = Math.floor(Date.now() / 1000);
+      const remainingSec = tokenExpiresSec - nowSec - 90; // Margen de 90 segundos de seguridad
+      if (remainingSec > 30) {
+        ttlMs = remainingSec * 1000;
+      }
+    }
+  }
+
+  const expiresAt = new Date(Date.now() + ttlMs).toISOString();
   const extractedAt = new Date().toISOString();
   const backupHlsUrls = params.backupHlsUrls || [];
 

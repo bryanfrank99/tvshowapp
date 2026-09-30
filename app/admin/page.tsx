@@ -2367,6 +2367,12 @@ export default function AdminPage() {
                         <span>CATÁLOGO ACTIVO</span>
                       </span>
                     )}
+                    {(p.id === "watchplay" || p.id === "megaembed" || p.movie_tpl?.includes("watchplay") || p.movie_tpl?.includes("megaembed")) && (
+                      <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded font-bold flex items-center gap-1" title="Servidor compatible con Pool Unificado HLS directo">
+                        <span>⚡</span>
+                        <span>POOL HLS NATIVO</span>
+                      </span>
+                    )}
                     <div className="flex items-center gap-1 flex-wrap">
                       {langs.map((l) => {
                         const m = getProviderLangMeta(l);

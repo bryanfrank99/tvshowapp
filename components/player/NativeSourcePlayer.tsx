@@ -2,12 +2,18 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Hls from "hls.js";
 import type { Source } from "@/lib/sources";
+import {
+  getPlaybackProgress,
+  savePlaybackProgress,
+  clearPlaybackProgress,
+} from "@/lib/playback-progress";
 
 interface NativeSourcePlayerProps {
   source: Source;
   title: string;
   onEnded?: () => void;
   onError?: () => void;
+  playbackKey?: string;
 }
 
 function formatTime(seconds: number): string {
@@ -32,10 +38,14 @@ export default function NativeSourcePlayer({
   title,
   onEnded,
   onError,
+  playbackKey,
 }: NativeSourcePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const progressContainerRef = useRef<HTMLDivElement>(null);
+
+  const hasRestoredPlaybackRef = useRef(false);
+  const lastSavedTimeRef = useRef(0);
 
   // Referencias para navegación espacial y foco automático en TV
   const fullscreenBtnRef = useRef<HTMLButtonElement>(null);
@@ -167,20 +177,8 @@ export default function NativeSourcePlayer({
       }
     };
 
-    // 1. Soporte HLS nativo (Safari iOS/macOS, Android TV WebView)
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = activeUrl;
-      video.load();
-      video.play().then(() => {
-        setIsPlaying(true);
-        resetHideTimerRef.current();
-        autoFocusFullscreen();
-      }).catch(() => {
-        setIsPlaying(false);
-        autoFocusFullscreen();
-      });
-    } else if (isHlsStream && Hls.isSupported()) {
-      // 2. Desktop Chrome / Windows Electron / Firefox vía hls.js
+    // 1. Priorizar Hls.js si está soportado (Chrome, Edge, Firefox, Android TV Chromium WebView, Electron)
+    if (isHlsStream && Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
@@ -232,6 +230,18 @@ export default function NativeSourcePlayer({
               break;
           }
         }
+      });
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      // 2. Fallback HLS nativo para Safari iOS / macOS
+      video.src = activeUrl;
+      video.load();
+      video.play().then(() => {
+        setIsPlaying(true);
+        resetHideTimerRef.current();
+        autoFocusFullscreen();
+      }).catch(() => {
+        setIsPlaying(false);
+        autoFocusFullscreen();
       });
     } else {
       // 3. Fallback genérico para mp4 o streams directos
@@ -486,14 +496,53 @@ export default function NativeSourcePlayer({
     if (video.buffered.length > 0) {
       setBuffered(video.buffered.end(video.buffered.length - 1));
     }
+
+    if (playbackKey && video.duration) {
+      const nowSec = Math.floor(video.currentTime);
+      if (Math.abs(nowSec - lastSavedTimeRef.current) >= 4) {
+        lastSavedTimeRef.current = nowSec;
+        savePlaybackProgress(playbackKey, video.currentTime, video.duration);
+      }
+    }
   };
 
   const onLoadedMetadata = () => {
     const video = videoRef.current;
     if (!video) return;
-    setDuration(video.duration || 0);
+    const dur = video.duration || 0;
+    setDuration(dur);
     autoFocusFullscreen();
+
+    if (playbackKey && !hasRestoredPlaybackRef.current) {
+      hasRestoredPlaybackRef.current = true;
+      const saved = getPlaybackProgress(playbackKey);
+      if (saved && saved.currentTime > 5 && dur > 20 && saved.currentTime < dur - 15) {
+        try {
+          video.currentTime = saved.currentTime;
+          setCurrentTime(saved.currentTime);
+          triggerFeedback("▶️", `Reanudando en ${formatTime(saved.currentTime)}`);
+        } catch {}
+      }
+    }
   };
+
+  useEffect(() => {
+    if (!playbackKey) return;
+    const handleSave = () => {
+      if (videoRef.current) {
+        savePlaybackProgress(
+          playbackKey,
+          videoRef.current.currentTime,
+          videoRef.current.duration || 0
+        );
+      }
+    };
+    window.addEventListener("beforeunload", handleSave);
+    return () => {
+      window.removeEventListener("beforeunload", handleSave);
+      handleSave();
+    };
+  }, [playbackKey]);
 
   // Lógica de Scrubbing en la barra de progreso
   const calculateScrubPosition = (e: React.MouseEvent<HTMLDivElement> | MouseEvent) => {
@@ -589,7 +638,16 @@ export default function NativeSourcePlayer({
             onTimeUpdate={onTimeUpdate}
             onLoadedMetadata={onLoadedMetadata}
             onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
+            onPause={() => {
+              setIsPlaying(false);
+              if (playbackKey && videoRef.current) {
+                savePlaybackProgress(
+                  playbackKey,
+                  videoRef.current.currentTime,
+                  videoRef.current.duration || 0
+                );
+              }
+            }}
             onError={() => {
               if (currentUrlIndex + 1 < candidateUrls.length) {
                 const nextIdx = currentUrlIndex + 1;
@@ -602,6 +660,9 @@ export default function NativeSourcePlayer({
             }}
             onEnded={() => {
               setIsPlaying(false);
+              if (playbackKey) {
+                clearPlaybackProgress(playbackKey);
+              }
               onEnded?.();
             }}
           >
@@ -632,7 +693,9 @@ export default function NativeSourcePlayer({
               </h2>
               <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-zinc-400">
                 <span className="font-bold text-zinc-200">
-                  {typeof source.ord === "number" && source.ord > 0
+                  {source.type === "hls" || source.providerName === "HLS"
+                    ? "HLS"
+                    : typeof source.ord === "number" && source.ord > 0
                     ? `S${source.ord}`
                     : source.providerName?.match(/^S\d+/i)
                     ? source.providerName.toUpperCase()
