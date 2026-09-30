@@ -36,10 +36,13 @@ export async function fetchMegaEmbedStream(
   const { id, type, season = 1, episode = 1 } = params;
   if (!id) return null;
 
-  const targetUrl =
+  const primaryHost = "https://mgeb.top";
+  const fallbackHost = "https://megaembed.com";
+
+  const getUrl = (host: string) =>
     type === "tv"
-      ? `https://megaembed.com/embed/${id}/${season}/${episode}`
-      : `https://megaembed.com/embed/${id}`;
+      ? `${host}/embed/${id}/${season}/${episode}`
+      : `${host}/embed/${id}`;
 
   try {
     const controller = new AbortController();
@@ -52,11 +55,19 @@ export async function fetchMegaEmbedStream(
       headers["User-Agent"] = USER_AGENT;
     }
 
-    const res = await fetch(targetUrl, {
+    let res = await fetch(getUrl(primaryHost), {
       headers,
       signal: controller.signal,
       cache: "no-store",
     });
+
+    if (!res.ok) {
+      res = await fetch(getUrl(fallbackHost), {
+        headers,
+        signal: controller.signal,
+        cache: "no-store",
+      });
+    }
 
     clearTimeout(timeoutId);
 

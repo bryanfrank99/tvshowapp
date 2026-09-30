@@ -493,14 +493,22 @@ export async function getRedeflixTvMap(urls?: TvFetchUrls): Promise<Map<string, 
 
           if (items) {
             for (const item of items) {
-              if (item) {
+              if (item !== null && item !== undefined) {
+                if (typeof item === "number" || typeof item === "string") {
+                  const idStr = String(item).trim();
+                  if (idStr) {
+                    tvMap.set(idStr, { "*": { "*": "1" } });
+                  }
+                  continue;
+                }
+
                 const tmdbKey = String(
                   item.id_tmdb || item.tmdb_id || (String(item.id || "").startsWith("tt") ? "" : item.id || "")
                 ).trim();
                 const imdbKey = String(
                   item.id_imdb || item.imdb_id || item.imdb || (String(item.id || "").startsWith("tt") ? item.id : "")
                 ).trim();
-                const incoming = item.episodios || item.episodes || {};
+                const incoming = item.episodios || item.episodes || { "*": { "*": "1" } };
 
                 if (tmdbKey) {
                   const existingSeries = tvMap.get(tmdbKey) || {};
@@ -630,9 +638,15 @@ export async function isRedeflixAvailable(opts: RedeFlixCheckOptions): Promise<b
 
     // Si se especifican temporada y episodio, validar que existan
     if (opts.season !== undefined && opts.season !== null && opts.episode !== undefined && opts.episode !== null) {
+      if (series["*"]) {
+        return true;
+      }
       const sKey = String(opts.season);
       const eKey = String(opts.episode);
       const seasonEpisodes = series[sKey];
+      if (seasonEpisodes && seasonEpisodes["*"]) {
+        return true;
+      }
       if (!seasonEpisodes || !seasonEpisodes[eKey]) {
         return false;
       }
