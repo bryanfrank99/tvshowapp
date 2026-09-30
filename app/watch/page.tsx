@@ -13,6 +13,7 @@ import PlayerContainer from "@/components/player/PlayerContainer";
 import SourceSelectorGrid from "@/components/player/SourceSelectorGrid";
 import { useSourceFallback } from "@/hooks/useSourceFallback";
 import { getPlaybackKey } from "@/lib/playback-progress";
+import { sortSourcesByPriority, type Source } from "@/lib/sources";
 
 function WatchInner() {
   const sp = useSearchParams();
@@ -130,8 +131,9 @@ function WatchInner() {
                       (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "pt" || s.languages?.includes("pt"))
                     );
 
+                    let nextSources: Source[];
                     if (existingPtPool) {
-                      return prev.map((src) => {
+                      nextSources = prev.map((src) => {
                         if (src.id === existingPtPool.id) {
                           const newBackups = Array.from(
                             new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
@@ -152,24 +154,33 @@ function WatchInner() {
                         }
                         return src;
                       });
+                    } else {
+                      nextSources = prev.map((src) =>
+                        src.id === megaItem.id
+                          ? {
+                              ...src,
+                              ord: 0,
+                              providerName: "HLS",
+                              realName: "HLS (PT)",
+                              type: "hls",
+                              lang: "pt",
+                              languages: ["pt"],
+                              priority: 120,
+                              url: streamResult.hlsUrl!,
+                              backupUrls: (streamResult.backupHlsUrls || []).filter((u: string) => u && u !== streamResult.hlsUrl),
+                              urlServerMap: {
+                                [streamResult.hlsUrl!]: megaItem.ord ? `S${megaItem.ord}` : "S14",
+                              },
+                            }
+                          : src
+                      );
                     }
 
-                    return prev.map((src) =>
-                      src.id === megaItem.id
-                        ? {
-                            ...src,
-                            ord: 0,
-                            providerName: "HLS",
-                            realName: "HLS (PT)",
-                            type: "hls",
-                            url: streamResult.hlsUrl!,
-                            backupUrls: (streamResult.backupHlsUrls || []).filter((u: string) => u && u !== streamResult.hlsUrl),
-                            urlServerMap: {
-                              [streamResult.hlsUrl!]: megaItem.ord ? `S${megaItem.ord}` : "S14",
-                            },
-                          }
-                        : src
-                    );
+                    const sorted = sortSourcesByPriority(nextSources, lang);
+                    if (sorted.length > 0 && sorted[0].id) {
+                      setRecommendedSourceId(sorted[0].id);
+                    }
+                    return sorted;
                   });
                 }
               } catch {}
@@ -211,8 +222,9 @@ function WatchInner() {
                       (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "pt" || s.languages?.includes("pt"))
                     );
 
+                    let nextSources: Source[];
                     if (existingPtPool) {
-                      return prev.map((src) => {
+                      nextSources = prev.map((src) => {
                         if (src.id === existingPtPool.id) {
                           const newBackups = Array.from(
                             new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
@@ -233,24 +245,33 @@ function WatchInner() {
                         }
                         return src;
                       });
+                    } else {
+                      nextSources = prev.map((src) =>
+                        src.id === watchPlayItem.id
+                          ? {
+                              ...src,
+                              ord: 0,
+                              providerName: "HLS",
+                              realName: "HLS (PT)",
+                              type: "hls",
+                              lang: "pt",
+                              languages: ["pt"],
+                              priority: 120,
+                              url: streamResult.hlsUrl!,
+                              backupUrls: (streamResult.backupHlsUrls || []).filter((u: string) => u && u !== streamResult.hlsUrl),
+                              urlServerMap: {
+                                [streamResult.hlsUrl!]: watchPlayItem.ord ? `S${watchPlayItem.ord}` : "S18",
+                              },
+                            }
+                          : src
+                      );
                     }
 
-                    return prev.map((src) =>
-                      src.id === watchPlayItem.id
-                        ? {
-                            ...src,
-                            ord: 0,
-                            providerName: "HLS",
-                            realName: "HLS (PT)",
-                            type: "hls",
-                            url: streamResult.hlsUrl!,
-                            backupUrls: (streamResult.backupHlsUrls || []).filter((u: string) => u && u !== streamResult.hlsUrl),
-                            urlServerMap: {
-                              [streamResult.hlsUrl!]: watchPlayItem.ord ? `S${watchPlayItem.ord}` : "S18",
-                            },
-                          }
-                        : src
-                    );
+                    const sorted = sortSourcesByPriority(nextSources, lang);
+                    if (sorted.length > 0 && sorted[0].id) {
+                      setRecommendedSourceId(sorted[0].id);
+                    }
+                    return sorted;
                   });
                 }
               } catch {}
@@ -286,6 +307,64 @@ function WatchInner() {
                       backupHlsUrls: streamResult.backupHlsUrls,
                     }),
                   }).catch(() => {});
+
+                  setSources((prev) => {
+                    const existingEsPool = prev.find(
+                      (s) => (s.ord === 0 || s.providerName === "HLS") && (s.lang === "es" || s.languages?.includes("es"))
+                    );
+
+                    let nextSources: Source[];
+                    if (existingEsPool) {
+                      nextSources = prev.map((src) => {
+                        if (src.id === existingEsPool.id) {
+                          const newBackups = Array.from(
+                            new Set([...(src.backupUrls || []), streamResult.hlsUrl, ...(streamResult.backupHlsUrls || [])])
+                          ).filter((u) => u && u !== src.url);
+
+                          const updatedMap = { ...(src.urlServerMap || {}) };
+                          const serverTag = nasriItem.ord ? `S${nasriItem.ord}` : "S17";
+                          if (!updatedMap[streamResult.hlsUrl!]) updatedMap[streamResult.hlsUrl!] = serverTag;
+                          for (const b of streamResult.backupHlsUrls || []) {
+                            if (!updatedMap[b]) updatedMap[b] = serverTag;
+                          }
+
+                          return {
+                            ...src,
+                            backupUrls: newBackups,
+                            urlServerMap: updatedMap,
+                          };
+                        }
+                        return src;
+                      });
+                    } else {
+                      const newPool: Source = {
+                        id: "nasriplay-hls",
+                        providerId: "nasriplay",
+                        providerName: "HLS",
+                        realName: "HLS (ES)",
+                        ord: 0,
+                        type: "hls",
+                        lang: "es",
+                        languages: ["es", "lat"],
+                        priority: 120,
+                        url: streamResult.hlsUrl!,
+                        backupUrls: (streamResult.backupHlsUrls || []).filter((u: string) => u && u !== streamResult.hlsUrl),
+                        urlServerMap: {
+                          [streamResult.hlsUrl!]: nasriItem.ord ? `S${nasriItem.ord}` : "S17",
+                        },
+                        isBeta: false,
+                        tvOk: true,
+                        needsTmdb: true,
+                      };
+                      nextSources = [newPool, ...prev];
+                    }
+
+                    const sorted = sortSourcesByPriority(nextSources, lang);
+                    if (sorted.length > 0 && sorted[0].id) {
+                      setRecommendedSourceId(sorted[0].id);
+                    }
+                    return sorted;
+                  });
                 }
               } catch {}
             });

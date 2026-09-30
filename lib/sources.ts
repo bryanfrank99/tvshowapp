@@ -114,6 +114,27 @@ export function scoreSourceForUser(
 }
 
 /**
+ * Determina si una fuente representa una pool unificada o stream directo HLS.
+ */
+export function isHlsPoolSource(s: Source): boolean {
+  if (!s) return false;
+  const idLower = (s.id || "").toLowerCase().trim();
+  const provIdLower = (s.providerId || "").toLowerCase().trim();
+  const nameLower = (s.providerName || "").toLowerCase().trim();
+  const realNameLower = (s.realName || "").toLowerCase().trim();
+
+  return (
+    s.type === "hls" ||
+    nameLower === "hls" ||
+    realNameLower.includes("hls") ||
+    idLower === "hls" ||
+    idLower.startsWith("hls-") ||
+    provIdLower === "hls" ||
+    Boolean(s.urlServerMap && Object.keys(s.urlServerMap).length > 0)
+  );
+}
+
+/**
  * Calcula la puntuación global de una fuente considerando afinidad de idioma y prioridad intrínseca.
  * La afinidad de idioma tiene peso predominante (* 1000) para garantizar que los servidores compatibles
  * siempre superen a los servidores en idiomas ajenos.
@@ -129,9 +150,10 @@ export function getSourceTotalScore(s: Source, userLang: string): number {
 
 /**
  * Ordena las fuentes de mayor a menor prioridad según el idioma del usuario y la preferencia administrativa.
- * Si el administrador definió una lista de prioridades para userLang ([p1, p2, p3...]), se ordenan según su posición.
- * Soporta tanto string individual como array multicapa de prioridades.
- * Garantiza estabilidad de orden si las puntuaciones son iguales.
+ * REGLA ARQUITECTÓNICA ESTRICTA:
+ * 1. Respetar siempre el idioma definido por el usuario (las fuentes compatibles siempre van primero).
+ * 2. Si existe una Pool HLS compatible con el idioma del usuario, ESTA APARECE EN LA POSICIÓN 0.
+ * 3. Se aplican prioridades de administración y ordenación determinista para el resto de fuentes.
  */
 export function sortSourcesByPriority(
   sources: Source[],
@@ -161,7 +183,23 @@ export function sortSourcesByPriority(
     const isLangCompatA = scoreSourceForUser(a, userLang) > 0;
     const isLangCompatB = scoreSourceForUser(b, userLang) > 0;
 
-    // 0. Si el administrador definió una o más prioridades explícitas para este idioma
+    // 1. Compatibilidad lingüística absoluta: los idiomas compatibles SIEMPRE van antes que idiomas ajenos
+    if (isLangCompatA !== isLangCompatB) {
+      return isLangCompatA ? -1 : 1;
+    }
+
+    // 2. POSICIÓN 0 PARA POOL HLS:
+    // Si tenemos una pool HLS compatible con el idioma del usuario, esa es la que TIENE QUE APARECER EN LA POSICIÓN 0
+    const isPoolA = isHlsPoolSource(a);
+    const isPoolB = isHlsPoolSource(b);
+
+    if (isLangCompatA && isLangCompatB) {
+      if (isPoolA !== isPoolB) {
+        return isPoolA ? -1 : 1;
+      }
+    }
+
+    // 3. Si el administrador definió una o más prioridades explícitas para este idioma
     if (rankMap.size > 0) {
       const getRank = (s: Source, isCompat: boolean): number => {
         // Los servidores en idiomas ajenos nunca deben beneficiarse de las prioridades de este idioma
@@ -169,11 +207,7 @@ export function sortSourcesByPriority(
 
         const idLower = (s.id || "").toLowerCase().trim();
         const provIdLower = (s.providerId || "").toLowerCase().trim();
-        const isHls =
-          s.type === "hls" ||
-          s.providerName === "HLS" ||
-          idLower === "hls" ||
-          provIdLower === "hls";
+        const isHls = isHlsPoolSource(s);
 
         // Si es un pool HLS y el admin configuró 'hls' como prioritario para este idioma:
         if (isHls && rankMap.has("hls")) {
@@ -193,26 +227,28 @@ export function sortSourcesByPriority(
       }
     }
 
-    // 1. Compatibilidad lingüística absoluta: los idiomas compatibles SIEMPRE van antes que idiomas ajenos
-    if (isLangCompatA !== isLangCompatB) {
-      return isLangCompatA ? -1 : 1;
+    // 4. Si ninguna es compatible pero una es pool HLS fallback, priorizar el stream HLS
+    if (!isLangCompatA && !isLangCompatB) {
+      if (isPoolA !== isPoolB) {
+        return isPoolA ? -1 : 1;
+      }
     }
 
-    // 2. Los servidores no-beta tienen prioridad sobre los beta
+    // 5. Los servidores no-beta tienen prioridad sobre los beta
     if (!!a.isBeta !== !!b.isBeta) {
       return a.isBeta ? 1 : -1;
     }
 
-    // 3. Puntuación calculada integrada (afinidad de idioma + prioridad intrínseca HLS/Iframe)
+    // 6. Puntuación calculada integrada (afinidad de idioma + prioridad intrínseca HLS/Iframe)
     const scoreA = getSourceTotalScore(a, userLang);
     const scoreB = getSourceTotalScore(b, userLang);
     if (scoreB !== scoreA) {
       return scoreB - scoreA;
     }
 
-    // 4. Empate: mantener orden original determinista por ord
-    const ordA = typeof a.ord === "number" && a.ord > 0 ? a.ord : 999;
-    const ordB = typeof b.ord === "number" && b.ord > 0 ? b.ord : 999;
+    // 7. Empate: mantener orden original determinista por ord (ord 0 para pools preservado)
+    const ordA = typeof a.ord === "number" && !isNaN(a.ord) ? a.ord : 999;
+    const ordB = typeof b.ord === "number" && !isNaN(b.ord) ? b.ord : 999;
     return ordA - ordB;
   });
 }
