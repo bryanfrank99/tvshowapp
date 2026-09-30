@@ -105,7 +105,7 @@ export default function SourceSelectorGrid({
               <span className="text-xs bg-sky-500/10 border border-sky-500/25 px-2.5 py-1 rounded-xl text-sky-300 inline-flex items-center gap-1.5">
                 <span>💬 Subs:</span>
                 <b className="text-sky-200">
-                  {p.subtitles.map((sub) => sub.id.toUpperCase()).join(", ")}
+                  {p.subtitles?.map((sub) => (sub?.id ? sub.id.toUpperCase() : null)).filter(Boolean).join(", ")}
                 </b>
               </span>
             )}
@@ -190,7 +190,7 @@ export default function SourceSelectorGrid({
                     }`}
                   >
                     <span>💬</span>
-                    <span>{subs.map((sub) => sub.id.toUpperCase()).join("/")}</span>
+                    <span>{subs?.map((sub) => (sub?.id ? sub.id.toUpperCase() : null)).filter(Boolean).join('/')}</span>
                   </span>
                 )}
               </div>

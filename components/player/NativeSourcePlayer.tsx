@@ -146,6 +146,10 @@ export default function NativeSourcePlayer({
   useEffect(() => {
     setError(false);
     const video = videoRef.current;
+    // Enable CORS for HLS streams (needed for WatchPlay S18)
+    if (isHlsStream) {
+      video.crossOrigin = "anonymous";
+    }
     if (!video || !activeUrl) return;
 
     let hls: Hls | null = null;
