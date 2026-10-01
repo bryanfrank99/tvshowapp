@@ -360,33 +360,17 @@ function WatchInner() {
             extractionTasks.push(
               (async () => {
                 try {
-                  const { fetchNasriPlayStream } = await import("@/lib/nasriplay");
-                  const streamResult = await fetchNasriPlayStream({
-                    id: targetId,
-                    type,
-                    season: s,
-                    episode: e,
-                  });
+                  const res = await fetch(
+                    `/api/nasriplay?id=${encodeURIComponent(targetId)}&type=${type}&s=${s}&e=${e}`
+                  );
+                  if (!res.ok) return;
+                  const streamResult = await res.json();
                   if (streamResult?.hlsUrl) {
-                    fetch("/api/resolve/cache-stream", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        providerId: "nasriplay",
-                        type,
-                        targetId,
-                        season: s,
-                        episode: e,
-                        hlsUrl: streamResult.hlsUrl,
-                        backupHlsUrls: streamResult.backupHlsUrls,
-                      }),
-                    }).catch(() => {});
-
                     const extracted: ExtractedStreamInfo = {
                       providerId: "nasriplay",
                       ord: nasriItem.ord || 17,
                       tag: nasriItem.ord ? `S${nasriItem.ord}` : "S17",
-                      lang: "es",
+                      lang: (streamResult.lang as any) || "es",
                       hlsUrl: streamResult.hlsUrl,
                       backupUrls: (streamResult.backupHlsUrls || []).filter(Boolean),
                       isBeta: Boolean(nasriItem.isBeta),
@@ -713,42 +697,30 @@ function WatchInner() {
               (source.providerId === "nasriplay" || source.id.startsWith("nasriplay")) &&
               source.type !== "hls"
             ) {
-              import("@/lib/nasriplay").then(async ({ fetchNasriPlayStream }) => {
-                const streamResult = await fetchNasriPlayStream({ id, type, season: s, episode: e });
-                if (streamResult?.hlsUrl) {
-                  fetch("/api/resolve/cache-stream", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      providerId: "nasriplay",
-                      type,
-                      targetId: id,
-                      season: s,
-                      episode: e,
-                      hlsUrl: streamResult.hlsUrl,
-                      backupHlsUrls: streamResult.backupHlsUrls,
-                    }),
-                  }).catch(() => {});
-
-                  setSources((prev) => {
-                    const srvTag = source.ord ? `S${source.ord}` : "S17";
-                    return prev.map((src) =>
-                      src.id === source.id
-                        ? {
-                            ...src,
-                            id: `${source.providerId || "nasriplay"}-hls`,
-                            providerName: `HLS - ${srvTag}`,
-                            realName: `${source.realName || "NasriPlay"} (HLS)`,
-                            type: "hls",
-                            url: streamResult.hlsUrl!,
-                            backupUrls: streamResult.backupHlsUrls,
-                            priority: 120,
-                          }
-                        : src
-                    );
-                  });
-                }
-              }).catch(() => {});
+              fetch(`/api/nasriplay?id=${encodeURIComponent(id)}&type=${type}&s=${s}&e=${e}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((streamResult) => {
+                  if (streamResult?.hlsUrl) {
+                    setSources((prev) => {
+                      const srvTag = source.ord ? `S${source.ord}` : "S17";
+                      return prev.map((src) =>
+                        src.id === source.id
+                          ? {
+                              ...src,
+                              id: `${source.providerId || "nasriplay"}-hls`,
+                              providerName: `HLS - ${srvTag}`,
+                              realName: `${source.realName || "NasriPlay"} (HLS)`,
+                              type: "hls",
+                              url: streamResult.hlsUrl!,
+                              backupUrls: streamResult.backupHlsUrls,
+                              priority: 120,
+                            }
+                          : src
+                      );
+                    });
+                  }
+                })
+                .catch(() => {});
             }
           }}
           lang={lang}

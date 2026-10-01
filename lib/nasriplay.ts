@@ -187,10 +187,16 @@ export async function fetchNasriPlayStream(
         const resolvedList: NasriPlayEmbedOption[] = [];
         const serverUrlPromises = servers.map(async (srv) => {
           let resolvedEmbedUrl: string | undefined;
-          if (srv.token) {
+
+          // Si el servidor ya provee playUrl o url directa, usarlo directamente sin saturar la API
+          if (srv.playUrl && typeof srv.playUrl === "string") {
+            resolvedEmbedUrl = srv.playUrl;
+          } else if (srv.url && typeof srv.url === "string") {
+            resolvedEmbedUrl = srv.url;
+          } else if (srv.token) {
             try {
               const subCtrl = new AbortController();
-              const subTimer = setTimeout(() => subCtrl.abort(), 1600);
+              const subTimer = setTimeout(() => subCtrl.abort(), 1800);
               const suRes = await fetch(
                 `https://nsrplay.space/api/v1/embed/server-url?token=${encodeURIComponent(srv.token)}`,
                 {
@@ -253,37 +259,39 @@ export async function fetchNasriPlayStream(
           }
         }
 
-        // Candidatos directResolveEligible
-        const eligible = servers.filter((s) => s.token && s.directResolveEligible).slice(0, 3);
-        if (eligible.length > 0) {
-          const resolvePromises = eligible.map(async (srv) => {
-            try {
-              const subController = new AbortController();
-              const subTimer = setTimeout(() => subController.abort(), 1800);
-              const resolveUrl = `https://nsrplay.space/api/v1/embed/resolve?token=${encodeURIComponent(srv.token)}&pt=${encodeURIComponent(pageToken)}&parentUrl=${encodeURIComponent(embedUrl)}`;
-              const resolveRes = await fetch(resolveUrl, {
-                signal: subController.signal,
-                headers: {
-                  "User-Agent": USER_AGENT,
-                  Referer: embedUrl,
-                  Accept: "application/json",
-                },
-              });
-              clearTimeout(subTimer);
-              if (resolveRes.ok) {
-                const rJson = await resolveRes.json();
-                const dUrl = rJson?.data?.directUrl;
-                if (dUrl && typeof dUrl === "string" && (dUrl.includes(".m3u8") || dUrl.includes(".mp4"))) {
-                  return dUrl;
+        // Si NO hay candidatos directos disponibles, intentar resolver tokens directResolveEligible
+        if (candidateUrls.length === 0) {
+          const eligible = servers.filter((s) => s.token && s.directResolveEligible).slice(0, 2);
+          if (eligible.length > 0) {
+            const resolvePromises = eligible.map(async (srv) => {
+              try {
+                const subController = new AbortController();
+                const subTimer = setTimeout(() => subController.abort(), 1800);
+                const resolveUrl = `https://nsrplay.space/api/v1/embed/resolve?token=${encodeURIComponent(srv.token)}&pt=${encodeURIComponent(pageToken)}&parentUrl=${encodeURIComponent(embedUrl)}`;
+                const resolveRes = await fetch(resolveUrl, {
+                  signal: subController.signal,
+                  headers: {
+                    "User-Agent": USER_AGENT,
+                    Referer: embedUrl,
+                    Accept: "application/json",
+                  },
+                });
+                clearTimeout(subTimer);
+                if (resolveRes.ok) {
+                  const rJson = await resolveRes.json();
+                  const dUrl = rJson?.data?.directUrl;
+                  if (dUrl && typeof dUrl === "string" && (dUrl.includes(".m3u8") || dUrl.includes(".mp4"))) {
+                    return dUrl;
+                  }
                 }
-              }
-            } catch {}
-            return null;
-          });
+              } catch {}
+              return null;
+            });
 
-          const resolvedDirects = await Promise.all(resolvePromises);
-          for (const u of resolvedDirects) {
-            if (u && !candidateUrls.includes(u)) candidateUrls.push(u);
+            const resolvedDirects = await Promise.all(resolvePromises);
+            for (const u of resolvedDirects) {
+              if (u && !candidateUrls.includes(u)) candidateUrls.push(u);
+            }
           }
         }
 
