@@ -85,6 +85,7 @@ type Prov = {
   dorama_list_url?: string;
   hls_enabled?: boolean;
   hls_extractor?: "megaembed" | "watchplay" | "direct" | "none";
+  extractor_config?: any;
 };
 
 type Live = {
@@ -460,6 +461,17 @@ export default function AdminPage() {
   });
 
   const [provs, setProvs] = useState<Prov[]>([]);
+  const [allowEmbedFallback, setAllowEmbedFallback] = useState<boolean>(false);
+  const [togglingEmbedFallback, setTogglingEmbedFallback] = useState<boolean>(false);
+  const [extractorPresets, setExtractorPresets] = useState<Record<string, any>>({});
+  const [extractorConfigText, setExtractorConfigText] = useState<string>("{}");
+  const [extractorJsonError, setExtractorJsonError] = useState<string | null>(null);
+  const [testingExtractor, setTestingExtractor] = useState<boolean>(false);
+  const [testExtractorResult, setTestExtractorResult] = useState<any>(null);
+  const [testExtractorTmdb, setTestExtractorTmdb] = useState<string>("550");
+  const [testExtractorType, setTestExtractorType] = useState<"movie" | "tv">("movie");
+  const [testExtractorSeason, setTestExtractorSeason] = useState<number>(1);
+  const [testExtractorEpisode, setTestExtractorEpisode] = useState<number>(1);
   const [primaryByLang, setPrimaryByLang] = useState<{ es: string; pt: string; en: string }>({ es: "", pt: "", en: "" });
   const [prioritiesByLang, setPrioritiesByLang] = useState<{ es: string[]; pt: string[]; en: string[] }>({
     es: [],
@@ -697,6 +709,12 @@ export default function AdminPage() {
         if (p) {
           setProvs(p.providers || []);
           setVersion(p.version || "");
+          if (p.allow_embed_fallback !== undefined) {
+            setAllowEmbedFallback(!!p.allow_embed_fallback);
+          }
+          if (p.extractor_presets) {
+            setExtractorPresets(p.extractor_presets);
+          }
           if (p.provider_priorities_by_lang) {
             setPrioritiesByLang({
               es: Array.isArray(p.provider_priorities_by_lang.es) ? p.provider_priorities_by_lang.es : [],
@@ -1185,21 +1203,139 @@ export default function AdminPage() {
     }
   };
 
+  const openEditProv = (p: Partial<Prov> & { _new?: boolean }) => {
+    setEdit(p);
+    const cfg = p.extractor_config || (p.id ? extractorPresets[p.id]?.template : null) || { preset: "direct_m3u8" };
+    setExtractorConfigText(JSON.stringify(cfg, null, 2));
+    setExtractorJsonError(null);
+    setTestExtractorResult(null);
+    setTestExtractorTmdb(testExtractorType === "tv" ? "1399" : "550");
+  };
+
+  const applyPreset = (presetKey: string) => {
+    const preset = extractorPresets[presetKey];
+    if (!preset) return;
+    const template = preset.template || {};
+    const formatted = JSON.stringify(template, null, 2);
+    setExtractorConfigText(formatted);
+    setExtractorJsonError(null);
+    setEdit((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        extractor_config: template,
+        movie_tpl: template.movie_api_url || prev.movie_tpl || "",
+        tv_tpl: template.tv_api_url || prev.tv_tpl || "",
+        hls_enabled: true,
+      };
+    });
+  };
+
+  const toggleEmbedFallback = async (allow: boolean) => {
+    setTogglingEmbedFallback(true);
+    try {
+      const res = await api("providers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle_embed_fallback",
+          allow,
+        }),
+      });
+      if (res.ok) {
+        setAllowEmbedFallback(allow);
+        setMsg(
+          allow
+            ? "⚠️ Modo Mixto Activo: Se permitirán servidores embed sólo como respaldo si HLS no está disponible."
+            : "✓ Modo Estricto HLS Activo: Todos los servidores serán streams HLS nativos (.m3u8)."
+        );
+      }
+    } catch {
+      setMsg("Error al actualizar la configuración de servidores");
+    } finally {
+      setTogglingEmbedFallback(false);
+    }
+  };
+
+  const runExtractorTest = async () => {
+    let parsedConfig: any = null;
+    try {
+      parsedConfig = JSON.parse(extractorConfigText);
+      setExtractorJsonError(null);
+    } catch (e: any) {
+      setExtractorJsonError(e?.message || "JSON inválido");
+      return;
+    }
+
+    setTestingExtractor(true);
+    setTestExtractorResult(null);
+    try {
+      const res = await api("providers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test_extractor",
+          providerId: edit?.id,
+          extractor_config: parsedConfig,
+          movie_api_url: edit?.movie_tpl,
+          tv_api_url: edit?.tv_tpl,
+          tmdbId: testExtractorTmdb,
+          type: testExtractorType,
+          season: testExtractorSeason,
+          episode: testExtractorEpisode,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setTestExtractorResult(data.result);
+      } else {
+        setTestExtractorResult({
+          success: false,
+          error: data.error || "Error al ejecutar el extractor",
+          durationMs: 0,
+        });
+      }
+    } catch (err: any) {
+      setTestExtractorResult({
+        success: false,
+        error: err?.message || "Error de conexión",
+        durationMs: 0,
+      });
+    } finally {
+      setTestingExtractor(false);
+    }
+  };
+
   const saveProv = async () => {
     if (!edit?.id || !edit?.name || !edit?.movie_tpl || !edit?.tv_tpl) {
       setMsg(lang === "en" ? "Please fill in id, name, and templates" : lang === "pt" ? "Preencha id, nome e modelos" : "Completa id, nombre y plantillas");
       return;
     }
+    let parsedConfig: any = edit.extractor_config;
+    if (extractorConfigText) {
+      try {
+        parsedConfig = JSON.parse(extractorConfigText);
+      } catch (e: any) {
+        setMsg(`❌ Error en JSON de extractor: ${e?.message}`);
+        return;
+      }
+    }
     const r = await api("providers", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(edit),
+      body: JSON.stringify({
+        ...edit,
+        extractor_config: parsedConfig,
+      }),
     });
     if (r.ok) {
       setEdit(null);
-      setMsg("");
+      setTestExtractorResult(null);
+      setMsg("✓ Servidor guardado correctamente");
       load();
-    } else setMsg(lang === "en" ? "Error saving server" : lang === "pt" ? "Erro ao salvar servidor" : "Error guardando servidor");
+    } else {
+      setMsg(lang === "en" ? "Error saving server" : lang === "pt" ? "Erro ao salvar servidor" : "Error guardando servidor");
+    }
   };
 
   const savePrioritiesByLang = async (overridePriorities?: { es: string[]; pt: string[]; en: string[] }) => {
@@ -2220,10 +2356,69 @@ export default function AdminPage() {
       {/* PESTAÑA 3: SERVIDORES / PROVEEDORES (Solo Super Admin) */}
       {tab === "prov" && isSuperAdmin && (
         <>
+          {/* BANNER MODO EXCLUSIVO HLS VS FALLBACK EMBED */}
+          <div className={`p-4 rounded-2xl border transition-all mb-4 ${
+            !allowEmbedFallback
+              ? "bg-gradient-to-r from-emerald-950/40 via-blue-950/30 to-purple-950/20 border-emerald-500/30 shadow-lg shadow-emerald-500/5"
+              : "bg-amber-950/30 border-amber-500/30"
+          }`}>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{!allowEmbedFallback ? "⚡" : "⚠️"}</span>
+                  <h3 className="font-bold text-sm text-white">
+                    {!allowEmbedFallback
+                      ? "Modo Servidores: 100% Streams HLS Nativos (.m3u8)"
+                      : "Modo Servidores: HLS con Respaldo de Embeds Iframe"}
+                  </h3>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    !allowEmbedFallback
+                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                      : "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                  }`}>
+                    {!allowEmbedFallback ? "MODO RECOMENDADO ACTIVO" : "MODO EMERGENCIA"}
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-300 max-w-2xl">
+                  {!allowEmbedFallback
+                    ? "Todos los servidores embed obsoletos han sido removidos. El sistema entrega exclusivamente streams directos HLS (.m3u8) con soporte de mando TV y cambio suave de servidor."
+                    : "Los servidores HLS tienen prioridad máxima. Si un título no tiene stream HLS disponible, se admitirá un reproductor iframe como respaldo alternativo."}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-xl border border-white/10 shrink-0">
+                <button
+                  type="button"
+                  disabled={togglingEmbedFallback || !allowEmbedFallback}
+                  onClick={() => toggleEmbedFallback(false)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    !allowEmbedFallback
+                      ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  ⚡ Solo HLS (Recomendado)
+                </button>
+                <button
+                  type="button"
+                  disabled={togglingEmbedFallback || allowEmbedFallback}
+                  onClick={() => toggleEmbedFallback(true)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    allowEmbedFallback
+                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/30"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  🌐 Permitir Embeds
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-center gap-2 mb-4 flex-wrap">
             <button
               onClick={() =>
-                setEdit({
+                openEditProv({
                   _new: true,
                   name: "",
                   movie_tpl: "",
@@ -2236,6 +2431,8 @@ export default function AdminPage() {
                   active: true,
                   ord: provs.length + 1,
                   is_beta: false,
+                  hls_enabled: true,
+                  extractor_config: { preset: "direct_m3u8" },
                 } as any)
               }
               className="px-4 py-2 rounded-xl bg-[#008CFF] font-bold text-sm text-white shadow-lg shadow-[#008CFF]/20 cursor-pointer"
@@ -2375,7 +2572,12 @@ export default function AdminPage() {
                         <span>CATÁLOGO ACTIVO</span>
                       </span>
                     )}
-                    {p.hls_enabled ? (
+                    {p.extractor_config?.preset ? (
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1" title={`Extractor Dinámico: ${p.extractor_config.preset}`}>
+                        <span>⚡</span>
+                        <span>{p.extractor_config.preset.toUpperCase()}</span>
+                      </span>
+                    ) : p.hls_enabled ? (
                       <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1" title={`Stream HLS Nativo (${p.hls_extractor || "direct"}) - Audio: ${langs.join(", ")}`}>
                         <span>⚡</span>
                         <span>HLS [{langs[0]?.toUpperCase() || "DIRECT"}]</span>
@@ -2384,7 +2586,7 @@ export default function AdminPage() {
                     ) : (
                       <span className="text-[10px] bg-zinc-500/10 text-zinc-400 border border-zinc-500/25 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
                         <span>🌐</span>
-                        <span>Iframe</span>
+                        <span>Iframe Embed</span>
                       </span>
                     )}
                     <div className="flex items-center gap-1 flex-wrap">
@@ -2421,7 +2623,7 @@ export default function AdminPage() {
                     >
                       {p.active ? d.prov_deactivate : d.prov_activate}
                     </button>
-                    <button onClick={() => setEdit({ ...p })} className={btn}>
+                    <button onClick={() => openEditProv({ ...p })} className={btn}>
                       {d.prov_edit}
                     </button>
                     <button
@@ -2527,418 +2729,352 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <input
-                value={edit.movie_tpl || ""}
-                onChange={(e) => setEdit({ ...edit, movie_tpl: e.target.value })}
-                placeholder={d.prov_movie_tpl}
-                className={`${inp} font-mono`}
-              />
-              <input
-                value={edit.tv_tpl || ""}
-                onChange={(e) => setEdit({ ...edit, tv_tpl: e.target.value })}
-                placeholder={d.prov_tv_tpl}
-                className={`${inp} font-mono`}
-              />
-              <input
-                value={edit.entry_key || ""}
-                onChange={(e) => setEdit({ ...edit, entry_key: e.target.value })}
-                placeholder={d.prov_entry_key}
-                className={`${inp} font-mono`}
-              />
-
-              {/* Comprobación de Disponibilidad de Catálogo (Opcional) */}
-              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="font-bold text-xs text-white flex items-center gap-1.5">
-                    <span>📋</span>
-                    <span>Comprobación de Disponibilidad de Catálogo (Opcional)</span>
-                  </span>
-                  <span className="text-[10px] bg-blue-500/15 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-medium">
-                    Listas en lote, JSON completo, APIs o Links de comprobación
-                  </span>
+              {/* Endpoints de API Películas y Series */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-300 flex items-center justify-between">
+                    <span>🎬 URL / API Películas:</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">&#123;id&#125; = TMDB</span>
+                  </label>
+                  <input
+                    value={edit.movie_tpl || ""}
+                    onChange={(e) => setEdit({ ...edit, movie_tpl: e.target.value })}
+                    placeholder="https://tmdb.allcalidad.re/v1/playback/movie/{id}"
+                    className={`${inp} font-mono text-xs`}
+                  />
                 </div>
-                <div className="text-[11px] text-zinc-400 space-y-1">
-                  <p>
-                    Configura cómo verificar si el servidor dispone de un título antes de mostrarlo. Admite identificadores <b>TMDB</b> (numéricos) e <b>IMDb</b> (<code className="text-[#008CFF] font-mono text-[10px]">tt...</code>):
-                  </p>
-                  <ul className="list-disc pl-4 space-y-0.5 text-zinc-400">
-                    <li>
-                      <b className="text-zinc-300">Link de comprobación puntual (Probe URL / API):</b> puedes usar <code className="text-[#008CFF] font-mono text-[10px]">&#123;id&#125;</code>, <code className="text-[#008CFF] font-mono text-[10px]">&#123;tmdb&#125;</code> (ej. 969681) y <code className="text-[#008CFF] font-mono text-[10px]">&#123;imdb&#125;</code> (ej. tt6263850), además de <code className="text-[#008CFF] font-mono text-[10px]">&#123;s&#125;</code> y <code className="text-[#008CFF] font-mono text-[10px]">&#123;e&#125;</code>.
-                    </li>
-                    <li>
-                      <b className="text-zinc-300">Lista completa en lote (TXT / JSON):</b> archivos con líneas de IDs o JSON con catálogos. La comprobación es dual: busca tanto por ID TMDB como por ID IMDb.
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="space-y-3 pt-1">
-                  {/* Campo Películas */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <label className="text-[10px] text-zinc-400 font-medium">
-                        URL Disponibilidad Películas (Probe URL o lista TXT/JSON):
-                      </label>
-                      {edit.movie_list_url && (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            disabled={!!testingAvail}
-                            onClick={() => testAvailabilityUrl(edit.movie_list_url!, "movie", "valid")}
-                            className="px-2 py-0.5 rounded-md text-[10px] font-bold border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1"
-                            title="Probar con película real (TMDB 969681 / IMDb tt6263850)"
-                          >
-                            {testingAvail?.url === edit.movie_list_url && testingAvail?.mode === "valid" ? (
-                              "⏳ Probando..."
-                            ) : (
-                              <>
-                                <span>✓</span> Test Válido
-                              </>
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!!testingAvail}
-                            onClick={() => testAvailabilityUrl(edit.movie_list_url!, "movie", "invalid")}
-                            className="px-2 py-0.5 rounded-md text-[10px] font-bold border border-rose-500/40 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1"
-                            title="Probar con película ficticia inexistente (TMDB 999999999 / IMDb tt999999999)"
-                          >
-                            {testingAvail?.url === edit.movie_list_url && testingAvail?.mode === "invalid" ? (
-                              "⏳ Probando..."
-                            ) : (
-                              <>
-                                <span>✕</span> Test Inválido
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <input
-                      value={edit.movie_list_url || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setEdit({ ...edit, movie_list_url: val });
-                        if (testAvailResult?.url !== val) setTestAvailResult(null);
-                      }}
-                      placeholder="https://v2.watchplay.shop/movie/{id} o https://servidor.com/list-movie-ids.txt"
-                      className={`${inp} font-mono text-xs`}
-                    />
-                    {testAvailResult && testAvailResult.url === edit.movie_list_url && (
-                      <div className={`p-2.5 rounded-lg text-[11px] font-medium border flex items-center justify-between gap-2 ${
-                        testAvailResult.error
-                          ? "bg-red-500/10 border-red-500/30 text-red-300"
-                          : testAvailResult.mode === "valid"
-                          ? testAvailResult.available
-                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                            : "bg-amber-500/15 border-amber-500/30 text-amber-300"
-                          : !testAvailResult.available
-                          ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                          : "bg-rose-500/15 border-rose-500/30 text-rose-300"
-                      }`}>
-                        <div>
-                          {testAvailResult.error ? (
-                            <span>✕ Error al probar: {testAvailResult.error}</span>
-                          ) : testAvailResult.mode === "valid" ? (
-                            testAvailResult.available ? (
-                              <span>✓ Test Válido Exitoso: Título disponible ({testAvailResult.isProbe ? "Probe HTTP 200 OK" : "Encontrado en catálogo"})</span>
-                            ) : (
-                              <span>✕ Test Válido Falló: No disponible ({testAvailResult.isProbe ? "Probe HTTP 404 / No encontrado" : "No encontrado en catálogo"})</span>
-                            )
-                          ) : (
-                            !testAvailResult.available ? (
-                              <span>✓ Test Inválido Exitoso: El servidor reportó correctamente que el ID ficticio NO existe ({testAvailResult.isProbe ? "Probe HTTP 404 / Rechazado" : "No encontrado en catálogo"})</span>
-                            ) : (
-                              <span>⚠️ Test Inválido con Alerta: El servidor reportó como disponible un ID inexistente ({testAvailResult.isProbe ? "Probe HTTP 200 inesperado" : "Encontrado en catálogo"})</span>
-                            )
-                          )}
-                          {testAvailResult.testedUrl && (
-                            <div className="text-[10px] opacity-75 font-mono break-all mt-0.5">
-                              Probado [{testAvailResult.mode === "valid" ? "Caso Válido" : "Caso Inválido"}]: {testAvailResult.testedUrl}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Campo Series */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <label className="text-[10px] text-zinc-400 font-medium">
-                        URL Disponibilidad Series (Probe URL {`{id}/{s}/{e}`} o lista JSON/TXT):
-                      </label>
-                      {edit.tv_list_url && (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            disabled={!!testingAvail}
-                            onClick={() => testAvailabilityUrl(edit.tv_list_url!, "tv", "valid")}
-                            className="px-2 py-0.5 rounded-md text-[10px] font-bold border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1"
-                            title="Probar con serie real (Breaking Bad T1E1, TMDB 1396 / IMDb tt0903747)"
-                          >
-                            {testingAvail?.url === edit.tv_list_url && testingAvail?.mode === "valid" ? (
-                              "⏳ Probando..."
-                            ) : (
-                              <>
-                                <span>✓</span> Test Válido
-                              </>
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!!testingAvail}
-                            onClick={() => testAvailabilityUrl(edit.tv_list_url!, "tv", "invalid")}
-                            className="px-2 py-0.5 rounded-md text-[10px] font-bold border border-rose-500/40 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1"
-                            title="Probar con serie ficticia inexistente (TMDB 999999999 T99E99)"
-                          >
-                            {testingAvail?.url === edit.tv_list_url && testingAvail?.mode === "invalid" ? (
-                              "⏳ Probando..."
-                            ) : (
-                              <>
-                                <span>✕</span> Test Inválido
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <input
-                      value={edit.tv_list_url || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setEdit({ ...edit, tv_list_url: val });
-                        if (testAvailResult?.url !== val) setTestAvailResult(null);
-                      }}
-                      placeholder="https://v2.watchplay.shop/tvshow/{id}/{s}/{e} o https://servidor.com/list-tv-ids.txt"
-                      className={`${inp} font-mono text-xs`}
-                    />
-                    {testAvailResult && testAvailResult.url === edit.tv_list_url && (
-                      <div className={`p-2.5 rounded-lg text-[11px] font-medium border flex items-center justify-between gap-2 ${
-                        testAvailResult.error
-                          ? "bg-red-500/10 border-red-500/30 text-red-300"
-                          : testAvailResult.mode === "valid"
-                          ? testAvailResult.available
-                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                            : "bg-amber-500/15 border-amber-500/30 text-amber-300"
-                          : !testAvailResult.available
-                          ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                          : "bg-rose-500/15 border-rose-500/30 text-rose-300"
-                      }`}>
-                        <div>
-                          {testAvailResult.error ? (
-                            <span>✕ Error al probar: {testAvailResult.error}</span>
-                          ) : testAvailResult.mode === "valid" ? (
-                            testAvailResult.available ? (
-                              <span>✓ Test Válido Exitoso: Episodio disponible ({testAvailResult.isProbe ? "Probe HTTP 200 OK" : "Encontrado en catálogo"})</span>
-                            ) : (
-                              <span>✕ Test Válido Falló: No disponible ({testAvailResult.isProbe ? "Probe HTTP 404 / No encontrado" : "No encontrado en catálogo"})</span>
-                            )
-                          ) : (
-                            !testAvailResult.available ? (
-                              <span>✓ Test Inválido Exitoso: El servidor reportó correctamente que el ID ficticio NO existe ({testAvailResult.isProbe ? "Probe HTTP 404 / Rechazado" : "No encontrado en catálogo"})</span>
-                            ) : (
-                              <span>⚠️ Test Inválido con Alerta: El servidor reportó como disponible un ID ficticio ({testAvailResult.isProbe ? "Probe HTTP 200 inesperado" : "Encontrado en catálogo"})</span>
-                            )
-                          )}
-                          {testAvailResult.testedUrl && (
-                            <div className="text-[10px] opacity-75 font-mono break-all mt-0.5">
-                              Probado [{testAvailResult.mode === "valid" ? "Caso Válido" : "Caso Inválido"}]: {testAvailResult.testedUrl}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between gap-1 flex-wrap">
-                        <label className="block text-[10px] text-zinc-400 font-medium">URL Lista Animes (JSON/TXT, opcional):</label>
-                        {edit.anime_list_url && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              disabled={!!testingAvail}
-                              onClick={() => testAvailabilityUrl(edit.anime_list_url!, "tv", "valid")}
-                              className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
-                              title="Test Válido"
-                            >
-                              ✓ Válido
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!!testingAvail}
-                              onClick={() => testAvailabilityUrl(edit.anime_list_url!, "tv", "invalid")}
-                              className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-rose-500/40 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
-                              title="Test Inválido"
-                            >
-                              ✕ Inválido
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <input
-                        value={edit.anime_list_url || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEdit({ ...edit, anime_list_url: val });
-                          if (testAvailResult?.url !== val) setTestAvailResult(null);
-                        }}
-                        placeholder="https://servidor.com/list-anime-ids.txt"
-                        className={`${inp} font-mono text-xs`}
-                      />
-                      {testAvailResult && testAvailResult.url === edit.anime_list_url && (
-                        <div className={`p-2 rounded-lg text-[10px] font-medium border ${
-                          testAvailResult.error
-                            ? "bg-red-500/10 border-red-500/30 text-red-300"
-                            : testAvailResult.mode === "valid"
-                            ? testAvailResult.available
-                              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                              : "bg-amber-500/15 border-amber-500/30 text-amber-300"
-                            : !testAvailResult.available
-                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                            : "bg-rose-500/15 border-rose-500/30 text-rose-300"
-                        }`}>
-                          {testAvailResult.error ? (
-                            <span>✕ Error: {testAvailResult.error}</span>
-                          ) : testAvailResult.mode === "valid" ? (
-                            <span>{testAvailResult.available ? "✓ Test Válido: Disponible" : "✕ Test Válido: No encontrado"}</span>
-                          ) : (
-                            <span>{!testAvailResult.available ? "✓ Test Inválido: ID ficticio rechazado" : "⚠️ Test Inválido: ID ficticio reportado disponible"}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between gap-1 flex-wrap">
-                        <label className="block text-[10px] text-zinc-400 font-medium">URL Lista Doramas (JSON/TXT, opcional):</label>
-                        {edit.dorama_list_url && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              disabled={!!testingAvail}
-                              onClick={() => testAvailabilityUrl(edit.dorama_list_url!, "tv", "valid")}
-                              className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
-                              title="Test Válido"
-                            >
-                              ✓ Válido
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!!testingAvail}
-                              onClick={() => testAvailabilityUrl(edit.dorama_list_url!, "tv", "invalid")}
-                              className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-rose-500/40 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
-                              title="Test Inválido"
-                            >
-                              ✕ Inválido
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <input
-                        value={edit.dorama_list_url || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEdit({ ...edit, dorama_list_url: val });
-                          if (testAvailResult?.url !== val) setTestAvailResult(null);
-                        }}
-                        placeholder="https://servidor.com/list-dorama-ids.txt"
-                        className={`${inp} font-mono text-xs`}
-                      />
-                      {testAvailResult && testAvailResult.url === edit.dorama_list_url && (
-                        <div className={`p-2 rounded-lg text-[10px] font-medium border ${
-                          testAvailResult.error
-                            ? "bg-red-500/10 border-red-500/30 text-red-300"
-                            : testAvailResult.mode === "valid"
-                            ? testAvailResult.available
-                              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                              : "bg-amber-500/15 border-amber-500/30 text-amber-300"
-                            : !testAvailResult.available
-                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                            : "bg-rose-500/15 border-rose-500/30 text-rose-300"
-                        }`}>
-                          {testAvailResult.error ? (
-                            <span>✕ Error: {testAvailResult.error}</span>
-                          ) : testAvailResult.mode === "valid" ? (
-                            <span>{testAvailResult.available ? "✓ Test Válido: Disponible" : "✕ Test Válido: No encontrado"}</span>
-                          ) : (
-                            <span>{!testAvailResult.available ? "✓ Test Inválido: ID ficticio rechazado" : "⚠️ Test Inválido: ID ficticio reportado disponible"}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-zinc-300 flex items-center justify-between">
+                    <span>📺 URL / API Series:</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">&#123;id&#125;, &#123;s&#125;, &#123;e&#125;</span>
+                  </label>
+                  <input
+                    value={edit.tv_tpl || ""}
+                    onChange={(e) => setEdit({ ...edit, tv_tpl: e.target.value })}
+                    placeholder="https://tmdb.allcalidad.re/v1/playback/tvshow/{id}?season={s}&episode={e}"
+                    className={`${inp} font-mono text-xs`}
+                  />
                 </div>
               </div>
 
-              {/* Modo de Entrega / Stream HLS Nativo */}
-              <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/25 space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
-                    <span>⚡</span>
-                    <span>Modo de Entrega / Stream HLS Nativo</span>
-                  </span>
-                  <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold">
-                    {edit.hls_enabled ? "STREAM HLS ACTIVO" : "IFRAME ESTÁNDAR"}
-                  </span>
-                </div>
-                <p className="text-[11px] text-zinc-300">
-                  Define si este servidor entrega streams nativos HLS (.m3u8) para reproducción directa con mando de TV y cambio suave de servidor, o si se visualiza en un iframe web con adblock.
-                </p>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-zinc-400">
+                  Clave de Acceso / API Key (Opcional):
+                </label>
+                <input
+                  value={edit.entry_key || ""}
+                  onChange={(e) => setEdit({ ...edit, entry_key: e.target.value })}
+                  placeholder={d.prov_entry_key}
+                  className={`${inp} font-mono text-xs`}
+                />
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  <label className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-xs transition-all ${
-                    !edit.hls_enabled
-                      ? "bg-white/10 border-[#008CFF] text-white shadow-sm"
-                      : "bg-black/40 border-white/10 text-zinc-400"
-                  }`}>
-                    <input
-                      type="radio"
-                      name="delivery_mode"
-                      checked={!edit.hls_enabled}
-                      onChange={() => setEdit({ ...edit, hls_enabled: false, hls_extractor: "none" })}
-                      className="accent-[#008CFF]"
-                    />
-                    <span className="font-medium">🌐 Iframe Estándar (Web)</span>
-                  </label>
+              {/* SECCIÓN PRINCIPAL: MOTOR DE EXTRACCIÓN DINÁMICA HLS JSON (Spec 096) */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-blue-950/20 to-black/60 border border-purple-500/30 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between gap-3 flex-wrap border-b border-purple-500/20 pb-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">⚡</span>
+                      <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
+                        <span>Motor de Extracción HLS Dinámico (JSON)</span>
+                        <span className="text-[10px] bg-purple-500/30 text-purple-200 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold">
+                          Spec 096
+                        </span>
+                      </h4>
+                    </div>
+                    <p className="text-[11px] text-zinc-300">
+                      Configura la receta de extracción de streams .m3u8 en formato JSON sin editar código en el servidor.
+                    </p>
+                  </div>
 
-                  <label className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-xs transition-all ${
-                    edit.hls_enabled
-                      ? "bg-purple-500/25 border-purple-500 text-purple-200 shadow-sm"
-                      : "bg-black/40 border-white/10 text-zinc-400"
-                  }`}>
-                    <input
-                      type="radio"
-                      name="delivery_mode"
-                      checked={!!edit.hls_enabled}
-                      onChange={() => setEdit({ ...edit, hls_enabled: true, hls_extractor: edit.hls_extractor === "none" ? "direct" : (edit.hls_extractor || "direct") })}
-                      className="accent-purple-500"
-                    />
-                    <span className="font-bold">⚡ Stream HLS Nativo</span>
-                  </label>
-                </div>
-
-                {edit.hls_enabled && (
-                  <div className="space-y-1.5 pt-1 bg-black/40 p-2.5 rounded-lg border border-purple-500/20">
-                    <label className="block text-[11px] text-zinc-300 font-semibold">
-                      Tipo de Extractor HLS:
-                    </label>
+                  {/* Selector rápido de Presets */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold text-zinc-400">Plantillas / Presets:</span>
                     <select
-                      value={edit.hls_extractor || "direct"}
-                      onChange={(e) => setEdit({ ...edit, hls_extractor: e.target.value as any })}
-                      className={`${inp} text-xs py-1.5 font-sans`}
+                      id="preset-selector"
+                      className="bg-black/60 border border-white/20 text-white text-xs rounded-xl px-2.5 py-1.5 cursor-pointer font-medium"
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          applyPreset(e.target.value);
+                          e.target.value = "";
+                        }
+                      }}
                     >
-                      <option value="direct">Directo: La URL/Template devuelve directamente stream .m3u8</option>
-                      <option value="megaembed">MegaEmbed (S14): Extracción fMP4 de megaembed.com con bypass</option>
-                      <option value="watchplay">WatchPlay (S18): Extracción de v2.watchplay.shop con fMP4</option>
+                      <option value="" disabled>Seleccionar Preset...</option>
+                      {Object.entries(extractorPresets).map(([key, val]: [string, any]) => (
+                        <option key={key} value={key}>
+                          {val.label}
+                        </option>
+                      ))}
                     </select>
-                    <div className="p-2 rounded bg-purple-500/10 border border-purple-500/20 text-[10px] text-purple-200/90 mt-1">
-                      ℹ️ Este servidor se presentará al usuario como servidor individual (ej. <b>HLS - S{edit.ord || 1}</b>) con reproducción nativa y fallback automático.
+                  </div>
+                </div>
+
+                {/* Editor de JSON de extractor_config */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-bold text-zinc-200">
+                        Configuración JSON del Extractor (<code className="text-purple-300 font-mono text-[11px]">extractor_config</code>):
+                      </label>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                        extractorJsonError
+                          ? "bg-red-500/20 text-red-300 border-red-500/40"
+                          : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                      }`}>
+                        {extractorJsonError ? "✕ Error de Sintaxis" : "✓ JSON Válido"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            const parsed = JSON.parse(extractorConfigText);
+                            setExtractorConfigText(JSON.stringify(parsed, null, 2));
+                            setExtractorJsonError(null);
+                          } catch (e: any) {
+                            setExtractorJsonError(e?.message || "JSON inválido");
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/10 hover:bg-white/15 text-zinc-200 border border-white/15 cursor-pointer transition-colors"
+                      >
+                        🪄 Formatear JSON
+                      </button>
                     </div>
                   </div>
-                )}
+
+                  <textarea
+                    rows={9}
+                    value={extractorConfigText}
+                    onChange={(e) => {
+                      const text = e.target.value;
+                      setExtractorConfigText(text);
+                      try {
+                        JSON.parse(text);
+                        setExtractorJsonError(null);
+                      } catch (err: any) {
+                        setExtractorJsonError(err?.message || "Error de sintaxis");
+                      }
+                    }}
+                    placeholder={`{\n  "preset": "vimeos_json",\n  "options": { "timeout_ms": 7000 }\n}`}
+                    className="w-full bg-black/80 border border-purple-500/30 rounded-xl p-3 font-mono text-xs text-purple-100 placeholder:text-zinc-600 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 leading-relaxed shadow-inner"
+                    spellCheck={false}
+                  />
+
+                  {extractorJsonError && (
+                    <div className="p-2 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-mono">
+                      ✕ Error en el JSON: {extractorJsonError}
+                    </div>
+                  )}
+                </div>
+
+                {/* PANEL DE PRUEBA EN VIVO ("▶ Probar Extractor en Vivo") */}
+                <div className="p-3.5 rounded-xl bg-black/50 border border-purple-500/25 space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
+                      <span>▶</span>
+                      <span>Probar Extractor en Vivo (Live Test)</span>
+                    </span>
+                    <span className="text-[10px] text-zinc-400 font-medium">
+                      Ejecuta la extracción real y verifica el stream .m3u8 en milisegundos
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    {/* Selector de Tipo */}
+                    <div className="flex items-center bg-white/5 p-1 rounded-lg border border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTestExtractorType("movie");
+                          if (testExtractorTmdb === "1399") setTestExtractorTmdb("550");
+                        }}
+                        className={`px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer ${
+                          testExtractorType === "movie" ? "bg-[#008CFF] text-white" : "text-zinc-400"
+                        }`}
+                      >
+                        🎬 Película
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTestExtractorType("tv");
+                          if (testExtractorTmdb === "550") setTestExtractorTmdb("1399");
+                        }}
+                        className={`px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer ${
+                          testExtractorType === "tv" ? "bg-[#008CFF] text-white" : "text-zinc-400"
+                        }`}
+                      >
+                        📺 Serie
+                      </button>
+                    </div>
+
+                    {/* Input TMDB ID */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-zinc-400 text-xs font-semibold">TMDB:</span>
+                      <input
+                        value={testExtractorTmdb}
+                        onChange={(e) => setTestExtractorTmdb(e.target.value)}
+                        placeholder="550"
+                        className="w-24 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1 text-xs font-mono text-white focus:outline-none focus:border-[#008CFF]"
+                      />
+                    </div>
+
+                    {/* Temporada y Episodio si Serie */}
+                    {testExtractorType === "tv" && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-zinc-400 text-xs">T:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={testExtractorSeason}
+                          onChange={(e) => setTestExtractorSeason(parseInt(e.target.value, 10) || 1)}
+                          className="w-14 bg-white/5 border border-white/15 rounded-lg px-2 py-1 text-xs font-mono text-white"
+                        />
+                        <span className="text-zinc-400 text-xs">E:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={testExtractorEpisode}
+                          onChange={(e) => setTestExtractorEpisode(parseInt(e.target.value, 10) || 1)}
+                          className="w-14 bg-white/5 border border-white/15 rounded-lg px-2 py-1 text-xs font-mono text-white"
+                        />
+                      </div>
+                    )}
+
+                    {/* Botón Ejecutar Prueba */}
+                    <button
+                      type="button"
+                      disabled={testingExtractor}
+                      onClick={runExtractorTest}
+                      className="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/30 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1.5 ml-auto"
+                    >
+                      <span>{testingExtractor ? "⏳" : "▶"}</span>
+                      <span>{testingExtractor ? "Extrayendo en vivo..." : "Probar Extractor"}</span>
+                    </button>
+                  </div>
+
+                  {/* Resultados de la prueba en vivo */}
+                  {testExtractorResult && (
+                    <div className={`p-3 rounded-xl border text-xs space-y-2 transition-all ${
+                      testExtractorResult.success
+                        ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-200"
+                        : "bg-red-950/40 border-red-500/40 text-red-200"
+                    }`}>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm">
+                            {testExtractorResult.success ? "✓ Extracción Exitosa" : "✕ Fallo al Extraer"}
+                          </span>
+                          <span className="text-[10px] bg-black/40 px-2 py-0.5 rounded-full border border-white/10 font-mono">
+                            ⏱ {testExtractorResult.durationMs}ms
+                          </span>
+                          {testExtractorResult.title && (
+                            <span className="text-[10px] text-zinc-300 font-medium">
+                              "{testExtractorResult.title}"
+                            </span>
+                          )}
+                        </div>
+                        {testExtractorResult.success && testExtractorResult.hlsUrl && (
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">
+                            STREAM DIRECTO HLS .M3U8
+                          </span>
+                        )}
+                      </div>
+
+                      {testExtractorResult.hlsUrl && (
+                        <div className="space-y-1 bg-black/50 p-2.5 rounded-lg border border-white/10 font-mono text-[11px]">
+                          <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                            URL Primaria HLS:
+                          </div>
+                          <div className="break-all select-all text-white font-mono bg-black/40 p-1.5 rounded border border-white/5">
+                            {testExtractorResult.hlsUrl}
+                          </div>
+                        </div>
+                      )}
+
+                      {testExtractorResult.backupHlsUrls && testExtractorResult.backupHlsUrls.length > 0 && (
+                        <div className="space-y-1 bg-black/30 p-2 rounded-lg border border-white/5">
+                          <div className="text-[10px] font-bold text-purple-300 flex items-center gap-1">
+                            <span>⚡</span>
+                            <span>Mirrors de Respaldo para Failover Automático ({testExtractorResult.backupHlsUrls.length}):</span>
+                          </div>
+                          <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+                            {testExtractorResult.backupHlsUrls.map((bUrl: string, bIdx: number) => (
+                              <div key={bIdx} className="text-[10px] font-mono text-zinc-300 truncate bg-black/30 px-2 py-0.5 rounded">
+                                #{bIdx + 1}: {bUrl}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {testExtractorResult.embeds && testExtractorResult.embeds.length > 0 && (
+                        <div className="space-y-1 bg-black/30 p-2 rounded-lg border border-white/5">
+                          <div className="text-[10px] font-bold text-amber-300 flex items-center gap-1">
+                            <span>🌐</span>
+                            <span>Embeds de Respaldo ({testExtractorResult.embeds.length}):</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {testExtractorResult.embeds.map((emb: any, eIdx: number) => (
+                              <span key={eIdx} className="text-[10px] bg-white/5 border border-white/10 px-2 py-0.5 rounded text-zinc-300 font-mono">
+                                {emb.name || emb.server || `Host ${eIdx + 1}`}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {testExtractorResult.error && (
+                        <div className="text-red-300 text-xs">
+                          {testExtractorResult.error}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* OPCIONES AVANZADAS: LISTAS Y CATÁLOGOS TXT (COLAPSADO POR DEFECTO) */}
+              <details className="group p-3 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                <summary className="font-bold text-xs text-zinc-300 flex items-center justify-between cursor-pointer select-none">
+                  <div className="flex items-center gap-1.5">
+                    <span>📋</span>
+                    <span>Opciones Avanzadas: Disponibilidad y Catálogos TXT / JSON (Opcional)</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-500 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+
+                <div className="space-y-3 pt-2">
+                  <p className="text-[11px] text-zinc-400">
+                    Solo requerido si el servidor dispone de un catálogo restringido o requiere comprobación de existencia previa mediante archivos TXT o endpoints probe:
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-zinc-400 font-medium">URL Disponibilidad Películas:</label>
+                      <input
+                        value={edit.movie_list_url || ""}
+                        onChange={(e) => setEdit({ ...edit, movie_list_url: e.target.value })}
+                        placeholder="https://servidor.com/movie/{id} o lista.txt"
+                        className={`${inp} font-mono text-xs`}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-zinc-400 font-medium">URL Disponibilidad Series:</label>
+                      <input
+                        value={edit.tv_list_url || ""}
+                        onChange={(e) => setEdit({ ...edit, tv_list_url: e.target.value })}
+                        placeholder="https://servidor.com/tv/{id}/{s}/{e} o lista.txt"
+                        className={`${inp} font-mono text-xs`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </details>
 
               {/* Opción Beta */}
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3">

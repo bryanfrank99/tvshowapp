@@ -3,19 +3,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { supa } from "@/lib/supa";
 import { needAdmin, needSuperAdmin } from "@/lib/access";
 import { parseLangs, parseSubs } from "@/lib/providers";
+import { EXTRACTOR_PRESETS, runHlsExtractor } from "@/lib/hls-engine";
 
-// GET lista completa (con templates, URLs de disponibilidad y prioridades por idioma) · PUT upsert · PATCH toggle · DELETE
+// GET lista completa (con templates, extractor_configs y prioridades por idioma) · PUT upsert · PATCH toggle · DELETE
 export async function GET(req: NextRequest) {
   const deny = await needAdmin(req);
   if (deny) return deny;
   const sb = supa();
-  const [p, c, primaryRes, availRes, prioritiesRes, hlsConfigRes] = await Promise.all([
+  const [p, c, primaryRes, availRes, prioritiesRes, hlsConfigRes, extractorConfigsRes, allowEmbedFallbackRes] = await Promise.all([
     sb.from("providers").select("*").order("ord"),
     sb.from("config").select("value").eq("key", "providers_version").maybeSingle(),
     sb.from("config").select("value").eq("key", "primary_providers_by_lang").maybeSingle(),
     sb.from("config").select("value").eq("key", "provider_availability_urls").maybeSingle(),
     sb.from("config").select("value").eq("key", "provider_priorities_by_lang").maybeSingle(),
     sb.from("config").select("value").eq("key", "provider_hls_config").maybeSingle(),
+    sb.from("config").select("value").eq("key", "provider_extractor_configs").maybeSingle(),
+    sb.from("config").select("value").eq("key", "allow_embed_fallback").maybeSingle(),
   ]);
   if (p.error) return NextResponse.json({ error: "db" }, { status: 500 });
 
@@ -61,6 +64,15 @@ export async function GET(req: NextRequest) {
     }
   } catch {}
 
+  let fallbackExtractorConfigs: Record<string, any> = {};
+  try {
+    if (extractorConfigsRes.data?.value) {
+      fallbackExtractorConfigs = JSON.parse(extractorConfigsRes.data.value);
+    }
+  } catch {}
+
+  const allowEmbedFallback = allowEmbedFallbackRes.data?.value === "true";
+
   let activeIndex = 1;
   const enriched = (p.data || []).map((x: any) => {
     const languages = parseLangs(x.lang, x.id);
@@ -86,8 +98,19 @@ export async function GET(req: NextRequest) {
       provAvail.dorama_list_url ||
       (isRedeflix ? "https://redeflixapi.store/list-dorama-ids.txt" : "");
 
+    const extCfg =
+      x.extractor_config ||
+      fallbackExtractorConfigs[x.id] ||
+      EXTRACTOR_PRESETS[x.id]?.template ||
+      (x.id === "cinecalidad" ? EXTRACTOR_PRESETS.vimeos_json.template :
+       x.id === "nasriplay" ? EXTRACTOR_PRESETS.nasriplay_token.template :
+       x.id === "playerflix" ? EXTRACTOR_PRESETS.playerflix.template :
+       x.id === "megaembed" ? EXTRACTOR_PRESETS.megaembed.template :
+       (x.id === "watchplay" || x.id === "EmbedMovies-V2") ? EXTRACTOR_PRESETS.watchplay.template :
+       { preset: "direct_m3u8" });
+
     const hlsCfg = fallbackHlsConfig[x.id] || {
-      enabled: x.id === "megaembed" || x.id === "watchplay" || x.id === "cinecalidad" || x.id === "nasriplay",
+      enabled: x.id === "megaembed" || x.id === "watchplay" || x.id === "cinecalidad" || x.id === "nasriplay" || x.id === "playerflix",
       extractor: x.id === "megaembed" ? "megaembed" : x.id === "watchplay" ? "watchplay" : (x.id === "cinecalidad" || x.id === "nasriplay") ? "direct" : "none",
     };
 
@@ -105,6 +128,7 @@ export async function GET(req: NextRequest) {
       dorama_list_url: doramaListUrl,
       hls_enabled: !!hlsCfg.enabled,
       hls_extractor: hlsCfg.extractor || (hlsCfg.enabled ? "direct" : "none"),
+      extractor_config: extCfg,
     };
   });
 
@@ -114,6 +138,9 @@ export async function GET(req: NextRequest) {
     primary_providers_by_lang: primaryByLang,
     provider_priorities_by_lang: prioritiesByLang,
     provider_hls_config: fallbackHlsConfig,
+    provider_extractor_configs: fallbackExtractorConfigs,
+    allow_embed_fallback: allowEmbedFallback,
+    extractor_presets: EXTRACTOR_PRESETS,
   });
 }
 
@@ -124,6 +151,52 @@ export async function PUT(req: NextRequest) {
   try {
     b = await req.json();
   } catch {}
+
+  // Acción 0A: Probar Extractor HLS dinámico en vivo (Spec 096)
+  if (b.action === "test_extractor") {
+    const tmdbId = String(b.tmdbId || (b.type === "tv" ? "1399" : "550")).trim();
+    const type = b.type === "tv" ? "tv" : "movie";
+    const season = b.season ? parseInt(b.season, 10) : 1;
+    const episode = b.episode ? parseInt(b.episode, 10) : 1;
+
+    let config = b.extractor_config;
+    if (typeof config === "string") {
+      try {
+        config = JSON.parse(config);
+      } catch {}
+    }
+
+    const result = await runHlsExtractor({
+      providerId: String(b.providerId || b.id || "test"),
+      config,
+      movieTpl: b.movie_tpl,
+      tvTpl: b.tv_tpl,
+      type,
+      id: tmdbId,
+      season,
+      episode,
+    });
+
+    return NextResponse.json({
+      ok: result.success,
+      result,
+    });
+  }
+
+  // Acción 0B: Conmutar interruptor global de embeds de respaldo
+  if (b.action === "toggle_embed_fallback") {
+    const allow = b.allow_embed_fallback !== undefined ? !!b.allow_embed_fallback : !!b.allow;
+    await supa().from("config").upsert(
+      {
+        key: "allow_embed_fallback",
+        value: String(allow),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" }
+    );
+    await bump();
+    return NextResponse.json({ ok: true, allow_embed_fallback: allow });
+  }
 
   // Acción 0: Probar URL o lista de disponibilidad de catálogo (modo válido o inválido)
   if (b.action === "test_availability") {
@@ -444,39 +517,71 @@ export async function PUT(req: NextRequest) {
           { onConflict: "key" }
         );
     }
+    if (b.extractor_config !== undefined) {
+      let parsedCfg = b.extractor_config;
+      if (typeof parsedCfg === "string") {
+        try {
+          parsedCfg = JSON.parse(parsedCfg);
+        } catch {}
+      }
+      const { data: currExtRes } = await sb
+        .from("config")
+        .select("value")
+        .eq("key", "provider_extractor_configs")
+        .maybeSingle();
+      let extMap: Record<string, any> = {};
+      if (currExtRes?.value) {
+        try {
+          extMap = JSON.parse(currExtRes.value);
+        } catch {}
+      }
+      extMap[row.id] = parsedCfg;
+      await sb.from("config").upsert(
+        {
+          key: "provider_extractor_configs",
+          value: JSON.stringify(extMap),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" }
+      );
+    }
   } catch {}
 
   // Intento de guardado en la tabla providers con fallback escalonado
+  const parsedExtractorConfig =
+    typeof b.extractor_config === "string"
+      ? (() => {
+          try {
+            return JSON.parse(b.extractor_config);
+          } catch {
+            return {};
+          }
+        })()
+      : b.extractor_config || {};
+
   try {
-    const { error } = await supa().from("providers").upsert(row, { onConflict: "id" });
+    const { error } = await supa()
+      .from("providers")
+      .upsert({ ...row, extractor_config: parsedExtractorConfig }, { onConflict: "id" });
     if (error) throw error;
   } catch {
-    // Fallback sin columnas de availability urls
     try {
-      const {
-        movie_list_url: _m,
-        tv_list_url: _t,
-        anime_list_url: _a,
-        dorama_list_url: _d,
-        ...rowNoAvail
-      } = row;
-      const { error: err0 } = await supa().from("providers").upsert(rowNoAvail, { onConflict: "id" });
-      if (err0) throw err0;
+      const { error } = await supa().from("providers").upsert(row, { onConflict: "id" });
+      if (error) throw error;
     } catch {
-      // Fallback sin is_beta
+      // Fallback sin columnas de availability urls
       try {
         const {
           movie_list_url: _m,
           tv_list_url: _t,
           anime_list_url: _a,
           dorama_list_url: _d,
-          is_beta: _b,
-          ...rowNoBeta
+          ...rowNoAvail
         } = row;
-        const { error: err1 } = await supa().from("providers").upsert(rowNoBeta, { onConflict: "id" });
-        if (err1) throw err1;
+        const { error: err0 } = await supa().from("providers").upsert(rowNoAvail, { onConflict: "id" });
+        if (err0) throw err0;
       } catch {
-        // Fallback sin subtitles ni is_beta
+        // Fallback sin is_beta
         try {
           const {
             movie_list_url: _m,
@@ -484,24 +589,38 @@ export async function PUT(req: NextRequest) {
             anime_list_url: _a,
             dorama_list_url: _d,
             is_beta: _b,
-            subtitles: _s,
-            ...rowNoSub
+            ...rowNoBeta
           } = row;
-          const { error: err2 } = await supa().from("providers").upsert(rowNoSub, { onConflict: "id" });
-          if (err2) throw err2;
+          const { error: err1 } = await supa().from("providers").upsert(rowNoBeta, { onConflict: "id" });
+          if (err1) throw err1;
         } catch {
-          const {
-            movie_list_url: _m,
-            tv_list_url: _t,
-            anime_list_url: _a,
-            dorama_list_url: _d,
-            is_beta: _b,
-            lang: _l,
-            subtitles: _s,
-            ...baseRow
-          } = row;
-          const { error: baseErr } = await supa().from("providers").upsert(baseRow, { onConflict: "id" });
-          if (baseErr) return NextResponse.json({ error: "db" }, { status: 500 });
+          // Fallback sin subtitles ni is_beta
+          try {
+            const {
+              movie_list_url: _m,
+              tv_list_url: _t,
+              anime_list_url: _a,
+              dorama_list_url: _d,
+              is_beta: _b,
+              subtitles: _s,
+              ...rowNoSub
+            } = row;
+            const { error: err2 } = await supa().from("providers").upsert(rowNoSub, { onConflict: "id" });
+            if (err2) throw err2;
+          } catch {
+            const {
+              movie_list_url: _m,
+              tv_list_url: _t,
+              anime_list_url: _a,
+              dorama_list_url: _d,
+              is_beta: _b,
+              lang: _l,
+              subtitles: _s,
+              ...baseRow
+            } = row;
+            const { error: baseErr } = await supa().from("providers").upsert(baseRow, { onConflict: "id" });
+            if (baseErr) return NextResponse.json({ error: "db" }, { status: 500 });
+          }
         }
       }
     }

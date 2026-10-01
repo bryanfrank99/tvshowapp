@@ -97,8 +97,8 @@ export async function GET(req: NextRequest) {
   try {
     const sb = supa();
 
-    // 2. Consulta de proveedores, versión, prioridades lingüísticas y configuración HLS
-    const [provRes, verRes, primaryRes, availRes, prioritiesRes, hlsConfigRes] = await Promise.all([
+    // 2. Consulta de proveedores, versión, prioridades lingüísticas y configuración HLS / Extractores
+    const [provRes, verRes, primaryRes, availRes, prioritiesRes, hlsConfigRes, allowEmbedRes, extConfigsRes] = await Promise.all([
       sb
         .from("providers")
         .select("*")
@@ -109,11 +109,21 @@ export async function GET(req: NextRequest) {
       sb.from("config").select("value").eq("key", "provider_availability_urls").maybeSingle(),
       sb.from("config").select("value").eq("key", "provider_priorities_by_lang").maybeSingle(),
       sb.from("config").select("value").eq("key", "provider_hls_config").maybeSingle(),
+      sb.from("config").select("value").eq("key", "allow_embed_fallback").maybeSingle(),
+      sb.from("config").select("value").eq("key", "provider_extractor_configs").maybeSingle(),
     ]);
 
     if (provRes.error || !provRes.data) {
       return NextResponse.json({ error: "db", message: "Error cargando proveedores" }, { status: 500 });
     }
+
+    const allowEmbedFallback = allowEmbedRes?.data?.value === "true";
+    let fallbackExtractorConfigs: Record<string, any> = {};
+    try {
+      if (extConfigsRes?.data?.value) {
+        fallbackExtractorConfigs = JSON.parse(extConfigsRes.data.value);
+      }
+    } catch {}
 
     let hlsConfigMap: Record<string, { enabled: boolean; extractor: string }> = {
       megaembed: { enabled: true, extractor: "megaembed" },
@@ -230,7 +240,8 @@ export async function GET(req: NextRequest) {
           is_beta: !!p.is_beta,
           entry_key: p.entry_key || defaultVimeusKey,
           key: p.entry_key || defaultVimeusKey,
-        } as ProviderAdapterInput;
+          extractor_config: p.extractor_config || fallbackExtractorConfigs[p.id],
+        } as ProviderAdapterInput & { extractor_config?: any };
       })
     );
 
@@ -703,6 +714,47 @@ export async function GET(req: NextRequest) {
           return provSources; // Ya agregamos el servidor S17 unificado (con direct HLS si existía + único iframe con embedOptions)
         }
 
+        // Spec 096: Soporte para Extractor Dinámico JSON (hls-engine) en cualquier proveedor
+        const extConfig = (prov as any).extractor_config;
+        if (extConfig) {
+          try {
+            const { runHlsExtractor } = await import("@/lib/hls-engine");
+            const result = await runHlsExtractor({
+              providerId: prov.id,
+              config: extConfig,
+              movieTpl: prov.movie_tpl,
+              tvTpl: prov.tv_tpl,
+              type,
+              id: targetId,
+              season: s,
+              episode: e,
+            });
+            if (result && result.success && result.hlsUrl) {
+              const srvTag = prov.ord ? `S${prov.ord}` : (prov.simulated_name || prov.id);
+              provSources.push({
+                id: `${prov.id}-hls`,
+                providerId: prov.id,
+                providerName: `HLS - ${srvTag}`,
+                realName: `${prov.real_name || prov.name} (HLS)`,
+                ord: prov.ord,
+                type: "hls",
+                url: result.hlsUrl,
+                backupUrls: result.backupHlsUrls || [],
+                lang: (prov.lang as any) || "multi",
+                languages: prov.languages || ["multi"],
+                subtitles: (result as any).subtitles || prov.subtitles || [],
+                priority: 120,
+                isBeta: !!prov.is_beta,
+                needsTmdb: prov.needs_tmdb,
+                tvOk: prov.tv_ok,
+              });
+              if (!allowEmbedFallback) {
+                return provSources;
+              }
+            }
+          } catch {}
+        }
+
         const adapted = providersToSources([prov], {
           type,
           id: targetId,
@@ -720,10 +772,15 @@ export async function GET(req: NextRequest) {
 
     const rawSources: Source[] = sourceBatches.flat();
 
+    // Spec 096: Si allow_embed_fallback es false (Modo HLS Estricto), filtrar fuentes que no sean streams HLS directos
+    const finalSourcesToRank = allowEmbedFallback
+      ? rawSources
+      : rawSources.filter((src) => src.type === "hls");
+
     // Ordenar TODAS las fuentes según afinidad lingüística real y prioridad de servidor por idioma.
     // Spec 085: Cada servidor HLS nativo se entrega como fuente independiente (HLS - S14, HLS - S18, etc.)
     // con sus propios backups, permitiendo selección directa y fallback limpio entre servidores.
-    const sources: Source[] = sortSourcesByPriority(rawSources, userLang, primaryByLang);
+    const sources: Source[] = sortSourcesByPriority(finalSourcesToRank, userLang, primaryByLang);
 
     const recommendedSourceId = sources[0]?.id || "";
 
