@@ -1210,7 +1210,7 @@ export default function AdminPage() {
   };
 
   const openEditProv = (p: Partial<Prov> & { _new?: boolean }) => {
-    const currentMode = (p.id && providerStreamModes[p.id]) || p.stream_mode || ((p.id === "playerflix" || p.id === "cinecalidad") ? "both" : p.extractor_config?.preset ? "hls" : p.hls_enabled ? "hls" : "embed");
+    const currentMode = (p.id && providerStreamModes[p.id]) || p.stream_mode || ((p.id === "playerflix" || p.id === "cinecalidad" || p.id === "megaembed") ? "both" : p.extractor_config?.preset ? "hls" : p.hls_enabled ? "hls" : "embed");
     setEdit({ ...p, stream_mode: currentMode });
     const cfg = p.extractor_config || (p.id ? extractorPresets[p.id]?.template : null) || { preset: "direct_m3u8" };
     setExtractorConfigText(JSON.stringify(cfg, null, 2));
@@ -2659,7 +2659,7 @@ export default function AdminPage() {
                       const currentMode: "hls" | "embed" | "both" =
                         providerStreamModes[p.id] ||
                         p.stream_mode ||
-                        ((p.id === "playerflix" || p.id === "cinecalidad") ? "both" : p.extractor_config?.preset ? "hls" : p.hls_enabled ? "hls" : "embed");
+                        ((p.id === "playerflix" || p.id === "cinecalidad" || p.id === "megaembed") ? "both" : p.extractor_config?.preset ? "hls" : p.hls_enabled ? "hls" : "embed");
                       const isSaving = savingStreamModeId === p.id;
                       return (
                         <div className="flex items-center bg-black/60 p-1 rounded-xl border border-white/10 shrink-0 gap-1">

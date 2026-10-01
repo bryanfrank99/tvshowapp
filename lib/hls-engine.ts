@@ -433,6 +433,9 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
         }
       }
       if (!Array.isArray(raw) || raw.length === 0) {
+        if (step.required === false) {
+          return { hlsUrl: "", backupHlsUrls: [], embeds: [] };
+        }
         throw new Error("No se encontraron fuentes válidas en MegaEmbed");
       }
 
@@ -445,20 +448,47 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
         return { ...s, file: u };
       });
 
-      const hlsSources = normalized.filter((s: any) => s.type === "hls" || s.file.includes(".m3u8"));
-      const mp4Source = normalized.find((s: any) => s.type === "mp4" || s.file.includes(".mp4"));
+      const hlsSources = normalized.filter((s: any) => s.type === "hls" || String(s.file || "").includes(".m3u8"));
+      const mp4Sources = normalized.filter((s: any) => s.type === "mp4" || String(s.file || "").includes(".mp4"));
 
-      const primaryHls = hlsSources[0]?.file || mp4Source?.file;
-      const backupHls = hlsSources.slice(1).map((s: any) => s.file);
+      const primaryHls = hlsSources[0]?.file || mp4Sources[0]?.file || "";
+      const backupHls = [
+        ...hlsSources.slice(1).map((s: any) => s.file),
+        ...mp4Sources.filter((s: any) => s.file !== primaryHls).map((s: any) => s.file),
+      ];
 
-      if (!primaryHls) {
+      const baseEmbedUrl = ctx.type === "tv"
+        ? `https://mgeb.top/embed/${ctx.id}/${ctx.season || 1}/${ctx.episode || 1}`
+        : `https://mgeb.top/embed/${ctx.id}`;
+
+      const embeds = normalized.map((s: any, idx: number) => {
+        const label = s.label || `Opção ${idx + 1}`;
+        const isHls = s.type === "hls" || String(s.file || "").includes(".m3u8");
+        return {
+          name: `MegaEmbed - ${label} (${isHls ? "HLS" : "MP4"})`,
+          server: `megaembed_${idx + 1}`,
+          host: "MegaEmbed",
+          language: "Português",
+          url: s.file,
+          embed: baseEmbedUrl,
+          label: `${label} (${isHls ? "HLS" : "MP4"})`,
+          lang: "pt-br",
+          budget: isHls ? "success" : "secondary",
+          icon: `<img src="https://mgeb.top/favicon.ico" />`,
+          type: isHls ? "hls" : "mp4",
+        };
+      });
+
+      if (!primaryHls && step.required !== false) {
         throw new Error("No hay streams reproducibles en MegaEmbed");
       }
 
       return {
         hlsUrl: primaryHls,
         backupHlsUrls: backupHls,
+        embeds,
         sources: normalized,
+        primaryUrl: embeds[0]?.url || primaryHls,
       };
     }
 
@@ -1162,7 +1192,8 @@ export const EXTRACTOR_PRESETS: Record<string, { label: string; description: str
       ],
       output: {
         hlsUrl: "{{mega_streams.hlsUrl}}",
-        backupHlsUrls: "{{mega_streams.backupHlsUrls}}"
+        backupHlsUrls: "{{mega_streams.backupHlsUrls}}",
+        embeds: "{{mega_streams.embeds}}"
       }
     }
   },
