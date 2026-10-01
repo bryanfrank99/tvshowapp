@@ -509,7 +509,91 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
         throw new Error("Ninguna opción de PlayerFlix contiene una URL de reproducción válida");
       }
 
+      // Extracción rápida concurrente de streams directos HLS (.m3u8) si alguna opción lo soporta
+      const hlsPromises = rawOptions.map(async (opt: any): Promise<string[]> => {
+        const u = String(opt.embed || "").trim();
+        const found: string[] = [];
+
+        // 1. Caso WatchPlay (Series) -> Stream directo fMP4 playlist.m3u8
+        if (u.includes("watchplay.shop")) {
+          try {
+            const ctrl = new AbortController();
+            const tm = setTimeout(() => ctrl.abort(), 3500);
+            const r = await fetch(u, {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+                "Referer": "https://playerflix.ink/",
+              },
+              signal: ctrl.signal,
+              cache: "no-store",
+            });
+            clearTimeout(tm);
+            if (r.ok) {
+              const html = await r.text();
+              const m = html.match(/url:\s*"([^"]+playlist\.m3u8[^"]*)"/i);
+              if (m && m[1]) {
+                found.push(m[1].replace(/\\/g, ""));
+              } else {
+                const gm = html.match(/https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/i);
+                if (gm && gm[0]) found.push(gm[0].replace(/\\/g, ""));
+              }
+            }
+          } catch {}
+        }
+
+        // 2. Caso VIP Player / EmbedPlayer (Películas) -> API getVideo
+        if (u.includes("embedplayer") || opt.embed_id) {
+          try {
+            let originHost = "https://embedplayer2.xyz";
+            let hash = opt.embed_id;
+            try {
+              const parsed = new URL(u);
+              originHost = `${parsed.protocol}//${parsed.host}`;
+              if (!hash) {
+                const parts = parsed.pathname.split("/").filter(Boolean);
+                hash = parts[parts.length - 1];
+              }
+            } catch {}
+
+            if (hash) {
+              const ctrl = new AbortController();
+              const tm = setTimeout(() => ctrl.abort(), 3500);
+              const apiUrl = `${originHost}/player/index.php?data=${encodeURIComponent(hash)}&do=getVideo`;
+              const r = await fetch(apiUrl, {
+                method: "POST",
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                  "Referer": `${originHost}/video/${hash}`,
+                  "X-Requested-With": "XMLHttpRequest",
+                  "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                },
+                body: new URLSearchParams({ hash, r: "https://playerflix.ink/" }).toString(),
+                signal: ctrl.signal,
+                cache: "no-store",
+              });
+              clearTimeout(tm);
+              if (r.ok) {
+                const json = await r.json().catch(() => null);
+                const rawHls = (json?.securedLink || json?.videoSource || "").replace(/\\/g, "");
+                if (rawHls && rawHls.includes(".m3u8")) {
+                  found.push(rawHls);
+                }
+              }
+            }
+          } catch {}
+        }
+
+        return found;
+      });
+
+      const settledHls = await Promise.all(hlsPromises);
+      const allHls = settledHls.flat().filter(Boolean);
+      const primaryHls = allHls[0] || "";
+      const backupHls = allHls.slice(1);
+
       return {
+        hlsUrl: primaryHls,
+        backupHlsUrls: backupHls,
         embeds,
         primaryUrl: embeds[0]?.url || "",
       };
@@ -897,8 +981,8 @@ export const EXTRACTOR_PRESETS: Record<string, { label: string; description: str
         }
       ],
       output: {
-        hlsUrl: "",
-        backupHlsUrls: [],
+        hlsUrl: "{{playerflix_streams.hlsUrl}}",
+        backupHlsUrls: "{{playerflix_streams.backupHlsUrls}}",
         embeds: "{{playerflix_streams.embeds}}",
         title: "{{playerflix_ajax.data.title}}"
       }

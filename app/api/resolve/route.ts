@@ -416,13 +416,14 @@ export async function GET(req: NextRequest) {
 
     const rawSources: Source[] = sourceBatches.flat();
 
-    // Spec 096 & 100: Si allow_embed_fallback es false (Modo HLS Estricto), priorizar HLS pero si ningún proveedor
-    // pudo extraer HLS (por ejemplo bloqueo WAF 403), conservar los embeds para que el usuario no quede sin reproducción.
+    // Spec 096, 100 & 102: Si allow_embed_fallback es false (Modo HLS Estricto), priorizar HLS pero:
+    // 1. Conservar tarjetas con opciones multi-mirror explícitas (e.g. S20 con mirrors originales Embed Play, VIP, Premium).
+    // 2. Si ningún proveedor pudo extraer HLS (por ejemplo bloqueo WAF 403), conservar los embeds para no dejar sin reproducción.
     const hlsOnlySources = rawSources.filter((src) => src.type === "hls");
     const finalSourcesToRank =
       allowEmbedFallback || hlsOnlySources.length === 0
         ? rawSources
-        : hlsOnlySources;
+        : rawSources.filter((src) => src.type === "hls" || (src.options && src.options.length > 0));
 
     // Ordenar TODAS las fuentes según afinidad lingüística real y prioridad de servidor por idioma.
     // Spec 085: Cada servidor HLS nativo se entrega como fuente independiente (HLS - S14, HLS - S18, etc.)
