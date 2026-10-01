@@ -258,10 +258,11 @@ export async function GET(req: NextRequest) {
 
           let directHlsUrl = cachedHls?.hlsUrl;
           let subtitles: any[] = [];
+          let fetchedEmbeds: any[] | undefined = cachedHls?.embeds;
 
-          if (!directHlsUrl) {
+          if (!directHlsUrl || !fetchedEmbeds || fetchedEmbeds.length === 0) {
             try {
-              const { fetchCinecalidadStream } = await import("@/lib/cinecalidad");
+              const { fetchCinecalidadStream, fetchCinecalidadEmbeds } = await import("@/lib/cinecalidad");
               const extractPromise = fetchCinecalidadStream({
                 type,
                 tmdbId: targetId,
@@ -270,27 +271,42 @@ export async function GET(req: NextRequest) {
               });
               const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 5500));
               const fresh = await Promise.race([extractPromise, timeoutPromise]);
-              if (fresh?.success && fresh.hlsUrl) {
-                directHlsUrl = fresh.hlsUrl;
-                subtitles = (fresh.subtitles || []).map((st: any, idx: number) => ({
-                  id: `sub-cc-${idx}`,
-                  lang: "es",
-                  label: st.label || "Español",
-                  url: st.file,
-                  isDefault: st.default,
-                }));
+              if (fresh) {
+                if (fresh.embeds && fresh.embeds.length > 0) {
+                  fetchedEmbeds = fresh.embeds;
+                }
+                if (fresh.success && fresh.hlsUrl) {
+                  directHlsUrl = fresh.hlsUrl;
+                  subtitles = (fresh.subtitles || []).map((st: any, idx: number) => ({
+                    id: `sub-cc-${idx}`,
+                    lang: "es",
+                    label: st.label || "Español",
+                    url: st.file,
+                    isDefault: st.default,
+                  }));
 
-                const { setCachedStream } = await import("@/lib/stream-cache");
-                setCachedStream({
-                  providerId: prov.id,
+                  const { setCachedStream } = await import("@/lib/stream-cache");
+                  setCachedStream({
+                    providerId: prov.id,
+                    type,
+                    targetId,
+                    season: s,
+                    episode: e,
+                    hlsUrl: fresh.hlsUrl,
+                    backupHlsUrls: fresh.backupHlsUrls,
+                    embeds: fresh.embeds,
+                    ttlHours: 12,
+                  }).catch(() => {});
+                }
+              }
+
+              if (!fetchedEmbeds || fetchedEmbeds.length === 0) {
+                fetchedEmbeds = await fetchCinecalidadEmbeds({
                   type,
-                  targetId,
+                  tmdbId: targetId,
                   season: s,
                   episode: e,
-                  hlsUrl: fresh.hlsUrl,
-                  backupHlsUrls: fresh.backupHlsUrls,
-                  ttlHours: 12,
-                }).catch(() => {});
+                });
               }
             } catch {}
           }
@@ -314,41 +330,38 @@ export async function GET(req: NextRequest) {
               needsTmdb: prov.needs_tmdb,
               tvOk: prov.tv_ok,
             });
-            return provSources; // Ya agregamos el servidor S19 como stream nativo HLS
           }
 
-          // Fallback a embeds iframe clásicos si no se pudo extraer stream directo
-          try {
-            const { fetchCinecalidadEmbeds } = await import("@/lib/cinecalidad");
-            const embeds = await fetchCinecalidadEmbeds({
-              type,
-              tmdbId: targetId,
-              season: s,
-              episode: e,
+          // Unificación de S19: tarjeta iframe unificada con embedOptions para alternar hosts
+          if (fetchedEmbeds && fetchedEmbeds.length > 0) {
+            const srvTag = prov.ord ? `S${prov.ord}` : "S19";
+            const primaryEmbedUrl = fetchedEmbeds[0].url;
+            provSources.push({
+              id: `${prov.id}-iframe`,
+              providerId: prov.id,
+              providerName: prov.simulated_name || srvTag,
+              realName: prov.real_name || prov.name,
+              ord: prov.ord,
+              type: "iframe",
+              url: primaryEmbedUrl,
+              embedOptions: fetchedEmbeds.map((emb: any) => ({
+                name: emb.host || emb.server || "Cinecalidad",
+                server: emb.server || "online",
+                host: emb.host || "Cinecalidad",
+                language: emb.lang || "Latino",
+                url: emb.url,
+              })),
+              lang: "es",
+              languages: ["es", "lat"],
+              subtitles: subtitles.length > 0 ? subtitles : (prov.subtitles || []),
+              priority: 95,
+              isBeta: false,
+              needsTmdb: true,
+              tvOk: true,
             });
-            if (embeds && embeds.length > 0) {
-              embeds.forEach((emb, idx) => {
-                const hostName = emb.host ? ` (${emb.host.split(".")[0]})` : "";
-                provSources.push({
-                  id: idx === 0 ? `${prov.id}-iframe` : `${prov.id}-iframe-${idx + 1}`,
-                  providerId: prov.id,
-                  providerName: prov.simulated_name || prov.name,
-                  realName: `${prov.real_name || prov.name}${hostName}`,
-                  ord: prov.ord,
-                  type: "iframe",
-                  url: emb.url,
-                  lang: "es",
-                  languages: ["es", "lat"],
-                  subtitles: [],
-                  priority: 90,
-                  isBeta: false,
-                  needsTmdb: true,
-                  tvOk: true,
-                });
-              });
-              return provSources;
-            }
-          } catch {}
+          }
+
+          return provSources;
         }
 
         // Si es MegaEmbed (S14), consultamos la caché de BD o extraemos en vivo el stream HLS

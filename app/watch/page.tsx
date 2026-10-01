@@ -122,6 +122,9 @@ function WatchInner() {
           const playerFlixItem = rawList.find(
             (s) => (s.providerId === "playerflix" || s.id.startsWith("playerflix")) && s.type !== "hls"
           );
+          const cinecalidadItem = rawList.find(
+            (s) => (s.providerId === "cinecalidad" || s.id.startsWith("cinecalidad")) && s.type !== "hls"
+          );
 
           interface ExtractedStreamInfo {
             providerId: string;
@@ -376,6 +379,46 @@ function WatchInner() {
                       isBeta: Boolean(nasriItem.isBeta),
                       simulatedName: nasriItem.providerName,
                       realName: nasriItem.realName,
+                    };
+                    extractedList.push(extracted);
+
+                    if (isInitialPhaseDoneRef.current) {
+                      setSources((prev) => {
+                        const currentActiveId = activeSourceRef.current?.id;
+                        const merged = mergeExtractedStreams(prev, [extracted]);
+                        const sorted = sortSourcesByPriority(merged, lang);
+                        if (currentActiveId && !userSourceId) {
+                          setUserSourceId(currentActiveId);
+                        }
+                        return sorted;
+                      });
+                    }
+                  }
+                } catch {}
+              })()
+            );
+          }
+
+          if (cinecalidadItem) {
+            extractionTasks.push(
+              (async () => {
+                try {
+                  const res = await fetch(
+                    `/api/cinecalidad?id=${encodeURIComponent(targetId)}&type=${type}&s=${s}&e=${e}&stream=1`
+                  );
+                  if (!res.ok) return;
+                  const streamResult = await res.json();
+                  if (streamResult?.hlsUrl) {
+                    const extracted: ExtractedStreamInfo = {
+                      providerId: "cinecalidad",
+                      ord: cinecalidadItem.ord || 19,
+                      tag: cinecalidadItem.ord ? `S${cinecalidadItem.ord}` : "S19",
+                      lang: (streamResult.lang as any) || "es",
+                      hlsUrl: streamResult.hlsUrl,
+                      backupUrls: (streamResult.backupHlsUrls || []).filter(Boolean),
+                      isBeta: Boolean(cinecalidadItem.isBeta),
+                      simulatedName: cinecalidadItem.providerName,
+                      realName: cinecalidadItem.realName,
                     };
                     extractedList.push(extracted);
 
@@ -710,6 +753,36 @@ function WatchInner() {
                               id: `${source.providerId || "nasriplay"}-hls`,
                               providerName: `HLS - ${srvTag}`,
                               realName: `${source.realName || "NasriPlay"} (HLS)`,
+                              type: "hls",
+                              url: streamResult.hlsUrl!,
+                              backupUrls: streamResult.backupHlsUrls,
+                              priority: 120,
+                            }
+                          : src
+                      );
+                    });
+                  }
+                })
+                .catch(() => {});
+            }
+
+            if (
+              (source.providerId === "cinecalidad" || source.id.startsWith("cinecalidad")) &&
+              source.type !== "hls"
+            ) {
+              fetch(`/api/cinecalidad?id=${encodeURIComponent(id)}&type=${type}&s=${s}&e=${e}&stream=1`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((streamResult) => {
+                  if (streamResult?.hlsUrl) {
+                    setSources((prev) => {
+                      const srvTag = source.ord ? `S${source.ord}` : "S19";
+                      return prev.map((src) =>
+                        src.id === source.id
+                          ? {
+                              ...src,
+                              id: `${source.providerId || "cinecalidad"}-hls`,
+                              providerName: `HLS - ${srvTag}`,
+                              realName: `${source.realName || "Cinecalidad"} (HLS)`,
                               type: "hls",
                               url: streamResult.hlsUrl!,
                               backupUrls: streamResult.backupHlsUrls,

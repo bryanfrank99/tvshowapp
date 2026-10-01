@@ -18,6 +18,24 @@ export interface CinecalidadFetchOptions {
 const cinecalidadCache = new Map<string, { embeds: CinecalidadEmbed[]; lastFetch: number }>();
 const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutos
 
+export function detectCinecalidadHost(url: string, rawHost?: string, rawServer?: string): string {
+  const hostMatch = url.match(/https?:\/\/(?:www\.)?([^\/]+)/i)?.[1]?.toLowerCase() || "";
+  if (hostMatch.includes("vimeos") || hostMatch.includes("vimeus")) return "Vimeos";
+  if (hostMatch.includes("goodstream")) return "Goodstream";
+  if (hostMatch.includes("filelions")) return "Filelions";
+  if (hostMatch.includes("streamtape")) return "Streamtape";
+  if (hostMatch.includes("streamwish") || hostMatch.includes("wishembed")) return "Streamwish";
+  if (hostMatch.includes("voe.")) return "Voe";
+  if (hostMatch.includes("vidhide")) return "Vidhide";
+  if (hostMatch.includes("uqload")) return "Uqload";
+
+  const fallback = (rawHost || rawServer || "").trim();
+  if (!fallback || fallback.toLowerCase().includes("online")) {
+    return "Cinecalidad";
+  }
+  return fallback.charAt(0).toUpperCase() + fallback.slice(1);
+}
+
 /**
  * Consulta la API de Cinecalidad y retorna la lista de embeds disponibles
  */
@@ -40,8 +58,8 @@ export async function fetchCinecalidadEmbeds(
   const kind = opts.type === "tv" ? "tvshow" : "movie";
   const targetApiUrl =
     opts.type === "tv"
-      ? `https://tmdb.cinecalidad.am/v1/playback/tvshow/${tmdbId}?season=${s}&episode=${e}`
-      : `https://tmdb.cinecalidad.am/v1/playback/movie/${tmdbId}`;
+      ? `https://tmdb.allcalidad.re/v1/playback/tvshow/${tmdbId}?season=${s}&episode=${e}`
+      : `https://tmdb.allcalidad.re/v1/playback/movie/${tmdbId}`;
 
   const timeoutMs = opts.timeoutMs || 6000;
   const controller = new AbortController();
@@ -64,7 +82,15 @@ export async function fetchCinecalidadEmbeds(
     }
 
     const data = await res.json();
-    const embeds: CinecalidadEmbed[] = Array.isArray(data.embeds) ? data.embeds : [];
+    const rawEmbeds: any[] = Array.isArray(data.embeds) ? data.embeds : [];
+    const embeds: CinecalidadEmbed[] = rawEmbeds.map((emb: any) => ({
+      url: emb.url,
+      server: emb.server || "Online",
+      host: detectCinecalidadHost(emb.url, emb.host, emb.server),
+      lang: emb.lang || "Latino",
+      quality: emb.quality || "HD",
+      subtitle: Boolean(emb.subtitle),
+    }));
 
     cinecalidadCache.set(cacheKey, { embeds, lastFetch: now });
     return embeds;
