@@ -349,7 +349,7 @@ export async function GET(req: NextRequest) {
 
         const provStreamMode: "hls" | "embed" | "both" =
           providerStreamModes[prov.id] ||
-          (prov.id === "playerflix" ? "both" : (directHlsUrl || hlsConfigMap[prov.id]?.enabled ? "hls" : "embed"));
+          (prov.id === "playerflix" || prov.id === "cinecalidad" ? "both" : (directHlsUrl || hlsConfigMap[prov.id]?.enabled ? "hls" : "embed"));
 
         const allowHls = provStreamMode === "hls" || provStreamMode === "both";
         const allowEmbed = provStreamMode === "embed" || provStreamMode === "both";

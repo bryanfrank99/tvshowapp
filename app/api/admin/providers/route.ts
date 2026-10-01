@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
       extractor: x.id === "megaembed" ? "megaembed" : x.id === "watchplay" ? "watchplay" : (x.id === "cinecalidad" || x.id === "nasriplay") ? "direct" : "none",
     };
 
-    const defaultMode: "hls" | "embed" | "both" = x.id === "playerflix" ? "both" : (hlsCfg.enabled ? "hls" : "embed");
+    const defaultMode: "hls" | "embed" | "both" = (x.id === "playerflix" || x.id === "cinecalidad") ? "both" : (hlsCfg.enabled ? "hls" : "embed");
     const stream_mode: "hls" | "embed" | "both" = providerStreamModes[x.id] || defaultMode;
 
     return {

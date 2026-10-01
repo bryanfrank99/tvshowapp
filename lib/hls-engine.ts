@@ -23,6 +23,7 @@ export interface PipelineStep {
     | "nasriplay_resolve_servers"
     | "megaembed_parse_sources"
     | "playerflix_resolve_options"
+    | "cinecalidad_resolve_embeds"
     | "extract_playerflix"
     | "extract_megaembed"
     | "extract_watchplay";
@@ -71,7 +72,7 @@ export interface StepTrace {
 export interface ExtractorConfig {
   version?: number;
   mode?: "pipeline" | "legacy";
-  preset?: "vimeos_json" | "nasriplay_token" | "playerflix" | "megaembed" | "watchplay" | "direct_m3u8" | "custom_api";
+  preset?: "vimeos_json" | "cinecalidad" | "nasriplay_token" | "playerflix" | "megaembed" | "watchplay" | "direct_m3u8" | "custom_api";
   steps?: PipelineStep[];
   output?: PipelineOutput;
   movie_api_url?: string;
@@ -602,6 +603,125 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
       };
     }
 
+    case "cinecalidad_resolve_embeds": {
+      let rawEmbeds = resolveValue(step.input, ctx);
+      if (typeof rawEmbeds === "string") {
+        try {
+          rawEmbeds = JSON.parse(rawEmbeds);
+        } catch {}
+      }
+      if (!Array.isArray(rawEmbeds) || rawEmbeds.length === 0) {
+        if (step.required !== false) {
+          throw new Error("No se encontraron opciones de reproducción en Cinecalidad");
+        }
+        return { embeds: [] };
+      }
+
+      const detectCinecalidadHostLocal = (url: string, rawHost?: string, rawServer?: string): string => {
+        const hostMatch = url.match(/https?:\/\/(?:www\.)?([^\/]+)/i)?.[1]?.toLowerCase() || "";
+        if (hostMatch.includes("vimeos") || hostMatch.includes("vimeus")) return "Vimeos";
+        if (hostMatch.includes("goodstream")) return "Goodstream";
+        if (hostMatch.includes("filelions")) return "Filelions";
+        if (hostMatch.includes("streamtape")) return "Streamtape";
+        if (hostMatch.includes("streamwish") || hostMatch.includes("wishembed")) return "Streamwish";
+        if (hostMatch.includes("voe.")) return "Voe";
+        if (hostMatch.includes("vidhide")) return "Vidhide";
+        if (hostMatch.includes("uqload")) return "Uqload";
+
+        const fallback = (rawHost || rawServer || "").trim();
+        if (!fallback || fallback.toLowerCase().includes("online")) {
+          return "Cinecalidad";
+        }
+        return fallback.charAt(0).toUpperCase() + fallback.slice(1);
+      };
+
+      const embeds = rawEmbeds
+        .filter((emb: any) => Boolean(emb && emb.url))
+        .map((emb: any) => {
+          const rawUrl = String(emb.url).trim();
+          const hostName = detectCinecalidadHostLocal(rawUrl, emb.host, emb.server);
+          const quality = emb.quality || "HD";
+          const baseLabel = `${hostName} (${quality})`;
+          const isSub = Boolean(emb.subtitle) || String(emb.lang || "").toLowerCase().includes("sub");
+          const langCode = isSub ? "es-sub" : "es-419";
+          const langLabel = isSub ? "Subtitulado" : (emb.lang || "Latino");
+
+          return {
+            name: `${baseLabel} - ${langLabel}`,
+            server: hostName.toLowerCase().replace(/[^a-z0-9]/g, ""),
+            host: hostName,
+            language: langLabel,
+            url: rawUrl,
+            embed: rawUrl,
+            label: baseLabel,
+            lang: langCode,
+            budget: hostName === "Vimeos" ? "success" : "secondary",
+            icon: `<img src="https://cinecalidad.am/favicon.ico" />`,
+            quality,
+            subtitle: emb.subtitle,
+          };
+        });
+
+      if (embeds.length === 0 && step.required !== false) {
+        throw new Error("Ninguna opción de Cinecalidad contiene una URL de reproducción válida");
+      }
+
+      // Extracción rápida concurrente de streams directos HLS (.m3u8) y subtítulos
+      let extractedSubtitles: any[] = [];
+      const hlsPromises = rawEmbeds.map(async (emb: any): Promise<string[]> => {
+        const u = String(emb.url || "").trim();
+        const found: string[] = [];
+
+        // 1. Caso Vimeos (Desempaquetar script Packer y extraer master.m3u8)
+        if (u.includes("vimeos") || u.includes("vimeus")) {
+          try {
+            const ctrl = new AbortController();
+            const tm = setTimeout(() => ctrl.abort(), 6000);
+            const r = await fetch(u, {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+                "Referer": "https://cinecalidad.am/",
+              },
+              signal: ctrl.signal,
+              cache: "no-store",
+            });
+            clearTimeout(tm);
+            if (r.ok) {
+              const html = await r.text();
+              const unpacked = unpackPackerScript(html);
+              if (unpacked) {
+                const m3u8Match = unpacked.match(/https?:\/\/[^\s"']+\.m3u8[^\s"']*/);
+                if (m3u8Match && m3u8Match[0]) {
+                  found.push(m3u8Match[0]);
+                }
+                const subs = extractVimeosTracks(unpacked);
+                if (subs.length > 0 && extractedSubtitles.length === 0) {
+                  extractedSubtitles = subs;
+                }
+              }
+            }
+          } catch {}
+        } else if (u.includes(".m3u8")) {
+          found.push(u);
+        }
+
+        return found;
+      });
+
+      const settledHls = await Promise.all(hlsPromises);
+      const allHls = settledHls.flat().filter(Boolean);
+      const primaryHls = allHls[0] || "";
+      const backupHls = allHls.slice(1);
+
+      return {
+        hlsUrl: primaryHls,
+        backupHlsUrls: backupHls,
+        subtitles: extractedSubtitles,
+        embeds,
+        primaryUrl: embeds[0]?.url || "",
+      };
+    }
+
     case "extract_playerflix": {
       const { fetchPlayerFlixStreams } = await import("./playerflix");
       const res = await fetchPlayerFlixStreams({ id: ctx.id, type: ctx.type, season: ctx.season, episode: ctx.episode });
@@ -835,69 +955,74 @@ export async function executePipeline(
  */
 export const EXTRACTOR_PRESETS: Record<string, { label: string; description: string; template: ExtractorConfig }> = {
   vimeos_json: {
-    label: "Cinecalidad (AllCalidad / Vimeos HLS Pipeline)",
-    description: "Pipeline declarativo completo: consulta endpoint REST, extrae embed de Vimeos, desofusca script Packer y obtiene stream .m3u8 nativo con subtítulos.",
+    label: "Cinecalidad (AllCalidad / Multi-Mirror HLS Pipeline)",
+    description: "Pipeline declarativo directo: consulta la API original de Cinecalidad/AllCalidad, extrae stream directo HLS (.m3u8), subtítulos y entrega todas las opciones de mirrors (Vimeos, Goodstream, etc.).",
     template: {
       version: 2,
       mode: "pipeline",
       preset: "vimeos_json",
       steps: [
         {
-          id: "api_playback",
+          id: "cinecalidad_playback",
           action: "http_request",
           movie_url: "https://tmdb.allcalidad.re/v1/playback/movie/{id}",
           tv_url: "https://tmdb.allcalidad.re/v1/playback/tvshow/{id}?season={s}&episode={e}",
           method: "GET",
           headers: {
             "Referer": "https://cinecalidad.am/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Accept": "application/json"
           },
           response_type: "json",
-          timeout_ms: 7000
+          timeout_ms: 10000
         },
         {
-          id: "vimeos_embed",
-          action: "find_in_array",
-          input: "{{api_playback.embeds}}",
-          match: { "url_contains": "vimeos" },
-          select: "url"
-        },
-        {
-          id: "vimeos_html",
-          action: "http_request",
-          url: "{{vimeos_embed}}",
-          method: "GET",
-          headers: {
-            "Referer": "https://cinecalidad.am/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-          },
-          response_type: "text",
-          timeout_ms: 7000
-        },
-        {
-          id: "unpacked_js",
-          action: "unpack_packer",
-          input: "{{vimeos_html}}"
-        },
-        {
-          id: "hls_stream",
-          action: "regex_extract",
-          input: "{{unpacked_js}}",
-          pattern: "https?:\\/\\/[^\\s\"']+\\.m3u8[^\\s\"']*",
-          group: 0
-        },
-        {
-          id: "subtitles",
-          action: "extract_subtitles_vimeos",
-          input: "{{unpacked_js}}",
-          required: false
+          id: "cinecalidad_streams",
+          action: "cinecalidad_resolve_embeds",
+          input: "{{cinecalidad_playback.embeds}}"
         }
       ],
       output: {
-        hlsUrl: "{{hls_stream}}",
-        backupHlsUrls: [],
-        subtitles: "{{subtitles}}",
-        embeds: "{{api_playback.embeds}}"
+        hlsUrl: "{{cinecalidad_streams.hlsUrl}}",
+        backupHlsUrls: "{{cinecalidad_streams.backupHlsUrls}}",
+        subtitles: "{{cinecalidad_streams.subtitles}}",
+        embeds: "{{cinecalidad_streams.embeds}}"
+      }
+    }
+  },
+  cinecalidad: {
+    label: "Cinecalidad (AllCalidad / Multi-Mirror HLS Pipeline)",
+    description: "Pipeline declarativo directo: consulta la API original de Cinecalidad/AllCalidad, extrae stream directo HLS (.m3u8), subtítulos y entrega todas las opciones de mirrors (Vimeos, Goodstream, etc.).",
+    template: {
+      version: 2,
+      mode: "pipeline",
+      preset: "cinecalidad",
+      steps: [
+        {
+          id: "cinecalidad_playback",
+          action: "http_request",
+          movie_url: "https://tmdb.allcalidad.re/v1/playback/movie/{id}",
+          tv_url: "https://tmdb.allcalidad.re/v1/playback/tvshow/{id}?season={s}&episode={e}",
+          method: "GET",
+          headers: {
+            "Referer": "https://cinecalidad.am/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Accept": "application/json"
+          },
+          response_type: "json",
+          timeout_ms: 10000
+        },
+        {
+          id: "cinecalidad_streams",
+          action: "cinecalidad_resolve_embeds",
+          input: "{{cinecalidad_playback.embeds}}"
+        }
+      ],
+      output: {
+        hlsUrl: "{{cinecalidad_streams.hlsUrl}}",
+        backupHlsUrls: "{{cinecalidad_streams.backupHlsUrls}}",
+        subtitles: "{{cinecalidad_streams.subtitles}}",
+        embeds: "{{cinecalidad_streams.embeds}}"
       }
     }
   },
