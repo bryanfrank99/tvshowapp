@@ -124,28 +124,78 @@ export default function NativeSourcePlayer({
   const [showControls, setShowControls] = useState(true);
   const [centerPulse, setCenterPulse] = useState<"play" | "pause" | null>(null);
   const [osdFeedback, setOsdFeedback] = useState<{ icon: string; text: string } | null>(null);
-  const [resumeNotice, setResumeNotice] = useState<string | null>(null);
+  const [cornerNotice, setCornerNotice] = useState<{ icon: string; text: string; iconColor?: string } | null>(null);
   const [showEpisodesDrawer, setShowEpisodesDrawer] = useState(false);
   const episodesBtnRef = useRef<HTMLButtonElement>(null);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pulseTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const resumeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const cornerNoticeTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Scrubbing interactivo
   const [isDragging, setIsDragging] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverX, setHoverX] = useState<number>(0);
 
+  // Referencias mutables sincronizadas para evitar stale closures en temporizadores
+  const showSettingsRef = useRef(false);
+  const showSubtitlesMenuRef = useRef(false);
+  const showAudioMenuRef = useRef(false);
+  const showEpisodesDrawerRef = useRef(false);
+  const isDraggingRef = useRef(false);
+
+  useEffect(() => {
+    showSettingsRef.current = showSettings;
+  }, [showSettings]);
+
+  useEffect(() => {
+    showSubtitlesMenuRef.current = showSubtitlesMenu;
+  }, [showSubtitlesMenu]);
+
+  useEffect(() => {
+    showAudioMenuRef.current = showAudioMenu;
+  }, [showAudioMenu]);
+
+  useEffect(() => {
+    showEpisodesDrawerRef.current = showEpisodesDrawer;
+  }, [showEpisodesDrawer]);
+
+  useEffect(() => {
+    isDraggingRef.current = isDragging;
+  }, [isDragging]);
+
   const resetHideTimer = useCallback(() => {
     setShowControls(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => {
-      if (!videoRef.current?.paused && !isDragging && !showSettings && !showSubtitlesMenu && !showAudioMenu) {
+      const isAnyMenuOpen =
+        showSettingsRef.current ||
+        showSubtitlesMenuRef.current ||
+        showAudioMenuRef.current ||
+        showEpisodesDrawerRef.current ||
+        isDraggingRef.current;
+
+      if (!videoRef.current?.paused && !isAnyMenuOpen) {
         setShowControls(false);
         setOsdFeedback(null);
       }
-    }, 4500);
-  }, [isDragging, showSettings, showSubtitlesMenu, showAudioMenu]);
+    }, 3500);
+  }, []);
+
+  // Notificación discreta en esquina superior derecha (mismo sistema que reanudación)
+  const showCornerNotice = useCallback((icon: string, text: string, iconColor = "text-white") => {
+    setCornerNotice({ icon, text, iconColor });
+    if (cornerNoticeTimerRef.current) clearTimeout(cornerNoticeTimerRef.current);
+    cornerNoticeTimerRef.current = setTimeout(() => {
+      setCornerNotice(null);
+    }, 2200);
+  }, []);
+
+  // Auto-ocultado automático cuando todos los menús se cierran mientras se reproduce
+  useEffect(() => {
+    if (!showSettings && !showSubtitlesMenu && !showAudioMenu && !showEpisodesDrawer && isPlaying) {
+      resetHideTimer();
+    }
+  }, [showSettings, showSubtitlesMenu, showAudioMenu, showEpisodesDrawer, isPlaying, resetHideTimer]);
 
   const triggerFeedback = useCallback((icon: string, text: string) => {
     setOsdFeedback({ icon, text });
@@ -177,6 +227,15 @@ export default function NativeSourcePlayer({
     };
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  // Limpieza de temporizadores al desmontar el componente
+  useEffect(() => {
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
+      if (cornerNoticeTimerRef.current) clearTimeout(cornerNoticeTimerRef.current);
+    };
   }, []);
 
   const onErrorRef = useRef(onError);
@@ -480,7 +539,9 @@ export default function NativeSourcePlayer({
     video.playbackRate = rate;
     setPlaybackRate(rate);
     setShowSettings(false);
-    triggerFeedback("⚡", `Velocidad: ${rate}x`);
+    showSettingsRef.current = false;
+    showCornerNotice("⚡", `Velocidad: ${rate === 1 ? "Normal (1x)" : `${rate}x`}`, "text-amber-400");
+    resetHideTimer();
   };
 
   const selectAudioTrack = (trackId: number) => {
@@ -496,8 +557,10 @@ export default function NativeSourcePlayer({
       }
     }
     setShowAudioMenu(false);
+    showAudioMenuRef.current = false;
     const target = audioTracks.find((t) => t.id === trackId);
-    triggerFeedback("🎧", `Audio: ${target?.name || `Pista ${trackId + 1}`}`);
+    showCornerNotice("🎧", `Audio: ${target?.name || `Pista ${trackId + 1}`}`, "text-[#E50914]");
+    resetHideTimer();
   };
 
   const selectSubtitleTrack = (subId: string) => {
@@ -513,7 +576,9 @@ export default function NativeSourcePlayer({
         video.textTracks[i].mode = "disabled";
       }
       setShowSubtitlesMenu(false);
-      triggerFeedback("💬", "Subtítulos desactivados");
+      showSubtitlesMenuRef.current = false;
+      showCornerNotice("💬", "Subtítulos desactivados", "text-zinc-300");
+      resetHideTimer();
       return;
     }
 
@@ -526,8 +591,10 @@ export default function NativeSourcePlayer({
         video.textTracks[i].mode = "disabled";
       }
       setShowSubtitlesMenu(false);
+      showSubtitlesMenuRef.current = false;
       const target = embeddedSubtitleTracks.find((t) => t.id === trackIdx);
-      triggerFeedback("💬", `Subtítulos: ${target?.name || `Pista ${trackIdx + 1}`}`);
+      showCornerNotice("💬", `Subtítulos: ${target?.name || `Pista ${trackIdx + 1}`}`, "text-sky-400");
+      resetHideTimer();
       return;
     }
 
@@ -540,7 +607,9 @@ export default function NativeSourcePlayer({
       track.mode = (track.label === subId || track.language === subId) ? "showing" : "disabled";
     }
     setShowSubtitlesMenu(false);
-    triggerFeedback("💬", `Subtítulos: ${subId}`);
+    showSubtitlesMenuRef.current = false;
+    showCornerNotice("💬", `Subtítulos: ${subId}`, "text-sky-400");
+    resetHideTimer();
   };
 
   const validExternalSubtitles = (Array.isArray(source.subtitles) ? source.subtitles : [])
@@ -707,11 +776,7 @@ export default function NativeSourcePlayer({
         try {
           video.currentTime = saved.currentTime;
           setCurrentTime(saved.currentTime);
-          setResumeNotice(`Reanudando en ${formatTime(saved.currentTime)}`);
-          if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-          resumeTimerRef.current = setTimeout(() => {
-            setResumeNotice(null);
-          }, 2200);
+          showCornerNotice("▶", `Reanudando en ${formatTime(saved.currentTime)}`, "text-emerald-400");
         } catch {}
       }
     }
@@ -735,11 +800,6 @@ export default function NativeSourcePlayer({
     };
   }, [playbackKey]);
 
-  useEffect(() => {
-    return () => {
-      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-    };
-  }, []);
 
   // Lógica de Scrubbing en la barra de progreso
   const calculateScrubPosition = (e: React.MouseEvent<HTMLDivElement> | MouseEvent) => {
@@ -796,8 +856,30 @@ export default function NativeSourcePlayer({
       tabIndex={0}
       onMouseMove={resetHideTimer}
       onClick={() => {
-        if (showSettings) setShowSettings(false);
-        if (showSubtitlesMenu) setShowSubtitlesMenu(false);
+        let changed = false;
+        if (showSettings) {
+          setShowSettings(false);
+          showSettingsRef.current = false;
+          changed = true;
+        }
+        if (showSubtitlesMenu) {
+          setShowSubtitlesMenu(false);
+          showSubtitlesMenuRef.current = false;
+          changed = true;
+        }
+        if (showAudioMenu) {
+          setShowAudioMenu(false);
+          showAudioMenuRef.current = false;
+          changed = true;
+        }
+        if (showEpisodesDrawer) {
+          setShowEpisodesDrawer(false);
+          showEpisodesDrawerRef.current = false;
+          changed = true;
+        }
+        if (changed) {
+          resetHideTimer();
+        }
       }}
       className={`relative w-full h-full bg-black flex items-center justify-center select-none outline-none group ${
         !showControls && isPlaying ? "cursor-none" : "cursor-default"
@@ -935,12 +1017,12 @@ export default function NativeSourcePlayer({
             </div>
           </div>
 
-          {/* Cartel de reanudación translúcido en la esquina (discreto y rápido auto-dismiss) */}
-          {resumeNotice && (
+          {/* Cartel de notificación translúcido en la esquina (discreto y rápido auto-dismiss) */}
+          {cornerNotice && (
             <div className="absolute top-4 right-4 sm:top-5 sm:right-6 z-40 pointer-events-none animate-fade-in">
-              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/65 backdrop-blur-md border border-white/20 text-white shadow-2xl text-xs font-semibold">
-                <span className="text-emerald-400">▶</span>
-                <span>{resumeNotice}</span>
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-white/20 text-white shadow-2xl text-xs font-semibold">
+                <span className={cornerNotice.iconColor || "text-white"}>{cornerNotice.icon}</span>
+                <span>{cornerNotice.text}</span>
               </div>
             </div>
           )}
@@ -1343,10 +1425,18 @@ export default function NativeSourcePlayer({
                     tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowEpisodesDrawer(!showEpisodesDrawer);
+                      setShowEpisodesDrawer((prev) => {
+                        const next = !prev;
+                        showEpisodesDrawerRef.current = next;
+                        if (!next) resetHideTimer();
+                        return next;
+                      });
                       setShowSettings(false);
+                      showSettingsRef.current = false;
                       setShowSubtitlesMenu(false);
+                      showSubtitlesMenuRef.current = false;
                       setShowAudioMenu(false);
+                      showAudioMenuRef.current = false;
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "ArrowUp") {
@@ -1390,9 +1480,16 @@ export default function NativeSourcePlayer({
                     tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowAudioMenu(!showAudioMenu);
+                      setShowAudioMenu((prev) => {
+                        const next = !prev;
+                        showAudioMenuRef.current = next;
+                        if (!next) resetHideTimer();
+                        return next;
+                      });
                       setShowSubtitlesMenu(false);
+                      showSubtitlesMenuRef.current = false;
                       setShowSettings(false);
+                      showSettingsRef.current = false;
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "ArrowUp") {
@@ -1440,9 +1537,16 @@ export default function NativeSourcePlayer({
                     tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowSubtitlesMenu(!showSubtitlesMenu);
+                      setShowSubtitlesMenu((prev) => {
+                        const next = !prev;
+                        showSubtitlesMenuRef.current = next;
+                        if (!next) resetHideTimer();
+                        return next;
+                      });
                       setShowAudioMenu(false);
+                      showAudioMenuRef.current = false;
                       setShowSettings(false);
+                      showSettingsRef.current = false;
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "ArrowUp") {
@@ -1484,9 +1588,16 @@ export default function NativeSourcePlayer({
                   tabIndex={0}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowSettings(!showSettings);
+                    setShowSettings((prev) => {
+                      const next = !prev;
+                      showSettingsRef.current = next;
+                      if (!next) resetHideTimer();
+                      return next;
+                    });
                     setShowSubtitlesMenu(false);
+                    showSubtitlesMenuRef.current = false;
                     setShowAudioMenu(false);
+                    showAudioMenuRef.current = false;
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowUp") {
@@ -1600,6 +1711,8 @@ export default function NativeSourcePlayer({
           isOpen={showEpisodesDrawer}
           onClose={() => {
             setShowEpisodesDrawer(false);
+            showEpisodesDrawerRef.current = false;
+            resetHideTimer();
             episodesBtnRef.current?.focus();
           }}
           seriesTitle={title}
@@ -1609,6 +1722,8 @@ export default function NativeSourcePlayer({
           lang={seriesInfo.lang}
           onSelectEpisode={(newSeason, newEpisode) => {
             setShowEpisodesDrawer(false);
+            showEpisodesDrawerRef.current = false;
+            resetHideTimer();
             seriesInfo.onSelectEpisode(newSeason, newEpisode);
           }}
         />
