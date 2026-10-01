@@ -296,7 +296,7 @@ export async function GET(req: NextRequest) {
               season: s,
               episode: e,
             });
-            const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 14000));
+            const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 25000));
             const fresh = await Promise.race([extractPromise, timeoutPromise]);
 
             if (fresh) {

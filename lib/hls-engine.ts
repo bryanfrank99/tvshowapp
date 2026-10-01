@@ -749,10 +749,12 @@ export const EXTRACTOR_PRESETS: Record<string, { label: string; description: str
           tv_url: "https://mgeb.top/embed/{id}/{s}/{e}",
           method: "GET",
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Referer": "https://mgeb.top/"
           },
           response_type: "text",
-          timeout_ms: 15000
+          timeout_ms: 25000
         },
         {
           id: "sources_json",

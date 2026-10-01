@@ -1286,7 +1286,7 @@ export default function AdminPage() {
         }),
       });
       const data = await res.json();
-      if (res.ok && data.ok) {
+      if (data.result) {
         setTestExtractorResult(data.result);
       } else {
         setTestExtractorResult({

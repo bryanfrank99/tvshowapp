@@ -169,8 +169,8 @@ export async function PUT(req: NextRequest) {
     const result = await runHlsExtractor({
       providerId: String(b.providerId || b.id || "test"),
       config,
-      movieTpl: b.movie_tpl,
-      tvTpl: b.tv_tpl,
+      movieTpl: b.movie_tpl || b.movie_api_url,
+      tvTpl: b.tv_tpl || b.tv_api_url,
       type,
       id: tmdbId,
       season,
