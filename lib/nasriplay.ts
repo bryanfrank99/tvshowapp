@@ -123,7 +123,7 @@ export async function fetchNasriPlayStream(
       return {
         success: false,
         iframeUrl: embedUrl,
-        embeds: [{ name: "NasriPlay", server: "nsrplay", language: "Latino", url: embedUrl }],
+        embeds: [{ name: "NasriPlay", server: "nsrplay", host: "NasriPlay", language: "Latino", url: embedUrl }],
         debugStatus: embedRes.status,
         error: `HTTP ${embedRes.status} al cargar embed de NasriPlay`,
       };
@@ -135,7 +135,7 @@ export async function fetchNasriPlayStream(
       return {
         success: false,
         iframeUrl: embedUrl,
-        embeds: [{ name: "NasriPlay", server: "nsrplay", language: "Latino", url: embedUrl }],
+        embeds: [{ name: "NasriPlay", server: "nsrplay", host: "NasriPlay", language: "Latino", url: embedUrl }],
         error: "No se encontró PAGE_TOKEN en el código de NasriPlay",
       };
     }
@@ -160,7 +160,7 @@ export async function fetchNasriPlayStream(
       return {
         success: false,
         iframeUrl: embedUrl,
-        embeds: [{ name: "NasriPlay", server: "nsrplay", language: "Latino", url: embedUrl }],
+        embeds: [{ name: "NasriPlay", server: "nsrplay", host: "NasriPlay", language: "Latino", url: embedUrl }],
         debugStatus: sourcesRes.status,
         error: `HTTP ${sourcesRes.status} al consultar API de fuentes de NasriPlay`,
       };
@@ -171,7 +171,7 @@ export async function fetchNasriPlayStream(
       return {
         success: false,
         iframeUrl: embedUrl,
-        embeds: [{ name: "NasriPlay", server: "nsrplay", language: "Latino", url: embedUrl }],
+        embeds: [{ name: "NasriPlay", server: "nsrplay", host: "NasriPlay", language: "Latino", url: embedUrl }],
         error: "NasriPlay no reportó servidores disponibles para este contenido",
       };
     }
@@ -179,8 +179,8 @@ export async function fetchNasriPlayStream(
     const servers: any[] = data.servers;
 
     // 3. Ejecutar en PARALELO:
-    // A) Resolución de embeds de todos los sub-proveedores (/server-url)
-    // B) Resolución y verificación en vivo de streams HLS directos (/resolve + isLivePlayableStream)
+    // A) Resolución de embeds de todos los sub-proveedores (/server-url) para mirrors en iframe
+    // B) Resolución y verificación en vivo de streams HLS directos (playUrl + directUrl + /resolve)
     const [embeds, liveStreams] = await Promise.all([
       // Tarea A: Extraer y resolver los sub-proveedores de embed
       (async (): Promise<NasriPlayEmbedOption[]> => {
@@ -188,15 +188,11 @@ export async function fetchNasriPlayStream(
         const serverUrlPromises = servers.map(async (srv) => {
           let resolvedEmbedUrl: string | undefined;
 
-          // Si el servidor ya provee playUrl o url directa, usarlo directamente sin saturar la API
-          if (srv.playUrl && typeof srv.playUrl === "string") {
-            resolvedEmbedUrl = srv.playUrl;
-          } else if (srv.url && typeof srv.url === "string") {
-            resolvedEmbedUrl = srv.url;
-          } else if (srv.token) {
+          // Si el servidor tiene token, consultar /api/v1/embed/server-url para obtener la URL web real del iframe
+          if (srv.token) {
             try {
               const subCtrl = new AbortController();
-              const subTimer = setTimeout(() => subCtrl.abort(), 1800);
+              const subTimer = setTimeout(() => subCtrl.abort(), 2000);
               const suRes = await fetch(
                 `https://nsrplay.space/api/v1/embed/server-url?token=${encodeURIComponent(srv.token)}`,
                 {
@@ -214,10 +210,21 @@ export async function fetchNasriPlayStream(
             } catch {}
           }
 
+          // Fallback solo si no se obtuvo por API y srv.url es una URL web válida que no sea proxy m3u8
+          if (
+            !resolvedEmbedUrl &&
+            srv.url &&
+            typeof srv.url === "string" &&
+            !srv.url.includes("stream-proxy") &&
+            !srv.url.includes(".m3u8")
+          ) {
+            resolvedEmbedUrl = srv.url;
+          }
+
           const finalUrl = resolvedEmbedUrl || embedUrl;
           const detectedHost = detectNasriPlayHost(finalUrl, srv.server, srv.name);
           return {
-            name: srv.name || "Nsr Play",
+            name: srv.name || detectedHost,
             server: srv.server || srv.name?.toLowerCase() || "nsrplay",
             host: detectedHost,
             language: srv.language || "Latino",
@@ -229,7 +236,7 @@ export async function fetchNasriPlayStream(
           const results = await Promise.all(serverUrlPromises);
           for (const emb of results) {
             if (emb && emb.url) {
-              if (!resolvedList.some((e) => e.url === emb.url && e.name === emb.name)) {
+              if (!resolvedList.some((e) => e.url === emb.url)) {
                 resolvedList.push(emb);
               }
             }
@@ -248,54 +255,63 @@ export async function fetchNasriPlayStream(
         return resolvedList;
       })(),
 
-      // Tarea B: Recopilar y validar en vivo los streams HLS directos
+      // Tarea B: Recopilar y validar en vivo los streams HLS directos (con failover de múltiples mirrors)
       (async (): Promise<string[]> => {
         const candidateUrls: string[] = [];
 
-        // Candidatos directUrl presentes en la lista de servidores
+        // 1. Añadir streams de proxy directo playUrl (tienen CORS * garantizado) y directUrl iniciales
         for (const srv of servers) {
+          if (srv.playUrl && typeof srv.playUrl === "string" && srv.playUrl.includes("stream-proxy")) {
+            if (!candidateUrls.includes(srv.playUrl)) candidateUrls.push(srv.playUrl);
+          }
           if (srv.directUrl && typeof srv.directUrl === "string" && srv.directUrl.includes(".m3u8")) {
             if (!candidateUrls.includes(srv.directUrl)) candidateUrls.push(srv.directUrl);
           }
         }
 
-        // Si NO hay candidatos directos disponibles, intentar resolver tokens directResolveEligible
-        if (candidateUrls.length === 0) {
-          const eligible = servers.filter((s) => s.token && s.directResolveEligible).slice(0, 2);
-          if (eligible.length > 0) {
-            const resolvePromises = eligible.map(async (srv) => {
-              try {
-                const subController = new AbortController();
-                const subTimer = setTimeout(() => subController.abort(), 1800);
-                const resolveUrl = `https://nsrplay.space/api/v1/embed/resolve?token=${encodeURIComponent(srv.token)}&pt=${encodeURIComponent(pageToken)}&parentUrl=${encodeURIComponent(embedUrl)}`;
-                const resolveRes = await fetch(resolveUrl, {
-                  signal: subController.signal,
-                  headers: {
-                    "User-Agent": USER_AGENT,
-                    Referer: embedUrl,
-                    Accept: "application/json",
-                  },
-                });
-                clearTimeout(subTimer);
-                if (resolveRes.ok) {
-                  const rJson = await resolveRes.json();
-                  const dUrl = rJson?.data?.directUrl;
-                  if (dUrl && typeof dUrl === "string" && (dUrl.includes(".m3u8") || dUrl.includes(".mp4"))) {
-                    return dUrl;
-                  }
+        // 2. Resolver concurrentemente tokens con directResolveEligible para obtener todos los mirrors HLS adicionales
+        const eligible = servers.filter((s) => s.token && s.directResolveEligible);
+        if (eligible.length > 0) {
+          const resolvePromises = eligible.map(async (srv) => {
+            try {
+              const subController = new AbortController();
+              const subTimer = setTimeout(() => subController.abort(), 2200);
+              const resolveUrl = `https://nsrplay.space/api/v1/embed/resolve?token=${encodeURIComponent(srv.token)}&pt=${encodeURIComponent(pageToken)}&parentUrl=${encodeURIComponent(embedUrl)}`;
+              const resolveRes = await fetch(resolveUrl, {
+                signal: subController.signal,
+                headers: {
+                  "User-Agent": USER_AGENT,
+                  Referer: embedUrl,
+                  Accept: "application/json",
+                },
+              });
+              clearTimeout(subTimer);
+              if (resolveRes.ok) {
+                const rJson = await resolveRes.json();
+                const dUrl = rJson?.data?.directUrl;
+                const pUrl = rJson?.data?.playUrl;
+                const results: string[] = [];
+                if (pUrl && typeof pUrl === "string" && pUrl.includes("stream-proxy")) {
+                  results.push(pUrl);
                 }
-              } catch {}
-              return null;
-            });
+                if (dUrl && typeof dUrl === "string" && (dUrl.includes(".m3u8") || dUrl.includes(".mp4"))) {
+                  results.push(dUrl);
+                }
+                return results;
+              }
+            } catch {}
+            return [];
+          });
 
-            const resolvedDirects = await Promise.all(resolvePromises);
-            for (const u of resolvedDirects) {
+          const resolvedDirects = await Promise.all(resolvePromises);
+          for (const list of resolvedDirects) {
+            for (const u of list) {
               if (u && !candidateUrls.includes(u)) candidateUrls.push(u);
             }
           }
         }
 
-        // Validación en vivo rápida: solo aceptar streams que respondan HTTP 200/206
+        // 3. Validación en vivo rápida: solo aceptar streams que respondan HTTP 200/206
         const validLiveStreams: string[] = [];
         if (candidateUrls.length > 0) {
           const checks = await Promise.all(

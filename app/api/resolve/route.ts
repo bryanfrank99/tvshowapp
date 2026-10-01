@@ -656,8 +656,9 @@ export async function GET(req: NextRequest) {
             } catch {}
           }
 
+          const srvTag = prov.ord ? `S${prov.ord}` : "S17";
+
           if (directHlsUrl) {
-            const srvTag = prov.ord ? `S${prov.ord}` : "S17";
             provSources.push({
               id: `${prov.id}-hls`,
               providerId: prov.id,
@@ -685,7 +686,7 @@ export async function GET(req: NextRequest) {
           provSources.push({
             id: `${prov.id}-iframe`,
             providerId: prov.id,
-            providerName: prov.simulated_name || prov.name,
+            providerName: prov.simulated_name || srvTag,
             realName: prov.real_name || prov.name,
             ord: prov.ord,
             type: "iframe",
