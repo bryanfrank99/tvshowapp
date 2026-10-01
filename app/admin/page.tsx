@@ -86,6 +86,7 @@ type Prov = {
   hls_enabled?: boolean;
   hls_extractor?: "megaembed" | "watchplay" | "direct" | "none";
   extractor_config?: any;
+  stream_mode?: "hls" | "embed" | "both";
 };
 
 type Live = {
@@ -461,6 +462,8 @@ export default function AdminPage() {
   });
 
   const [provs, setProvs] = useState<Prov[]>([]);
+  const [providerStreamModes, setProviderStreamModes] = useState<Record<string, "hls" | "embed" | "both">>({});
+  const [savingStreamModeId, setSavingStreamModeId] = useState<string | null>(null);
   const [allowEmbedFallback, setAllowEmbedFallback] = useState<boolean>(false);
   const [togglingEmbedFallback, setTogglingEmbedFallback] = useState<boolean>(false);
   const [extractorPresets, setExtractorPresets] = useState<Record<string, any>>({});
@@ -709,6 +712,9 @@ export default function AdminPage() {
         if (p) {
           setProvs(p.providers || []);
           setVersion(p.version || "");
+          if (p.provider_stream_modes) {
+            setProviderStreamModes(p.provider_stream_modes);
+          }
           if (p.allow_embed_fallback !== undefined) {
             setAllowEmbedFallback(!!p.allow_embed_fallback);
           }
@@ -1204,12 +1210,47 @@ export default function AdminPage() {
   };
 
   const openEditProv = (p: Partial<Prov> & { _new?: boolean }) => {
-    setEdit(p);
+    const currentMode = (p.id && providerStreamModes[p.id]) || p.stream_mode || (p.extractor_config?.preset ? "hls" : p.id === "playerflix" ? "both" : p.hls_enabled ? "hls" : "embed");
+    setEdit({ ...p, stream_mode: currentMode });
     const cfg = p.extractor_config || (p.id ? extractorPresets[p.id]?.template : null) || { preset: "direct_m3u8" };
     setExtractorConfigText(JSON.stringify(cfg, null, 2));
     setExtractorJsonError(null);
     setTestExtractorResult(null);
     setTestExtractorTmdb(testExtractorType === "tv" ? "1399" : "550");
+  };
+
+  const setProviderStreamMode = async (providerId: string, mode: "hls" | "embed" | "both") => {
+    setSavingStreamModeId(providerId);
+    setProviderStreamModes((prev) => ({ ...prev, [providerId]: mode }));
+    setProvs((prev) =>
+      prev.map((pr) => (pr.id === providerId ? { ...pr, stream_mode: mode } : pr))
+    );
+    try {
+      const res = await api("providers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_provider_stream_mode",
+          providerId,
+          stream_mode: mode,
+        }),
+      });
+      if (res.ok) {
+        setMsg(
+          lang === "en"
+            ? `✓ Mode '${mode.toUpperCase()}' applied to ${providerId}`
+            : lang === "pt"
+            ? `✓ Modo '${mode.toUpperCase()}' aplicado a ${providerId}`
+            : `✓ Modo '${mode.toUpperCase()}' aplicado a ${providerId}`
+        );
+      } else {
+        setMsg("Error al actualizar modo de transmisión");
+      }
+    } catch {
+      setMsg("Error de conexión");
+    } finally {
+      setSavingStreamModeId(null);
+    }
   };
 
   const applyPreset = (presetKey: string) => {
@@ -1386,6 +1427,9 @@ export default function AdminPage() {
       }),
     });
     if (r.ok) {
+      if (edit.id && edit.stream_mode) {
+        setProviderStreamModes((prev) => ({ ...prev, [edit.id!]: edit.stream_mode! }));
+      }
       setEdit(null);
       setTestExtractorResult(null);
       setMsg("✓ Servidor guardado correctamente");
@@ -2413,65 +2457,6 @@ export default function AdminPage() {
       {/* PESTAÑA 3: SERVIDORES / PROVEEDORES (Solo Super Admin) */}
       {tab === "prov" && isSuperAdmin && (
         <>
-          {/* BANNER MODO EXCLUSIVO HLS VS FALLBACK EMBED */}
-          <div className={`p-4 rounded-2xl border transition-all mb-4 ${
-            !allowEmbedFallback
-              ? "bg-gradient-to-r from-emerald-950/40 via-blue-950/30 to-purple-950/20 border-emerald-500/30 shadow-lg shadow-emerald-500/5"
-              : "bg-amber-950/30 border-amber-500/30"
-          }`}>
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{!allowEmbedFallback ? "⚡" : "⚠️"}</span>
-                  <h3 className="font-bold text-sm text-white">
-                    {!allowEmbedFallback
-                      ? "Modo Servidores: 100% Streams HLS Nativos (.m3u8)"
-                      : "Modo Servidores: HLS con Respaldo de Embeds Iframe"}
-                  </h3>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    !allowEmbedFallback
-                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                      : "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                  }`}>
-                    {!allowEmbedFallback ? "MODO RECOMENDADO ACTIVO" : "MODO EMERGENCIA"}
-                  </span>
-                </div>
-                <p className="text-xs text-zinc-300 max-w-2xl">
-                  {!allowEmbedFallback
-                    ? "Todos los servidores embed obsoletos han sido removidos. El sistema entrega exclusivamente streams directos HLS (.m3u8) con soporte de mando TV y cambio suave de servidor."
-                    : "Los servidores HLS tienen prioridad máxima. Si un título no tiene stream HLS disponible, se admitirá un reproductor iframe como respaldo alternativo."}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-xl border border-white/10 shrink-0">
-                <button
-                  type="button"
-                  disabled={togglingEmbedFallback || !allowEmbedFallback}
-                  onClick={() => toggleEmbedFallback(false)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    !allowEmbedFallback
-                      ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30"
-                      : "text-zinc-400 hover:text-white"
-                  }`}
-                >
-                  ⚡ Solo HLS (Recomendado)
-                </button>
-                <button
-                  type="button"
-                  disabled={togglingEmbedFallback || allowEmbedFallback}
-                  onClick={() => toggleEmbedFallback(true)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    allowEmbedFallback
-                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/30"
-                      : "text-zinc-400 hover:text-white"
-                  }`}
-                >
-                  🌐 Permitir Embeds
-                </button>
-              </div>
-            </div>
-          </div>
-
           <div className="flex items-center gap-2 mb-4 flex-wrap">
             <button
               onClick={() =>
@@ -2489,6 +2474,7 @@ export default function AdminPage() {
                   ord: provs.length + 1,
                   is_beta: false,
                   hls_enabled: true,
+                  stream_mode: "both",
                   extractor_config: { preset: "direct_m3u8" },
                 } as any)
               }
@@ -2667,7 +2653,60 @@ export default function AdminPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t border-white/5 sm:border-0">
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t border-white/5 sm:border-0 flex-wrap">
+                    {/* Selector rápido Modo de Transmisión: HLS / EMBED / AMBOS */}
+                    {(() => {
+                      const currentMode: "hls" | "embed" | "both" =
+                        providerStreamModes[p.id] ||
+                        p.stream_mode ||
+                        (p.extractor_config?.preset ? "hls" : p.id === "playerflix" ? "both" : p.hls_enabled ? "hls" : "embed");
+                      const isSaving = savingStreamModeId === p.id;
+                      return (
+                        <div className="flex items-center bg-black/60 p-1 rounded-xl border border-white/10 shrink-0 gap-1">
+                          <span className="text-[10px] text-zinc-400 font-bold px-1 hidden md:inline">Modo:</span>
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() => setProviderStreamMode(p.id, "hls")}
+                            title="Solo reproducir streams directos HLS (.m3u8)"
+                            className={`px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
+                              currentMode === "hls"
+                                ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                                : "text-zinc-400 hover:text-white hover:bg-white/5"
+                            }`}
+                          >
+                            ⚡ HLS
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() => setProviderStreamMode(p.id, "embed")}
+                            title="Solo reproducir mediante iframe embed"
+                            className={`px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
+                              currentMode === "embed"
+                                ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
+                                : "text-zinc-400 hover:text-white hover:bg-white/5"
+                            }`}
+                          >
+                            🌐 EMBED
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() => setProviderStreamMode(p.id, "both")}
+                            title="Entregar tanto HLS directo como espejos Embed para los clientes"
+                            className={`px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
+                              currentMode === "both"
+                                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+                                : "text-zinc-400 hover:text-white hover:bg-white/5"
+                            }`}
+                          >
+                            ⚡🌐 AMBOS
+                          </button>
+                        </div>
+                      );
+                    })()}
+
                     <button
                       onClick={() =>
                         api("providers", {
@@ -2714,6 +2753,52 @@ export default function AdminPage() {
                   placeholder={d.prov_name_ph}
                   className={inp}
                 />
+              </div>
+
+              {/* Selector de Modo de Transmisión para Clientes: HLS, EMBED, AMBOS */}
+              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-2">
+                <label className="text-xs font-bold text-zinc-200 flex items-center justify-between">
+                  <span>Modo de Transmisión para Clientes:</span>
+                  <span className="text-[10px] text-zinc-400 font-normal">Define cómo se reproduce y qué opciones se muestran a los clientes</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEdit({ ...edit, stream_mode: "hls" })}
+                    className={`p-2.5 rounded-xl text-xs font-bold border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      (edit.stream_mode || "hls") === "hls"
+                        ? "bg-purple-600/30 border-purple-500 text-purple-200 shadow-md shadow-purple-600/20"
+                        : "bg-white/5 border-white/10 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <span className="text-sm">⚡ HLS</span>
+                    <span className="text-[10px] font-normal text-zinc-300">Solo Stream Directo (.m3u8)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEdit({ ...edit, stream_mode: "embed" })}
+                    className={`p-2.5 rounded-xl text-xs font-bold border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      edit.stream_mode === "embed"
+                        ? "bg-amber-600/30 border-amber-500 text-amber-200 shadow-md shadow-amber-600/20"
+                        : "bg-white/5 border-white/10 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <span className="text-sm">🌐 EMBED</span>
+                    <span className="text-[10px] font-normal text-zinc-300">Solo Iframe Web</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEdit({ ...edit, stream_mode: "both" })}
+                    className={`p-2.5 rounded-xl text-xs font-bold border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                      edit.stream_mode === "both"
+                        ? "bg-emerald-600/30 border-emerald-500 text-emerald-200 shadow-md shadow-emerald-600/20"
+                        : "bg-white/5 border-white/10 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <span className="text-sm">⚡🌐 AMBOS</span>
+                    <span className="text-[10px] font-normal text-zinc-300">HLS Directo + Espejos Embed</span>
+                  </button>
+                </div>
               </div>
 
               {/* Idiomas */}

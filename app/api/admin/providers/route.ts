@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const deny = await needAdmin(req);
   if (deny) return deny;
   const sb = supa();
-  const [p, c, primaryRes, availRes, prioritiesRes, hlsConfigRes, extractorConfigsRes, allowEmbedFallbackRes] = await Promise.all([
+  const [p, c, primaryRes, availRes, prioritiesRes, hlsConfigRes, extractorConfigsRes, allowEmbedFallbackRes, streamModesRes] = await Promise.all([
     sb.from("providers").select("*").order("ord"),
     sb.from("config").select("value").eq("key", "providers_version").maybeSingle(),
     sb.from("config").select("value").eq("key", "primary_providers_by_lang").maybeSingle(),
@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     sb.from("config").select("value").eq("key", "provider_hls_config").maybeSingle(),
     sb.from("config").select("value").eq("key", "provider_extractor_configs").maybeSingle(),
     sb.from("config").select("value").eq("key", "allow_embed_fallback").maybeSingle(),
+    sb.from("config").select("value").eq("key", "provider_stream_modes").maybeSingle(),
   ]);
   if (p.error) return NextResponse.json({ error: "db" }, { status: 500 });
 
@@ -71,6 +72,13 @@ export async function GET(req: NextRequest) {
     }
   } catch {}
 
+  let providerStreamModes: Record<string, "hls" | "embed" | "both"> = {};
+  try {
+    if (streamModesRes?.data?.value) {
+      providerStreamModes = JSON.parse(streamModesRes.data.value);
+    }
+  } catch {}
+
   const allowEmbedFallback = allowEmbedFallbackRes.data?.value === "true";
 
   let activeIndex = 1;
@@ -114,6 +122,9 @@ export async function GET(req: NextRequest) {
       extractor: x.id === "megaembed" ? "megaembed" : x.id === "watchplay" ? "watchplay" : (x.id === "cinecalidad" || x.id === "nasriplay") ? "direct" : "none",
     };
 
+    const defaultMode: "hls" | "embed" | "both" = x.id === "playerflix" ? "both" : (hlsCfg.enabled ? "hls" : "embed");
+    const stream_mode: "hls" | "embed" | "both" = providerStreamModes[x.id] || defaultMode;
+
     return {
       ...x,
       real_name: x.name,
@@ -129,6 +140,7 @@ export async function GET(req: NextRequest) {
       hls_enabled: !!hlsCfg.enabled,
       hls_extractor: hlsCfg.extractor || (hlsCfg.enabled ? "direct" : "none"),
       extractor_config: extCfg,
+      stream_mode,
     };
   });
 
@@ -139,6 +151,7 @@ export async function GET(req: NextRequest) {
     provider_priorities_by_lang: prioritiesByLang,
     provider_hls_config: fallbackHlsConfig,
     provider_extractor_configs: fallbackExtractorConfigs,
+    provider_stream_modes: providerStreamModes,
     allow_embed_fallback: allowEmbedFallback,
     extractor_presets: EXTRACTOR_PRESETS,
   });
@@ -183,7 +196,39 @@ export async function PUT(req: NextRequest) {
     });
   }
 
-  // Acción 0B: Conmutar interruptor global de embeds de respaldo
+  // Acción 0C: Configurar modo de entrega por proveedor (HLS, EMBED o AMBOS)
+  if (b.action === "set_provider_stream_mode") {
+    const providerId = String(b.providerId || b.id || "").trim();
+    const mode = (b.stream_mode || b.mode || "hls") as "hls" | "embed" | "both";
+    if (!providerId) {
+      return NextResponse.json({ error: "Falta providerId" }, { status: 400 });
+    }
+    const sb = supa();
+    const { data: currModes } = await sb
+      .from("config")
+      .select("value")
+      .eq("key", "provider_stream_modes")
+      .maybeSingle();
+    let map: Record<string, string> = {};
+    if (currModes?.value) {
+      try {
+        map = JSON.parse(currModes.value);
+      } catch {}
+    }
+    map[providerId] = mode;
+    await sb.from("config").upsert(
+      {
+        key: "provider_stream_modes",
+        value: JSON.stringify(map),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" }
+    );
+    await bump();
+    return NextResponse.json({ ok: true, providerId, stream_mode: mode, provider_stream_modes: map });
+  }
+
+  // Acción 0B: Conmutar interruptor global de embeds de respaldo (retrocompatibilidad)
   if (b.action === "toggle_embed_fallback") {
     const allow = b.allow_embed_fallback !== undefined ? !!b.allow_embed_fallback : !!b.allow;
     await supa().from("config").upsert(
@@ -540,6 +585,28 @@ export async function PUT(req: NextRequest) {
         {
           key: "provider_extractor_configs",
           value: JSON.stringify(extMap),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" }
+      );
+    }
+    if (b.stream_mode) {
+      const { data: currModes } = await sb
+        .from("config")
+        .select("value")
+        .eq("key", "provider_stream_modes")
+        .maybeSingle();
+      let modeMap: Record<string, string> = {};
+      if (currModes?.value) {
+        try {
+          modeMap = JSON.parse(currModes.value);
+        } catch {}
+      }
+      modeMap[row.id] = b.stream_mode;
+      await sb.from("config").upsert(
+        {
+          key: "provider_stream_modes",
+          value: JSON.stringify(modeMap),
           updated_at: new Date().toISOString(),
         },
         { onConflict: "key" }

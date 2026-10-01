@@ -142,6 +142,11 @@ export default function NativeSourcePlayer({
   const showAudioMenuRef = useRef(false);
   const showEpisodesDrawerRef = useRef(false);
   const isDraggingRef = useRef(false);
+  const showControlsRef = useRef(true);
+
+  useEffect(() => {
+    showControlsRef.current = showControls;
+  }, [showControls]);
 
   useEffect(() => {
     showSettingsRef.current = showSettings;
@@ -208,10 +213,10 @@ export default function NativeSourcePlayer({
     setTimeout(() => {
       if (fullscreenBtnRef.current) {
         fullscreenBtnRef.current.focus({ preventScroll: true });
-        setShowControls(true);
+        resetHideTimer();
       }
     }, 350);
-  }, []);
+  }, [resetHideTimer]);
 
   // Detección de soporte Picture-in-Picture
   useEffect(() => {
@@ -626,7 +631,7 @@ export default function NativeSourcePlayer({
 
       // Si los controles estaban ocultos y el usuario presiona cualquier tecla del mando,
       // despertar controles y posicionar foco en pantalla completa (o play/pause)
-      if (!showControls) {
+      if (!showControlsRef.current) {
         resetHideTimer();
         if (k === 13 || k === 23 || k === 32 || e.key === "MediaPlayPause") {
           e.preventDefault();
@@ -741,9 +746,8 @@ export default function NativeSourcePlayer({
     window.addEventListener("keydown", onKeyDown, true);
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
-  }, [showControls, togglePlay, seek, adjustVolume, resetHideTimer, autoFocusFullscreen, audioTracks, selectedAudioTrack, embeddedSubtitleTracks, validExternalSubtitles, selectedSubtitle]);
+  }, [togglePlay, seek, adjustVolume, resetHideTimer, autoFocusFullscreen, audioTracks, selectedAudioTrack, embeddedSubtitleTracks, validExternalSubtitles, selectedSubtitle]);
 
   const onTimeUpdate = () => {
     const video = videoRef.current;

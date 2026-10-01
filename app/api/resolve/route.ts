@@ -97,8 +97,8 @@ export async function GET(req: NextRequest) {
   try {
     const sb = supa();
 
-    // 2. Consulta de proveedores, versión, prioridades lingüísticas y configuración HLS / Extractores
-    const [provRes, verRes, primaryRes, availRes, prioritiesRes, hlsConfigRes, allowEmbedRes, extConfigsRes] = await Promise.all([
+    // 2. Consulta de proveedores, versión, prioridades lingüísticas y configuración HLS / Extractores / Modo de Streams
+    const [provRes, verRes, primaryRes, availRes, prioritiesRes, hlsConfigRes, allowEmbedRes, extConfigsRes, streamModesRes] = await Promise.all([
       sb
         .from("providers")
         .select("*")
@@ -111,6 +111,7 @@ export async function GET(req: NextRequest) {
       sb.from("config").select("value").eq("key", "provider_hls_config").maybeSingle(),
       sb.from("config").select("value").eq("key", "allow_embed_fallback").maybeSingle(),
       sb.from("config").select("value").eq("key", "provider_extractor_configs").maybeSingle(),
+      sb.from("config").select("value").eq("key", "provider_stream_modes").maybeSingle(),
     ]);
 
     if (provRes.error || !provRes.data) {
@@ -118,6 +119,12 @@ export async function GET(req: NextRequest) {
     }
 
     const allowEmbedFallback = allowEmbedRes?.data?.value === "true";
+    let providerStreamModes: Record<string, "hls" | "embed" | "both"> = {};
+    try {
+      if (streamModesRes?.data?.value) {
+        providerStreamModes = JSON.parse(streamModesRes.data.value);
+      }
+    } catch {}
     let fallbackExtractorConfigs: Record<string, any> = {};
     try {
       if (extConfigsRes?.data?.value) {
@@ -340,8 +347,15 @@ export async function GET(req: NextRequest) {
           ? subtitles.filter((st: any) => st && typeof st === "object" && typeof st.url === "string")
           : [];
 
-        // 3. Emisión de fuente HLS nativa de máxima prioridad si existe stream extraído o en caché
-        if (directHlsUrl) {
+        const provStreamMode: "hls" | "embed" | "both" =
+          providerStreamModes[prov.id] ||
+          (prov.id === "playerflix" ? "both" : (directHlsUrl || hlsConfigMap[prov.id]?.enabled ? "hls" : "embed"));
+
+        const allowHls = provStreamMode === "hls" || provStreamMode === "both";
+        const allowEmbed = provStreamMode === "embed" || provStreamMode === "both";
+
+        // 3. Emisión de fuente HLS nativa de máxima prioridad si está permitida para este proveedor
+        if (allowHls && directHlsUrl) {
           provSources.push({
             id: `${prov.id}-hls`,
             providerId: prov.id,
@@ -361,56 +375,60 @@ export async function GET(req: NextRequest) {
           });
         }
 
-        // 4. Emisión de tarjeta iframe unificada con embedOptions si hay mirrors de embed disponibles
-        if (fetchedEmbeds && fetchedEmbeds.length > 0) {
-          const primaryEmbedUrl = fetchedEmbeds[0].url;
-          provSources.push({
-            id: `${prov.id}-iframe`,
-            providerId: prov.id,
-            providerName: prov.simulated_name || srvTag,
-            realName: prov.real_name || prov.name,
-            ord: prov.ord,
-            type: "iframe",
-            url: primaryEmbedUrl,
-            embedOptions: fetchedEmbeds.map((emb: any) => ({
-              name: emb.name || emb.host || emb.server || prov.name,
-              server: emb.server || "online",
-              host: emb.host || emb.server || prov.name,
-              language: emb.language || emb.lang || (prov.lang === "pt" ? "Português" : "Latino"),
-              url: emb.url,
-              embed: emb.embed || emb.url,
-              label: emb.label || emb.host || emb.name,
-              lang: emb.lang || emb.language,
-              budget: emb.budget,
-              icon: emb.icon,
-            })),
-            options: fetchedEmbeds.map((emb: any) => ({
-              embed: emb.embed || emb.url,
-              lang: emb.lang || (prov.lang === "pt" ? "pt-br" : "es-419"),
-              label: emb.label || emb.host || emb.name,
-              budget: emb.budget || "success",
-              icon: emb.icon,
-            })),
-            lang: (prov.lang as any) || "multi",
-            languages: prov.languages || [(prov.lang as any) || "multi"],
-            subtitles: cleanSubtitles,
-            priority: 95,
-            isBeta: !!prov.is_beta,
-            needsTmdb: prov.needs_tmdb,
-            tvOk: prov.tv_ok,
-          });
-        } else if (!directHlsUrl) {
-          // Fallback a iframe básico si no se obtuvo HLS (garantiza reproducción si el servidor fue bloqueado por WAF)
-          const adapted = providersToSources([prov], {
-            type,
-            id: targetId,
-            season: s,
-            episode: e,
-            userLang,
-            envKey: prov.entry_key,
-          });
-          if (adapted.length > 0) {
-            provSources.push(...adapted);
+        // 4. Emisión de tarjeta iframe si está permitida (o si HLS falló completamente para evitar dejar sin video)
+        const shouldEmitEmbed = allowEmbed || (!directHlsUrl && provStreamMode === "hls");
+
+        if (shouldEmitEmbed) {
+          if (fetchedEmbeds && fetchedEmbeds.length > 0) {
+            const primaryEmbedUrl = fetchedEmbeds[0].url;
+            provSources.push({
+              id: `${prov.id}-iframe`,
+              providerId: prov.id,
+              providerName: prov.simulated_name || srvTag,
+              realName: prov.real_name || prov.name,
+              ord: prov.ord,
+              type: "iframe",
+              url: primaryEmbedUrl,
+              embedOptions: fetchedEmbeds.map((emb: any) => ({
+                name: emb.name || emb.host || emb.server || prov.name,
+                server: emb.server || "online",
+                host: emb.host || emb.server || prov.name,
+                language: emb.language || emb.lang || (prov.lang === "pt" ? "Português" : "Latino"),
+                url: emb.url,
+                embed: emb.embed || emb.url,
+                label: emb.label || emb.host || emb.name,
+                lang: emb.lang || emb.language,
+                budget: emb.budget,
+                icon: emb.icon,
+              })),
+              options: fetchedEmbeds.map((emb: any) => ({
+                embed: emb.embed || emb.url,
+                lang: emb.lang || (prov.lang === "pt" ? "pt-br" : "es-419"),
+                label: emb.label || emb.host || emb.name,
+                budget: emb.budget || "success",
+                icon: emb.icon,
+              })),
+              lang: (prov.lang as any) || "multi",
+              languages: prov.languages || [(prov.lang as any) || "multi"],
+              subtitles: cleanSubtitles,
+              priority: 95,
+              isBeta: !!prov.is_beta,
+              needsTmdb: prov.needs_tmdb,
+              tvOk: prov.tv_ok,
+            });
+          } else if (!directHlsUrl || provStreamMode === "embed") {
+            // Fallback a iframe básico si no se obtuvo HLS o si el modo es explícitamente embed
+            const adapted = providersToSources([prov], {
+              type,
+              id: targetId,
+              season: s,
+              episode: e,
+              userLang,
+              envKey: prov.entry_key,
+            });
+            if (adapted.length > 0) {
+              provSources.push(...adapted);
+            }
           }
         }
 
@@ -419,15 +437,7 @@ export async function GET(req: NextRequest) {
     );
 
     const rawSources: Source[] = sourceBatches.flat();
-
-    // Spec 096, 100 & 102: Si allow_embed_fallback es false (Modo HLS Estricto), priorizar HLS pero:
-    // 1. Conservar tarjetas con opciones multi-mirror explícitas (e.g. S20 con mirrors originales Embed Play, VIP, Premium).
-    // 2. Si ningún proveedor pudo extraer HLS (por ejemplo bloqueo WAF 403), conservar los embeds para no dejar sin reproducción.
-    const hlsOnlySources = rawSources.filter((src) => src.type === "hls");
-    const finalSourcesToRank =
-      allowEmbedFallback || hlsOnlySources.length === 0
-        ? rawSources
-        : rawSources.filter((src) => src.type === "hls" || (src.options && src.options.length > 0));
+    const finalSourcesToRank = rawSources;
 
     // Ordenar TODAS las fuentes según afinidad lingüística real y prioridad de servidor por idioma.
     // Spec 085: Cada servidor HLS nativo se entrega como fuente independiente (HLS - S14, HLS - S18, etc.)
