@@ -101,11 +101,6 @@ export async function GET(req: NextRequest) {
     }
 
     const contentType = (upstreamRes.headers.get("content-type") || "").toLowerCase();
-    const isPlaylist =
-      targetUrl.pathname.endsWith(".m3u8") ||
-      targetUrl.pathname.includes("/hls/") ||
-      contentType.includes("mpegurl") ||
-      contentType.includes("application/x-mpegurl");
 
     // Cabeceras base CORS compartidas
     const baseCorsHeaders: Record<string, string> = {
@@ -122,6 +117,30 @@ export async function GET(req: NextRequest) {
       baseCorsHeaders["Content-Range"] = upstreamRes.headers.get("content-range")!;
     }
 
+    // 1. Archivos de subtítulos WebVTT (.vtt)
+    if (
+      targetUrl.pathname.endsWith(".vtt") ||
+      contentType.includes("vtt") ||
+      contentType.includes("text/vtt")
+    ) {
+      const vttText = await upstreamRes.text();
+      return new NextResponse(vttText, {
+        status: upstreamRes.status,
+        headers: {
+          ...baseCorsHeaders,
+          "Content-Type": "text/vtt; charset=utf-8",
+          "Cache-Control": "public, max-age=86400, s-maxage=86400, immutable",
+        },
+      });
+    }
+
+    const isPlaylist =
+      targetUrl.pathname.endsWith(".m3u8") ||
+      targetUrl.pathname.includes("/hls/") ||
+      targetUrl.pathname.includes("/md/") ||
+      contentType.includes("mpegurl") ||
+      contentType.includes("application/x-mpegurl");
+
     if (isPlaylist) {
       const text = await upstreamRes.text();
       const origin = `${targetUrl.protocol}//${targetUrl.host}`;
@@ -132,7 +151,7 @@ export async function GET(req: NextRequest) {
           const trimmed = line.trim();
           if (!trimmed) return line;
 
-          // Reescribir URIs dentro de directivas HLS (ej. #EXT-X-KEY:...,URI="...", #EXT-X-MAP:URI="...")
+          // Reescribir URIs dentro de directivas HLS (ej. #EXT-X-KEY:...,URI="...", #EXT-X-MAP:URI="...", #EXT-X-MEDIA:...,URI="...")
           if (trimmed.startsWith("#")) {
             if (trimmed.includes('URI="')) {
               return trimmed.replace(/URI="([^"]+)"/g, (_, uri) => {

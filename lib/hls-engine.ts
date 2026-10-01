@@ -577,6 +577,9 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
                 const rawHls = (json?.securedLink || json?.videoSource || "").replace(/\\/g, "");
                 if (rawHls && rawHls.includes(".m3u8")) {
                   found.push(rawHls);
+                  if (rawHls.includes("embedplayer") || rawHls.includes(".xyz")) {
+                    found.push(`/api/playerflix/proxy?url=${encodeURIComponent(rawHls)}`);
+                  }
                 }
               }
             }
@@ -761,8 +764,8 @@ export async function executePipeline(
 
   let cleanBackups: string[] = [];
   if (Array.isArray(backupHlsUrls)) {
-    cleanBackups = backupHlsUrls.map(String).filter((u) => u.startsWith("http"));
-  } else if (backupHlsUrls && typeof backupHlsUrls === "string" && backupHlsUrls.startsWith("http")) {
+    cleanBackups = backupHlsUrls.map(String).filter((u) => u.startsWith("http") || u.startsWith("/api"));
+  } else if (backupHlsUrls && typeof backupHlsUrls === "string" && (backupHlsUrls.startsWith("http") || backupHlsUrls.startsWith("/api"))) {
     cleanBackups = [backupHlsUrls];
   }
 

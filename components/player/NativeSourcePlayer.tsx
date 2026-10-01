@@ -44,6 +44,20 @@ function formatRemainingTime(currentTime: number, duration: number): string {
   return `-${formatTime(rem)}`;
 }
 
+function formatLangName(lang?: string, fallback = "Idioma"): string {
+  if (!lang) return fallback;
+  const l = lang.toLowerCase().trim();
+  if (l === "pt" || l === "por" || l === "pt-br" || l === "portuguese" || l === "português") return "Português";
+  if (l === "es" || l === "spa" || l === "es-419" || l === "spanish" || l === "español") return "Español";
+  if (l === "lat" || l === "latino") return "Español Latino";
+  if (l === "en" || l === "eng" || l === "en-us" || l === "english" || l === "inglés") return "English";
+  if (l === "fr" || l === "fre" || l === "fra" || l === "french") return "Français";
+  if (l === "it" || l === "ita" || l === "italian") return "Italiano";
+  if (l === "de" || l === "ger" || l === "deu" || l === "german") return "Deutsch";
+  if (l === "ja" || l === "jpn" || l === "japanese") return "Japonés";
+  return lang.charAt(0).toUpperCase() + lang.slice(1);
+}
+
 export default function NativeSourcePlayer({
   source,
   title,
@@ -56,6 +70,7 @@ export default function NativeSourcePlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const progressContainerRef = useRef<HTMLDivElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
   const hasRestoredPlaybackRef = useRef(false);
   const lastSavedTimeRef = useRef(0);
@@ -66,6 +81,7 @@ export default function NativeSourcePlayer({
   const rewindBtnRef = useRef<HTMLButtonElement>(null);
   const forwardBtnRef = useRef<HTMLButtonElement>(null);
   const volumeBtnRef = useRef<HTMLButtonElement>(null);
+  const audioBtnRef = useRef<HTMLButtonElement>(null);
   const subtitlesBtnRef = useRef<HTMLButtonElement>(null);
   const speedBtnRef = useRef<HTMLButtonElement>(null);
   const pipBtnRef = useRef<HTMLButtonElement>(null);
@@ -90,8 +106,17 @@ export default function NativeSourcePlayer({
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Pistas de Audio (Dual Audio / Multi-idioma)
+  const [audioTracks, setAudioTracks] = useState<{ id: number; name: string; lang: string; default?: boolean }[]>([]);
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState<number | null>(null);
+  const [showAudioMenu, setShowAudioMenu] = useState(false);
+
+  // Subtítulos (Embebidos HLS + Externos)
+  const [embeddedSubtitleTracks, setEmbeddedSubtitleTracks] = useState<{ id: number; name: string; lang: string }[]>([]);
   const [showSubtitlesMenu, setShowSubtitlesMenu] = useState(false);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("off");
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPipAvailable, setIsPipAvailable] = useState(false);
 
@@ -115,12 +140,12 @@ export default function NativeSourcePlayer({
     setShowControls(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => {
-      if (!videoRef.current?.paused && !isDragging && !showSettings && !showSubtitlesMenu) {
+      if (!videoRef.current?.paused && !isDragging && !showSettings && !showSubtitlesMenu && !showAudioMenu) {
         setShowControls(false);
         setOsdFeedback(null);
       }
     }, 4500);
-  }, [isDragging, showSettings, showSubtitlesMenu]);
+  }, [isDragging, showSettings, showSubtitlesMenu, showAudioMenu]);
 
   const triggerFeedback = useCallback((icon: string, text: string) => {
     setOsdFeedback({ icon, text });
@@ -213,9 +238,59 @@ export default function NativeSourcePlayer({
         startFragPrefetch: true,
       });
 
+      hlsRef.current = hls;
+
       hls.attachMedia(video);
       hls.on(Hls.Events.MEDIA_ATTACHED, () => {
         hls?.loadSource(activeUrl);
+      });
+
+      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_, data) => {
+        const rawTracks = data.audioTracks || [];
+        const parsed = rawTracks.map((t, idx) => ({
+          id: t.id !== undefined ? t.id : idx,
+          name: t.name ? formatLangName(t.name) : (t.lang ? formatLangName(t.lang) : `Pista ${idx + 1}`),
+          lang: t.lang || "",
+          default: !!t.default,
+        }));
+        setAudioTracks(parsed);
+        const currentTrack = hls?.audioTrack;
+        if (currentTrack !== undefined && currentTrack !== -1) {
+          setSelectedAudioTrack(currentTrack);
+        } else if (parsed.length > 0) {
+          const pref = (seriesInfo?.lang || source.lang || "pt").toLowerCase();
+          const matchIdx = parsed.findIndex(
+            (t) => t.lang.toLowerCase().includes(pref) || t.name.toLowerCase().includes(pref)
+          );
+          if (matchIdx !== -1) {
+            if (hls) hls.audioTrack = parsed[matchIdx].id;
+            setSelectedAudioTrack(parsed[matchIdx].id);
+          } else {
+            setSelectedAudioTrack(parsed[0].id);
+          }
+        }
+      });
+
+      hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_, data) => {
+        setSelectedAudioTrack(data.id);
+      });
+
+      hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (_, data) => {
+        const rawSubs = data.subtitleTracks || [];
+        const parsed = rawSubs.map((t, idx) => ({
+          id: t.id !== undefined ? t.id : idx,
+          name: t.name ? formatLangName(t.name) : (t.lang ? formatLangName(t.lang) : `Subtítulo ${idx + 1}`),
+          lang: t.lang || "",
+        }));
+        setEmbeddedSubtitleTracks(parsed);
+      });
+
+      hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, (_, data) => {
+        if (data.id === -1) {
+          setSelectedSubtitle("off");
+        } else {
+          setSelectedSubtitle(`hls-${data.id}`);
+        }
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -256,6 +331,19 @@ export default function NativeSourcePlayer({
       // 2. Fallback HLS nativo para Safari iOS / macOS
       video.src = activeUrl;
       video.load();
+
+      // Detectar pistas nativas en Safari
+      const vAudio = (video as any).audioTracks;
+      if (vAudio && vAudio.length > 0) {
+        const parsed = Array.from(vAudio).map((t: any, idx) => ({
+          id: idx,
+          name: t.label ? formatLangName(t.label) : (t.language ? formatLangName(t.language) : `Audio ${idx + 1}`),
+          lang: t.language || "",
+          default: !!t.enabled,
+        }));
+        setAudioTracks(parsed);
+      }
+
       video.play().then(() => {
         setIsPlaying(true);
         resetHideTimerRef.current();
@@ -279,8 +367,9 @@ export default function NativeSourcePlayer({
     }
 
     return () => {
-      if (hls) {
-        hls.destroy();
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
       }
     };
   }, [activeUrl, currentUrlIndex, isHlsStream, autoFocusFullscreen]);
@@ -394,21 +483,69 @@ export default function NativeSourcePlayer({
     triggerFeedback("⚡", `Velocidad: ${rate}x`);
   };
 
+  const selectAudioTrack = (trackId: number) => {
+    setSelectedAudioTrack(trackId);
+    if (hlsRef.current) {
+      hlsRef.current.audioTrack = trackId;
+    }
+    const video = videoRef.current;
+    if (video && (video as any).audioTracks) {
+      const vAudio = (video as any).audioTracks;
+      for (let i = 0; i < vAudio.length; i++) {
+        vAudio[i].enabled = (i === trackId);
+      }
+    }
+    setShowAudioMenu(false);
+    const target = audioTracks.find((t) => t.id === trackId);
+    triggerFeedback("🎧", `Audio: ${target?.name || `Pista ${trackId + 1}`}`);
+  };
+
   const selectSubtitleTrack = (subId: string) => {
     const video = videoRef.current;
     if (!video) return;
     setSelectedSubtitle(subId);
+
+    if (subId === "off") {
+      if (hlsRef.current) {
+        hlsRef.current.subtitleTrack = -1;
+      }
+      for (let i = 0; i < video.textTracks.length; i++) {
+        video.textTracks[i].mode = "disabled";
+      }
+      setShowSubtitlesMenu(false);
+      triggerFeedback("💬", "Subtítulos desactivados");
+      return;
+    }
+
+    if (subId.startsWith("hls-")) {
+      const trackIdx = parseInt(subId.replace("hls-", ""), 10);
+      if (hlsRef.current) {
+        hlsRef.current.subtitleTrack = trackIdx;
+      }
+      for (let i = 0; i < video.textTracks.length; i++) {
+        video.textTracks[i].mode = "disabled";
+      }
+      setShowSubtitlesMenu(false);
+      const target = embeddedSubtitleTracks.find((t) => t.id === trackIdx);
+      triggerFeedback("💬", `Subtítulos: ${target?.name || `Pista ${trackIdx + 1}`}`);
+      return;
+    }
+
+    // Pista externa VTT
+    if (hlsRef.current) {
+      hlsRef.current.subtitleTrack = -1;
+    }
     for (let i = 0; i < video.textTracks.length; i++) {
       const track = video.textTracks[i];
-      if (subId === "off") {
-        track.mode = "disabled";
-      } else {
-        track.mode = (track.label === subId || track.language === subId) ? "showing" : "disabled";
-      }
+      track.mode = (track.label === subId || track.language === subId) ? "showing" : "disabled";
     }
     setShowSubtitlesMenu(false);
-    triggerFeedback("💬", subId === "off" ? "Subtítulos desactivados" : `Subtítulos: ${subId}`);
+    triggerFeedback("💬", `Subtítulos: ${subId}`);
   };
+
+  const validExternalSubtitles = (Array.isArray(source.subtitles) ? source.subtitles : [])
+    .filter((s) => s && typeof s === "object" && typeof s.url === "string");
+  const hasSubtitles = embeddedSubtitleTracks.length > 0 || validExternalSubtitles.length > 0;
 
   // Manejo de teclado y mando a distancia de TV (D-Pad y navegación espacial)
   useEffect(() => {
@@ -479,6 +616,35 @@ export default function NativeSourcePlayer({
         return;
       }
 
+      // Alternar Pista de Audio: a/A
+      if (e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        if (audioTracks.length > 1) {
+          const currentIdx = audioTracks.findIndex((t) => t.id === selectedAudioTrack);
+          const nextIdx = (currentIdx + 1) % audioTracks.length;
+          selectAudioTrack(audioTracks[nextIdx].id);
+        } else if (audioTracks.length === 1) {
+          selectAudioTrack(audioTracks[0].id);
+        }
+        return;
+      }
+
+      // Alternar Subtítulos: c/C o s/S
+      if (e.key === "c" || e.key === "C") {
+        e.preventDefault();
+        const availableOptions = [
+          "off",
+          ...embeddedSubtitleTracks.map((st) => `hls-${st.id}`),
+          ...validExternalSubtitles.map((st) => st.label || st.lang || st.id),
+        ];
+        if (availableOptions.length > 1) {
+          const currentIdx = availableOptions.indexOf(selectedSubtitle);
+          const nextIdx = (currentIdx + 1) % availableOptions.length;
+          selectSubtitleTrack(availableOptions[nextIdx]);
+        }
+        return;
+      }
+
       // PiP: p/P
       if (e.key === "p" || e.key === "P") {
         e.preventDefault();
@@ -508,7 +674,7 @@ export default function NativeSourcePlayer({
       window.removeEventListener("keydown", onKeyDown, true);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
-  }, [showControls, togglePlay, seek, adjustVolume, resetHideTimer, autoFocusFullscreen]);
+  }, [showControls, togglePlay, seek, adjustVolume, resetHideTimer, autoFocusFullscreen, audioTracks, selectedAudioTrack, embeddedSubtitleTracks, validExternalSubtitles, selectedSubtitle]);
 
   const onTimeUpdate = () => {
     const video = videoRef.current;
@@ -835,11 +1001,44 @@ export default function NativeSourcePlayer({
             </div>
           )}
 
-          {/* 5. Menú Flotante de Subtítulos */}
+          {/* 5. Menú Flotante de Selección de Audio (Dual Audio / Multi-idioma) */}
+          {showAudioMenu && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="absolute right-28 bottom-20 w-56 rounded-2xl bg-zinc-950/95 backdrop-blur-xl border border-white/20 shadow-2xl p-2 z-40 animate-scale-in max-h-80 overflow-y-auto"
+            >
+              <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 px-3 py-1.5 mb-1 border-b border-white/10 flex items-center justify-between">
+                <span>Pistas de Audio</span>
+                <span className="text-[10px] text-zinc-500 font-normal">{audioTracks.length} disponibles</span>
+              </div>
+              {audioTracks.map((track) => (
+                <button
+                  key={track.id}
+                  type="button"
+                  onClick={() => selectAudioTrack(track.id)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors focus:ring-2 focus:ring-white outline-none ${
+                    selectedAudioTrack === track.id
+                      ? "bg-[#E50914] text-white"
+                      : "text-zinc-200 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex flex-col">
+                    <span className="truncate">{track.name}</span>
+                    {track.lang && (
+                      <span className="text-[10px] text-zinc-400 font-normal uppercase">{track.lang}</span>
+                    )}
+                  </div>
+                  {selectedAudioTrack === track.id && <span>✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 6. Menú Flotante de Subtítulos (Embebidos HLS + Externos) */}
           {showSubtitlesMenu && (
             <div
               onClick={(e) => e.stopPropagation()}
-              className="absolute right-16 bottom-20 w-52 rounded-2xl bg-zinc-950/95 backdrop-blur-xl border border-white/20 shadow-2xl p-2 z-40 animate-scale-in"
+              className="absolute right-16 bottom-20 w-56 rounded-2xl bg-zinc-950/95 backdrop-blur-xl border border-white/20 shadow-2xl p-2 z-40 animate-scale-in max-h-80 overflow-y-auto"
             >
               <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 px-3 py-1.5 mb-1 border-b border-white/10">
                 Subtítulos
@@ -856,21 +1055,48 @@ export default function NativeSourcePlayer({
                 <span>Desactivados</span>
                 {selectedSubtitle === "off" && <span>✓</span>}
               </button>
-              {source.subtitles?.map((sub) => (
-                <button
-                  key={sub.id}
-                  type="button"
-                  onClick={() => selectSubtitleTrack(sub.label || sub.lang)}
-                  className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors focus:ring-2 focus:ring-white outline-none ${
-                    selectedSubtitle === (sub.label || sub.lang)
-                      ? "bg-[#E50914] text-white"
-                      : "text-zinc-200 hover:bg-white/10"
-                  }`}
-                >
-                  <span className="truncate">{sub.label || sub.lang}</span>
-                  {selectedSubtitle === (sub.label || sub.lang) && <span>✓</span>}
-                </button>
-              ))}
+
+              {/* Subtítulos Embebidos en Manifiesto HLS */}
+              {embeddedSubtitleTracks.map((sub) => {
+                const subKey = `hls-${sub.id}`;
+                const isSelected = selectedSubtitle === subKey;
+                return (
+                  <button
+                    key={subKey}
+                    type="button"
+                    onClick={() => selectSubtitleTrack(subKey)}
+                    className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors focus:ring-2 focus:ring-white outline-none ${
+                      isSelected
+                        ? "bg-[#E50914] text-white"
+                        : "text-zinc-200 hover:bg-white/10"
+                    }`}
+                  >
+                    <span className="truncate">{sub.name}</span>
+                    {isSelected && <span>✓</span>}
+                  </button>
+                );
+              })}
+
+              {/* Subtítulos Externos VTT */}
+              {validExternalSubtitles.map((sub) => {
+                const subKey = sub.label || sub.lang || sub.id;
+                const isSelected = selectedSubtitle === subKey;
+                return (
+                  <button
+                    key={sub.id || sub.url}
+                    type="button"
+                    onClick={() => selectSubtitleTrack(subKey)}
+                    className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors focus:ring-2 focus:ring-white outline-none ${
+                      isSelected
+                        ? "bg-[#E50914] text-white"
+                        : "text-zinc-200 hover:bg-white/10"
+                    }`}
+                  >
+                    <span className="truncate">{sub.label || formatLangName(sub.lang)}</span>
+                    {isSelected && <span>✓</span>}
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -1054,8 +1280,10 @@ export default function NativeSourcePlayer({
                         e.preventDefault();
                         if (episodesBtnRef.current) {
                           episodesBtnRef.current.focus();
-                        } else if (subtitlesBtnRef.current) {
-                          subtitlesBtnRef.current.focus();
+                        } else if (audioTracks.length > 0) {
+                          audioBtnRef.current?.focus();
+                        } else if (hasSubtitles) {
+                          subtitlesBtnRef.current?.focus();
                         } else {
                           speedBtnRef.current?.focus();
                         }
@@ -1104,7 +1332,7 @@ export default function NativeSourcePlayer({
                 </div>
               </div>
 
-              {/* Sección Derecha: [Episodios] -> [Subtítulos] -> [Velocidad] -> [PiP] -> [PANTALLA COMPLETA POR DEFECTO] */}
+              {/* Sección Derecha: [Episodios] -> [Audio] -> [Subtítulos] -> [Velocidad] -> [PiP] -> [PANTALLA COMPLETA POR DEFECTO] */}
               <div className="flex items-center gap-2 sm:gap-3">
                 {/* Botón Episodios estilo Netflix */}
                 {seriesInfo?.type === "tv" && (
@@ -1118,6 +1346,7 @@ export default function NativeSourcePlayer({
                       setShowEpisodesDrawer(!showEpisodesDrawer);
                       setShowSettings(false);
                       setShowSubtitlesMenu(false);
+                      setShowAudioMenu(false);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "ArrowUp") {
@@ -1128,8 +1357,10 @@ export default function NativeSourcePlayer({
                         volumeBtnRef.current?.focus();
                       } else if (e.key === "ArrowRight") {
                         e.preventDefault();
-                        if (subtitlesBtnRef.current) {
-                          subtitlesBtnRef.current.focus();
+                        if (audioTracks.length > 0) {
+                          audioBtnRef.current?.focus();
+                        } else if (hasSubtitles) {
+                          subtitlesBtnRef.current?.focus();
                         } else {
                           speedBtnRef.current?.focus();
                         }
@@ -1150,16 +1381,17 @@ export default function NativeSourcePlayer({
                   </button>
                 )}
 
-                {/* Botón Subtítulos (si existen pistas) */}
-                {source.subtitles && source.subtitles.length > 0 && (
+                {/* Botón Pistas de Audio (Dual Audio / Multi-idioma) */}
+                {audioTracks.length > 0 && (
                   <button
-                    ref={subtitlesBtnRef}
-                    id="btn-subtitles"
+                    ref={audioBtnRef}
+                    id="btn-audio"
                     type="button"
                     tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowSubtitlesMenu(!showSubtitlesMenu);
+                      setShowAudioMenu(!showAudioMenu);
+                      setShowSubtitlesMenu(false);
                       setShowSettings(false);
                     }}
                     onKeyDown={(e) => {
@@ -1175,6 +1407,58 @@ export default function NativeSourcePlayer({
                         }
                       } else if (e.key === "ArrowRight") {
                         e.preventDefault();
+                        if (hasSubtitles) {
+                          subtitlesBtnRef.current?.focus();
+                        } else {
+                          speedBtnRef.current?.focus();
+                        }
+                      }
+                    }}
+                    className={`h-9 px-2.5 rounded-full flex items-center gap-1.5 transition-all outline-none focus:outline-none focus:ring-2 focus:ring-white focus:scale-105 active:scale-95 ${
+                      showAudioMenu
+                        ? "bg-[#E50914] text-white"
+                        : "bg-white/10 hover:bg-white/20 text-zinc-200 hover:text-white"
+                    }`}
+                    title="Pistas de Audio"
+                    aria-label="Pistas de Audio"
+                  >
+                    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                      <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                    </svg>
+                    <span className="text-xs font-bold hidden sm:inline truncate max-w-[80px]">
+                      {audioTracks.find((t) => t.id === selectedAudioTrack)?.name || "Audio"}
+                    </span>
+                  </button>
+                )}
+
+                {/* Botón Subtítulos (si existen pistas embebidas o externas) */}
+                {hasSubtitles && (
+                  <button
+                    ref={subtitlesBtnRef}
+                    id="btn-subtitles"
+                    type="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowSubtitlesMenu(!showSubtitlesMenu);
+                      setShowAudioMenu(false);
+                      setShowSettings(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        scrubberBtnRef.current?.focus();
+                      } else if (e.key === "ArrowLeft") {
+                        e.preventDefault();
+                        if (audioTracks.length > 0) {
+                          audioBtnRef.current?.focus();
+                        } else if (episodesBtnRef.current) {
+                          episodesBtnRef.current.focus();
+                        } else {
+                          volumeBtnRef.current?.focus();
+                        }
+                      } else if (e.key === "ArrowRight") {
+                        e.preventDefault();
                         speedBtnRef.current?.focus();
                       }
                     }}
@@ -1183,7 +1467,7 @@ export default function NativeSourcePlayer({
                         ? "bg-white/20 text-[#E50914]"
                         : "hover:bg-white/20 text-zinc-300 hover:text-white"
                     }`}
-                    title="Subtítulos y audio"
+                    title="Subtítulos"
                     aria-label="Configuración de subtítulos"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -1202,6 +1486,7 @@ export default function NativeSourcePlayer({
                     e.stopPropagation();
                     setShowSettings(!showSettings);
                     setShowSubtitlesMenu(false);
+                    setShowAudioMenu(false);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowUp") {
@@ -1209,8 +1494,10 @@ export default function NativeSourcePlayer({
                       scrubberBtnRef.current?.focus();
                     } else if (e.key === "ArrowLeft") {
                       e.preventDefault();
-                      if (subtitlesBtnRef.current) {
-                        subtitlesBtnRef.current.focus();
+                      if (hasSubtitles) {
+                        subtitlesBtnRef.current?.focus();
+                      } else if (audioTracks.length > 0) {
+                        audioBtnRef.current?.focus();
                       } else if (episodesBtnRef.current) {
                         episodesBtnRef.current.focus();
                       } else {

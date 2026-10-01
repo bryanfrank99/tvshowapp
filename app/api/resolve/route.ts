@@ -336,6 +336,10 @@ export async function GET(req: NextRequest) {
 
         const srvTag = prov.ord ? `S${prov.ord}` : (prov.simulated_name || prov.id.toUpperCase());
 
+        const cleanSubtitles = Array.isArray(subtitles)
+          ? subtitles.filter((st: any) => st && typeof st === "object" && typeof st.url === "string")
+          : [];
+
         // 3. Emisión de fuente HLS nativa de máxima prioridad si existe stream extraído o en caché
         if (directHlsUrl) {
           provSources.push({
@@ -349,7 +353,7 @@ export async function GET(req: NextRequest) {
             backupUrls,
             lang: (prov.lang as any) || "multi",
             languages: prov.languages || [(prov.lang as any) || "multi"],
-            subtitles: subtitles.length > 0 ? subtitles : (prov.subtitles || []),
+            subtitles: cleanSubtitles,
             priority: 120, // Máxima prioridad para reproducción directa en TV
             isBeta: !!prov.is_beta,
             needsTmdb: prov.needs_tmdb,
@@ -389,7 +393,7 @@ export async function GET(req: NextRequest) {
             })),
             lang: (prov.lang as any) || "multi",
             languages: prov.languages || [(prov.lang as any) || "multi"],
-            subtitles: subtitles.length > 0 ? subtitles : (prov.subtitles || []),
+            subtitles: cleanSubtitles,
             priority: 95,
             isBeta: !!prov.is_beta,
             needsTmdb: prov.needs_tmdb,
