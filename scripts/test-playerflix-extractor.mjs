@@ -1,7 +1,7 @@
 import { fetchPlayerFlixStreams } from "../lib/playerflix";
 
 async function runTests() {
-  console.log("=== INICIO DE PRUEBAS DE EXTRACTOR PLAYERFLIX (SIN WATCHPLAY) ===");
+  console.log("=== INICIO DE PRUEBAS DE EXTRACTOR Y REPRODUCTOR HLS PLAYERFLIX (SPEC 091) ===");
 
   let passes = 0;
   let total = 0;
@@ -19,7 +19,7 @@ async function runTests() {
       (s) => s.id === "watchplay" || (s.originUrl && s.originUrl.includes("watchplay.shop"))
     );
     const vipHls = movieRes.streams.find((s) => s.id === "embedplayer" && s.type === "hls");
-    const vipWeb = movieRes.streams.find((s) => s.id === "embedplayer-web" && s.type === "iframe");
+    const vipWeb = movieRes.streams.find((s) => (s.id === "embedplayer-iframe" || s.id === "embedplayer-web") && s.type === "iframe");
     const embedPlay = movieRes.streams.find((s) => s.label.includes("Embed Play"));
 
     console.log(`  - Total streams extraídos: ${movieRes.streams.length}`);
@@ -96,9 +96,10 @@ async function runTests() {
     console.error("✗ Falló la extracción de serie:", tvRes?.error);
   }
 
-  // Test 4: Verificación de Endpoint Proxy HLS para VIP Player
+  // Test 4: Verificación de Endpoint Proxy HLS para VIP Player (Manifiesto Maestro)
   total++;
-  console.log("\n[TEST 4] Verificación de Endpoint Proxy HLS para VIP Player...");
+  console.log("\n[TEST 4] Verificación de Proxy HLS Maestro para VIP Player...");
+  let subPlaylistProxyUrl = "";
   const vipItem = movieRes?.streams?.find((s) => s.id === "embedplayer");
   if (vipItem && vipItem.hlsUrl.startsWith("/api/playerflix/proxy")) {
     const { GET } = await import("../app/api/playerflix/proxy/route");
@@ -116,6 +117,7 @@ async function runTests() {
       const hasRewrittenSub = bodyText.includes("/api/playerflix/proxy?url=");
       console.log(`  - Manifiesto maestro reescrito con rutas proxy: ${hasRewrittenSub}`);
       if (hasRewrittenSub) {
+        subPlaylistProxyUrl = bodyText.split("\n").find((l) => l.includes("/api/playerflix/proxy?url="))?.trim() || "";
         console.log("✓ VIP Player HLS Proxy responde 200 con CORS abierto y rutas reescritas.");
         passes++;
       } else {
@@ -126,6 +128,95 @@ async function runTests() {
     }
   } else {
     console.error("✗ No se encontró vipItem con URL de proxy");
+  }
+
+  // Test 5: Verificación de Sub-lista y Segmento de Video Real (con CDN dinámico eloialu*.xyz / plosia*.xyz)
+  total++;
+  console.log("\n[TEST 5] Verificación de Sub-lista HLS y Segmento de Video Real...");
+  if (subPlaylistProxyUrl) {
+    try {
+      const { GET } = await import("../app/api/playerflix/proxy/route");
+      const { NextRequest } = await import("next/server");
+      const subReq = new NextRequest("http://localhost:3000" + subPlaylistProxyUrl);
+      const subRes = await GET(subReq);
+      console.log(`  - Sub-playlist Status: ${subRes.status}`);
+      const subText = await subRes.text();
+      const segProxyUrl = subText.split("\n").find((l) => l.includes("/api/playerflix/proxy?url="))?.trim();
+
+      if (subRes.status === 200 && segProxyUrl) {
+        console.log(`  - Sub-lista entregada con segmentos enrutados por proxy.`);
+        // Descargar el segmento a través del proxy
+        const segReq = new NextRequest("http://localhost:3000" + segProxyUrl);
+        const segRes = await GET(segReq);
+        const segCors = segRes.headers.get("access-control-allow-origin");
+        const segType = segRes.headers.get("content-type");
+        const segBuffer = await segRes.arrayBuffer();
+
+        console.log(`  - Segment Status: ${segRes.status}`);
+        console.log(`  - Segment Content-Type: ${segType}`);
+        console.log(`  - Segment CORS: ${segCors}`);
+        console.log(`  - Segment Bytes: ${segBuffer.byteLength}`);
+
+        if (segRes.status === 200 && segCors === "*" && segBuffer.byteLength > 1000) {
+          console.log("✓ Segmento de video real descargado y verificado con éxito vía Proxy HLS.");
+          passes++;
+        } else {
+          console.error("✗ Falló la descarga o validación del segmento de video");
+        }
+      } else {
+        console.error("✗ No se pudo obtener la sub-lista o los segmentos proxy");
+      }
+    } catch (e) {
+      console.error("✗ Error en prueba de segmentos:", e);
+    }
+  } else {
+    console.error("✗ No se obtuvo URL de sub-lista para probar");
+  }
+
+  // Test 6: Verificación de Avengers (299536) con rotación de dominios eloialu*.xyz
+  total++;
+  console.log("\n[TEST 6] Verificación de Avengers (299536) con dominios eloialu*.xyz...");
+  try {
+    const avengersRes = await fetchPlayerFlixStreams({ id: "299536", type: "movie" });
+    const avengersVip = avengersRes?.streams?.find((s) => s.id === "embedplayer");
+    if (avengersVip && avengersVip.hlsUrl.startsWith("/api/playerflix/proxy")) {
+      const { GET } = await import("../app/api/playerflix/proxy/route");
+      const { NextRequest } = await import("next/server");
+      const mReq = new NextRequest("http://localhost:3000" + avengersVip.hlsUrl);
+      const mRes = await GET(mReq);
+      const mText = await mRes.text();
+      const sUrl = mText.split("\n").find((l) => l.includes("/api/playerflix/proxy?url="))?.trim();
+
+      if (sUrl) {
+        const sReq = new NextRequest("http://localhost:3000" + sUrl);
+        const sRes = await GET(sReq);
+        const sText = await sRes.text();
+        const segUrl = sText.split("\n").find((l) => l.includes("/api/playerflix/proxy?url="))?.trim();
+
+        if (segUrl) {
+          const segReq = new NextRequest("http://localhost:3000" + segUrl);
+          const segRes = await GET(segReq);
+          const segBuffer = await segRes.arrayBuffer();
+          console.log(`  - Avengers Segment Status: ${segRes.status}`);
+          console.log(`  - Avengers Segment Bytes: ${segBuffer.byteLength}`);
+
+          if (segRes.status === 200 && segBuffer.byteLength > 1000) {
+            console.log("✓ Segmentos con dominio eloialu*.xyz autorizados y transmitidos correctamente.");
+            passes++;
+          } else {
+            console.error("✗ Falló la descarga de segmento eloialu en Avengers");
+          }
+        } else {
+          console.error("✗ No se encontró segmento en la sub-lista de Avengers");
+        }
+      } else {
+        console.error("✗ No se encontró sub-lista en el manifiesto de Avengers");
+      }
+    } else {
+      console.error("✗ No se obtuvo VIP player para Avengers 299536");
+    }
+  } catch (err) {
+    console.error("✗ Error en prueba Avengers:", err);
   }
 
   console.log(`\n=== RESULTADOS: ${passes}/${total} pruebas pasaron ===`);

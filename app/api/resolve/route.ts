@@ -566,7 +566,7 @@ export async function GET(req: NextRequest) {
             const secondaries = freshStreams.filter((st) => st.hlsUrl !== cachedHls?.hlsUrl);
             secondaries.forEach((sec, sIdx) => {
               provSources.push({
-                id: `${prov.id}-alt-${sIdx + 1}`,
+                id: `${prov.id}-iframe-${sec.id || sIdx + 1}`,
                 providerId: prov.id,
                 providerName: sec.type === "hls" ? `HLS - ${srvTag} (${sec.label})` : `${srvTag} (${sec.label})`,
                 realName: `${prov.real_name || prov.name} - ${sec.label}`,

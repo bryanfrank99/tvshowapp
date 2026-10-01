@@ -254,7 +254,7 @@ export async function fetchPlayerFlixStreams(params: PlayerFlixParams): Promise<
         if (epStream) {
           // Proveer tanto el stream HLS (vía proxy CORS) como la opción directa en Iframe
           const iframeVersion: PlayerFlixStreamItem = {
-            id: "embedplayer-web",
+            id: "embedplayer-iframe",
             label: "VIP Player (Web)",
             hlsUrl: embedUrl,
             lang: optLang,
@@ -268,7 +268,7 @@ export async function fetchPlayerFlixStreams(params: PlayerFlixParams): Promise<
       // 3. Opciones iframe restantes (Embed Play, Premium, etc.)
       const label = opt.label || `Servidor ${idx + 1}`;
       return {
-        id: `playerflix-opt-${idx + 1}`,
+        id: `playerflix-iframe-${idx + 1}`,
         label,
         hlsUrl: embedUrl,
         lang: optLang,

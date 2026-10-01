@@ -162,12 +162,12 @@ function WatchInner() {
                 needsTmdb: true,
               };
 
-              // Reemplazar la fuente original o versión previa de este proveedor
+              // Reemplazar la fuente original o versión previa de este proveedor (preservando alternativas iframe)
               updated = updated.filter(
                 (s) =>
                   s.id !== it.providerId &&
                   s.id !== hlsSource.id &&
-                  !(s.providerId === it.providerId && s.type !== "hls" && !s.id.includes("iframe"))
+                  !(s.providerId === it.providerId && s.type !== "hls" && !s.id.includes("iframe") && !s.id.includes("alt"))
               );
               updated.push(hlsSource);
             }
