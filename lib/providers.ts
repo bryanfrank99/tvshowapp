@@ -42,6 +42,7 @@ export const DEFAULT_PROVIDER_LANGS: Record<string, ProviderLang[]> = {
   filmu: ["multi", "es", "lat", "pt", "en"],
   stellar: ["es", "pt", "en", "multi"],
   nasriplay: ["lat", "es", "en", "multi"],
+  playerflix: ["pt", "en", "multi"],
 };
 
 export const DEFAULT_PROVIDER_SUBS: Record<string, string[]> = {
@@ -63,6 +64,7 @@ export const DEFAULT_PROVIDER_SUBS: Record<string, string[]> = {
   filmu: ["es", "en", "pt", "multi"],
   stellar: ["es", "en", "pt", "multi"],
   nasriplay: ["es", "en", "multi"],
+  playerflix: ["pt", "es", "en"],
 };
 
 export const PROVIDER_LANGS: { id: ProviderLang; name: string; flag: string; badge: string }[] = [

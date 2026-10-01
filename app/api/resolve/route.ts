@@ -118,6 +118,7 @@ export async function GET(req: NextRequest) {
     let hlsConfigMap: Record<string, { enabled: boolean; extractor: string }> = {
       megaembed: { enabled: true, extractor: "megaembed" },
       watchplay: { enabled: true, extractor: "watchplay" },
+      playerflix: { enabled: true, extractor: "playerflix" },
     };
     try {
       if (hlsConfigRes.data?.value) {
@@ -487,6 +488,100 @@ export async function GET(req: NextRequest) {
               needsTmdb: prov.needs_tmdb,
               tvOk: prov.tv_ok,
             });
+            return provSources;
+          }
+        }
+
+        // Si es PlayerFlix, consultamos la caché de BD de streams M3U8 o extraemos concurrentemente
+        if (prov.id === "playerflix" || String(prov.movie_tpl || "").includes("playerflix.ink")) {
+          let cachedHls: { hlsUrl: string; backupHlsUrls?: string[] } | null = null;
+          try {
+            const { getCachedStream } = await import("@/lib/stream-cache");
+            cachedHls = await getCachedStream({
+              providerId: prov.id,
+              type,
+              targetId,
+              season: s,
+              episode: e,
+            });
+          } catch {}
+
+          let freshStreams: any[] = [];
+          if (!cachedHls?.hlsUrl) {
+            try {
+              const { fetchPlayerFlixStreams } = await import("@/lib/playerflix");
+              const extractPromise = fetchPlayerFlixStreams({
+                id: targetId,
+                type,
+                season: s,
+                episode: e,
+              });
+              const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 5500));
+              const fresh = await Promise.race([extractPromise, timeoutPromise]);
+              if (fresh?.success && fresh.streams?.length > 0) {
+                freshStreams = fresh.streams;
+                if (fresh.primaryHlsUrl) {
+                  cachedHls = { hlsUrl: fresh.primaryHlsUrl, backupHlsUrls: fresh.backupHlsUrls };
+                  const { setCachedStream } = await import("@/lib/stream-cache");
+                  setCachedStream({
+                    providerId: prov.id,
+                    type,
+                    targetId,
+                    season: s,
+                    episode: e,
+                    hlsUrl: fresh.primaryHlsUrl,
+                    backupHlsUrls: fresh.backupHlsUrls,
+                    ttlHours: 24,
+                  }).catch(() => {});
+                }
+              }
+            } catch {}
+          }
+
+          if (cachedHls?.hlsUrl) {
+            const srvTag = prov.ord ? `S${prov.ord}` : "S20";
+            provSources.push({
+              id: `${prov.id}-hls`,
+              providerId: prov.id,
+              providerName: `HLS - ${srvTag}`,
+              realName: `${prov.real_name || prov.name} (HLS)`,
+              ord: prov.ord,
+              type: "hls",
+              url: cachedHls.hlsUrl,
+              backupUrls: cachedHls.backupHlsUrls || [],
+              lang: (prov.lang as any) || "pt",
+              languages: prov.languages || ["pt"],
+              subtitles: prov.subtitles || [],
+              priority: 120, // Mayor prioridad para selección automática en TV
+              isBeta: false,
+              needsTmdb: true,
+              tvOk: true,
+            });
+
+            // Si se extrajeron streams adicionales (por ejemplo VIP Player HLS o alternativas)
+            if (freshStreams.length > 1) {
+              const secondaries = freshStreams.filter((st) => st.hlsUrl !== cachedHls?.hlsUrl);
+              secondaries.forEach((sec, sIdx) => {
+                provSources.push({
+                  id: `${prov.id}-alt-${sIdx + 1}`,
+                  providerId: prov.id,
+                  providerName: sec.type === "hls" ? `HLS - ${srvTag} (${sec.label})` : `${srvTag} (${sec.label})`,
+                  realName: `${prov.real_name || prov.name} - ${sec.label}`,
+                  ord: prov.ord,
+                  type: sec.type,
+                  url: sec.hlsUrl,
+                  backupUrls: sec.backupUrls || [],
+                  lang: (sec.lang as any) || "pt",
+                  languages: [sec.lang as any],
+                  subtitles: prov.subtitles || [],
+                  priority: sec.type === "hls" ? 115 : 90,
+                  isBeta: false,
+                  needsTmdb: true,
+                  tvOk: true,
+                });
+              });
+            }
+
             return provSources;
           }
         }

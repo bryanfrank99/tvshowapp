@@ -119,6 +119,9 @@ function WatchInner() {
           const nasriItem = rawList.find(
             (s) => (s.providerId === "nasriplay" || s.id.startsWith("nasriplay")) && s.type !== "hls"
           );
+          const playerFlixItem = rawList.find(
+            (s) => (s.providerId === "playerflix" || s.id.startsWith("playerflix")) && s.type !== "hls"
+          );
 
           interface ExtractedStreamInfo {
             providerId: string;
@@ -293,6 +296,62 @@ function WatchInner() {
                       isBeta: Boolean(watchPlayItem.isBeta),
                       simulatedName: watchPlayItem.providerName,
                       realName: watchPlayItem.realName,
+                    };
+                    extractedList.push(extracted);
+
+                    if (isInitialPhaseDoneRef.current) {
+                      setSources((prev) => {
+                        const currentActiveId = activeSourceRef.current?.id;
+                        const merged = mergeExtractedStreams(prev, [extracted]);
+                        const sorted = sortSourcesByPriority(merged, lang);
+                        if (currentActiveId && !userSourceId) {
+                          setUserSourceId(currentActiveId);
+                        }
+                        return sorted;
+                      });
+                    }
+                  }
+                } catch {}
+              })()
+            );
+          }
+
+          if (playerFlixItem) {
+            extractionTasks.push(
+              (async () => {
+                try {
+                  const { fetchPlayerFlixStreams } = await import("@/lib/playerflix");
+                  const streamResult = await fetchPlayerFlixStreams({
+                    id: targetId,
+                    type,
+                    season: s,
+                    episode: e,
+                  });
+                  if (streamResult?.primaryHlsUrl) {
+                    fetch("/api/resolve/cache-stream", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        providerId: playerFlixItem.providerId || "playerflix",
+                        type,
+                        targetId,
+                        season: s,
+                        episode: e,
+                        hlsUrl: streamResult.primaryHlsUrl,
+                        backupHlsUrls: streamResult.backupHlsUrls,
+                      }),
+                    }).catch(() => {});
+
+                    const extracted: ExtractedStreamInfo = {
+                      providerId: "playerflix",
+                      ord: playerFlixItem.ord || 20,
+                      tag: playerFlixItem.ord ? `S${playerFlixItem.ord}` : "S20",
+                      lang: (streamResult.lang as any) || "pt",
+                      hlsUrl: streamResult.primaryHlsUrl,
+                      backupUrls: (streamResult.backupHlsUrls || []).filter(Boolean),
+                      isBeta: Boolean(playerFlixItem.isBeta),
+                      simulatedName: playerFlixItem.providerName,
+                      realName: playerFlixItem.realName,
                     };
                     extractedList.push(extracted);
 
