@@ -1096,11 +1096,11 @@ export default function NativeSourcePlayer({
                   </div>
                 </div>
 
-                {/* Contador de Tiempo Formato Netflix: Transcurrido / Restante */}
+                {/* Contador de Tiempo: Tiempo Ascendente / Tiempo Total */}
                 <div className="text-xs sm:text-sm font-semibold tracking-wider text-zinc-300 font-mono tabular-nums select-none flex items-center gap-1.5 ml-2">
                   <span className="text-white font-bold">{formatTime(currentTime)}</span>
                   <span className="text-zinc-500 font-normal">/</span>
-                  <span className="text-zinc-400">{formatRemainingTime(currentTime, duration)}</span>
+                  <span className="text-zinc-400">{formatTime(duration)}</span>
                 </div>
               </div>
 

@@ -237,61 +237,41 @@ export async function fetchPlayerFlixStreams(params: PlayerFlixParams): Promise<
     const rawOptions: PlayerFlixOption[] = Array.isArray(data.data.options) ? data.data.options : [];
     const title: string = data.data.title || "";
 
-    // Procesar concurrentemente las opciones (excluyendo WatchPlay para S20)
-    const streamPromises = rawOptions.map(async (opt, idx): Promise<PlayerFlixStreamItem[] | PlayerFlixStreamItem | null> => {
+    // Procesar concurrentemente las opciones: SOLO streams HLS (WatchPlay, VIP Player HLS)
+    const streamPromises = rawOptions.map(async (opt): Promise<PlayerFlixStreamItem | null> => {
       const optLang = normalizeLang(opt.lang);
       const embedUrl = opt.embed || "";
       if (!embedUrl) return null;
 
-      // 1. Desactivar WatchPlay en S20 a petición del usuario (evita duplicar S18)
+      // 1. Caso WatchPlay (watchplay.shop) -> Extraer stream HLS directo fMP4
       if (embedUrl.includes("watchplay.shop")) {
-        return null;
+        return extractFromWatchPlay(embedUrl, optLang);
       }
 
-      // 2. Caso EmbedPlayer / VIP Player (embedplayer*.xyz)
+      // 2. Caso EmbedPlayer / VIP Player (embedplayer*.xyz) -> Extraer stream HLS vía proxy CORS
       if (embedUrl.includes("embedplayer") || opt.embed_id) {
-        const epStream = await extractFromEmbedPlayer(embedUrl, opt.embed_id, optLang);
-        if (epStream) {
-          // Proveer tanto el stream HLS (vía proxy CORS) como la opción directa en Iframe
-          const iframeVersion: PlayerFlixStreamItem = {
-            id: "embedplayer-iframe",
-            label: "VIP Player (Web)",
-            hlsUrl: embedUrl,
-            lang: optLang,
-            type: "iframe",
-            originUrl: embedUrl,
-          };
-          return [epStream, iframeVersion];
-        }
+        return extractFromEmbedPlayer(embedUrl, opt.embed_id, optLang);
       }
 
-      // 3. Opciones iframe restantes (Embed Play, Premium, etc.)
-      const label = opt.label || `Servidor ${idx + 1}`;
-      return {
-        id: `playerflix-iframe-${idx + 1}`,
-        label,
-        hlsUrl: embedUrl,
-        lang: optLang,
-        type: "iframe",
-        originUrl: embedUrl,
-      };
+      // 3. Excluir todas las opciones tipo embed/iframe (Embed Play, Premium, etc.) a petición del usuario
+      return null;
     });
 
     const settled = await Promise.all(streamPromises);
-    const resolvedStreams = settled.flat().filter(Boolean) as PlayerFlixStreamItem[];
+    const resolvedStreams = settled.filter(Boolean) as PlayerFlixStreamItem[];
 
-    // Separar y priorizar streams tipo HLS
+    // Garantizar exclusivamente streams tipo HLS
     const hlsStreams = resolvedStreams.filter((s) => s.type === "hls");
     const primaryHls = hlsStreams[0]?.hlsUrl;
     const backupHlsUrls = hlsStreams.slice(1).map((s) => s.hlsUrl);
 
     return {
-      success: resolvedStreams.length > 0,
+      success: hlsStreams.length > 0,
       title,
-      streams: resolvedStreams,
+      streams: hlsStreams,
       primaryHlsUrl: primaryHls,
       backupHlsUrls,
-      lang: hlsStreams[0]?.lang || resolvedStreams[0]?.lang || "pt",
+      lang: hlsStreams[0]?.lang || "pt",
     };
   } catch (err: any) {
     return {

@@ -561,23 +561,23 @@ export async function GET(req: NextRequest) {
             });
           }
 
-          // 2. Si se obtuvieron streams adicionales (HLS secundarios o iframes como Embed Play / VIP Player Web)
+          // 2. Si se obtuvieron streams adicionales HLS secundarios (ej. WatchPlay HLS o VIP Player HLS)
           if (freshStreams.length > 0) {
-            const secondaries = freshStreams.filter((st) => st.hlsUrl !== cachedHls?.hlsUrl);
+            const secondaries = freshStreams.filter((st) => st.type === "hls" && st.hlsUrl !== cachedHls?.hlsUrl);
             secondaries.forEach((sec, sIdx) => {
               provSources.push({
-                id: `${prov.id}-iframe-${sec.id || sIdx + 1}`,
+                id: `${prov.id}-hls-${sec.id || sIdx + 1}`,
                 providerId: prov.id,
-                providerName: sec.type === "hls" ? `HLS - ${srvTag} (${sec.label})` : `${srvTag} (${sec.label})`,
+                providerName: `HLS - ${srvTag} (${sec.label})`,
                 realName: `${prov.real_name || prov.name} - ${sec.label}`,
                 ord: prov.ord,
-                type: sec.type,
+                type: "hls",
                 url: sec.hlsUrl,
                 backupUrls: sec.backupUrls || [],
                 lang: (sec.lang as any) || "pt",
                 languages: [sec.lang as any],
                 subtitles: prov.subtitles || [],
-                priority: sec.type === "hls" ? 115 : 90,
+                priority: 115,
                 isBeta: false,
                 needsTmdb: true,
                 tvOk: true,
@@ -585,9 +585,8 @@ export async function GET(req: NextRequest) {
             });
           }
 
-          if (provSources.length > 0) {
-            return provSources;
-          }
+          // Retornar provSources directamente: si no hay HLS disponibles, retorna [] impidiendo fallback a iframe embed
+          return provSources;
         }
 
         // Si es NasriPlay (S17), consultamos la caché de BD de streams M3U8 o extraemos el stream HLS directo con audio Latino

@@ -1,102 +1,86 @@
 import { fetchPlayerFlixStreams } from "../lib/playerflix";
 
 async function runTests() {
-  console.log("=== INICIO DE PRUEBAS DE EXTRACTOR Y REPRODUCTOR HLS PLAYERFLIX (SPEC 091) ===");
+  console.log("=== INICIO DE PRUEBAS DE EXTRACTOR HLS EXCLUSIVO PLAYERFLIX (SPEC 092) ===");
 
   let passes = 0;
   let total = 0;
 
-  // Test 1: Película Spider-Man (TMDB 969681)
+  // Test 1: Película Spider-Man (TMDB 969681) con WatchPlay HLS y VIP Player HLS
   total++;
-  console.log("\n[TEST 1] Extracción de Spider-Man (969681) sin WatchPlay...");
+  console.log("\n[TEST 1] Extracción de Spider-Man (969681) con WatchPlay reactivado y SOLO HLS...");
   const movieRes = await fetchPlayerFlixStreams({
     id: "969681",
     type: "movie",
   });
 
   if (movieRes && movieRes.success && movieRes.streams.length > 0) {
-    const hasWatchPlay = movieRes.streams.some(
-      (s) => s.id === "watchplay" || (s.originUrl && s.originUrl.includes("watchplay.shop"))
-    );
-    const vipHls = movieRes.streams.find((s) => s.id === "embedplayer" && s.type === "hls");
-    const vipWeb = movieRes.streams.find((s) => (s.id === "embedplayer-iframe" || s.id === "embedplayer-web") && s.type === "iframe");
-    const embedPlay = movieRes.streams.find((s) => s.label.includes("Embed Play"));
+    const watchPlayStream = movieRes.streams.find((s) => s.id === "watchplay" && s.type === "hls");
+    const vipHlsStream = movieRes.streams.find((s) => s.id === "embedplayer" && s.type === "hls");
+    const anyIframe = movieRes.streams.some((s) => s.type === "iframe");
 
-    console.log(`  - Total streams extraídos: ${movieRes.streams.length}`);
-    console.log(`  - ¿WatchPlay excluido?: ${!hasWatchPlay}`);
-    console.log(`  - VIP Player HLS: ${vipHls ? vipHls.hlsUrl.slice(0, 60) + "..." : "No"}`);
-    console.log(`  - VIP Player Web: ${vipWeb ? "Sí" : "No"}`);
-    console.log(`  - Embed Play (iframe): ${embedPlay ? "Sí" : "No"}`);
+    console.log(`  - Total streams HLS extraídos: ${movieRes.streams.length}`);
+    console.log(`  - WatchPlay HLS presente: ${Boolean(watchPlayStream)}`);
+    console.log(`  - VIP Player HLS presente: ${Boolean(vipHlsStream)}`);
+    console.log(`  - ¿Contiene algún stream tipo iframe?: ${anyIframe}`);
 
-    if (!hasWatchPlay && vipHls && vipWeb) {
-      console.log("✓ Test 1 superado: WatchPlay descartado y proveedores alternativos listos.");
+    if (watchPlayStream && vipHlsStream && !anyIframe) {
+      console.log("✓ Test 1 superado: WatchPlay y VIP Player activos como streams 100% HLS (sin embeds).");
       passes++;
     } else {
-      console.error("✗ Test 1 falló: WatchPlay sigue presente o faltan alternativas.");
+      console.error("✗ Test 1 falló: falta WatchPlay/VIP o existen iframes indebidos.");
     }
   } else {
-    console.error("✗ Falló la extracción de película:", movieRes?.error);
+    console.error("✗ Falló la extracción de Spider-Man:", movieRes?.error);
   }
 
-  // Test 2: Película Interstellar (TMDB 157336)
+  // Test 2: Película Avengers: Infinity War (TMDB 299536)
   total++;
-  console.log("\n[TEST 2] Extracción de Interstellar (157336) sin WatchPlay...");
+  console.log("\n[TEST 2] Extracción de Avengers (299536) con WatchPlay y VIP Player (SOLO HLS)...");
+  const avengersRes = await fetchPlayerFlixStreams({
+    id: "299536",
+    type: "movie",
+  });
+
+  if (avengersRes && avengersRes.success && avengersRes.streams.length > 0) {
+    const anyIframe = avengersRes.streams.some((s) => s.type === "iframe");
+    const allHls = avengersRes.streams.every((s) => s.type === "hls");
+
+    console.log(`  - Total streams extraídos: ${avengersRes.streams.length}`);
+    for (const st of avengersRes.streams) {
+      console.log(`    * [${st.type.toUpperCase()}] ${st.label}: ${st.hlsUrl.slice(0, 60)}...`);
+    }
+
+    if (allHls && !anyIframe && avengersRes.streams.length >= 2) {
+      console.log("✓ Test 2 superado: Avengers contiene múltiples streams HLS nativos y 0 embeds.");
+      passes++;
+    } else {
+      console.error("✗ Test 2 falló: se encontraron iframes o no se obtuvieron streams HLS.");
+    }
+  } else {
+    console.error("✗ Falló la extracción de Avengers:", avengersRes?.error);
+  }
+
+  // Test 3: Título con solo opciones web (Interstellar 157336 o GOT) - Verificar ausencia de iframes
+  total++;
+  console.log("\n[TEST 3] Verificación de filtro estricto (0 embeds)...");
   const movie2Res = await fetchPlayerFlixStreams({
     id: "157336",
     type: "movie",
   });
 
-  if (movie2Res && movie2Res.success && movie2Res.streams.length > 0) {
-    const hasWatchPlay = movie2Res.streams.some(
-      (s) => s.id === "watchplay" || (s.originUrl && s.originUrl.includes("watchplay.shop"))
-    );
-    console.log(`  - Total streams extraídos: ${movie2Res.streams.length}`);
-    console.log(`  - ¿WatchPlay excluido?: ${!hasWatchPlay}`);
-    for (const st of movie2Res.streams) {
-      console.log(`    * [${st.type.toUpperCase()}] ${st.label}: ${st.hlsUrl.slice(0, 60)}...`);
-    }
+  const anyEmbedInRes = (movie2Res?.streams || []).some((s) => s.type === "iframe");
+  console.log(`  - Streams devueltos para Interstellar: ${movie2Res?.streams?.length || 0}`);
+  console.log(`  - ¿Se filtraron correctamente todos los iframes (Embed Play / Premium)?: ${!anyEmbedInRes}`);
 
-    if (!hasWatchPlay && movie2Res.streams.length > 0) {
-      console.log("✓ Test 2 superado: Proveedores iframe activos sin WatchPlay.");
-      passes++;
-    } else {
-      console.error("✗ Test 2 falló");
-    }
+  if (!anyEmbedInRes) {
+    console.log("✓ Test 3 superado: Ningún servidor tipo embed/iframe fue expuesto en S20.");
+    passes++;
   } else {
-    console.error("✗ Falló la extracción de Interstellar:", movie2Res?.error);
+    console.error("✗ Test 3 falló: se detectaron iframes en los streams.");
   }
 
-  // Test 3: Serie Game of Thrones (TMDB 1399 S1E1)
-  total++;
-  console.log("\n[TEST 3] Extracción de Game of Thrones (1399 S1E1) sin WatchPlay...");
-  const tvRes = await fetchPlayerFlixStreams({
-    id: "1399",
-    type: "tv",
-    season: 1,
-    episode: 1,
-  });
-
-  if (tvRes && tvRes.success && tvRes.streams.length > 0) {
-    const hasWatchPlay = tvRes.streams.some(
-      (s) => s.id === "watchplay" || (s.originUrl && s.originUrl.includes("watchplay.shop"))
-    );
-    console.log(`  - Total streams extraídos: ${tvRes.streams.length}`);
-    console.log(`  - ¿WatchPlay excluido?: ${!hasWatchPlay}`);
-    for (const st of tvRes.streams) {
-      console.log(`    * [${st.type.toUpperCase()}] ${st.label}: ${st.hlsUrl.slice(0, 60)}...`);
-    }
-
-    if (!hasWatchPlay && tvRes.streams.length > 0) {
-      console.log("✓ Test 3 superado: Serie servida mediante proveedores alternativos sin WatchPlay.");
-      passes++;
-    } else {
-      console.error("✗ Test 3 falló");
-    }
-  } else {
-    console.error("✗ Falló la extracción de serie:", tvRes?.error);
-  }
-
-  // Test 4: Verificación de Endpoint Proxy HLS para VIP Player (Manifiesto Maestro)
+  // Test 4: Verificación de Proxy HLS Maestro para VIP Player
   total++;
   console.log("\n[TEST 4] Verificación de Proxy HLS Maestro para VIP Player...");
   let subPlaylistProxyUrl = "";
@@ -108,14 +92,10 @@ async function runTests() {
     const proxyRes = await GET(dummyReq);
     const corsHeader = proxyRes.headers.get("access-control-allow-origin");
     const contentType = proxyRes.headers.get("content-type");
-    console.log(`  - Status: ${proxyRes.status}`);
-    console.log(`  - Content-Type: ${contentType}`);
-    console.log(`  - Access-Control-Allow-Origin: ${corsHeader}`);
 
     if (proxyRes.status === 200 && corsHeader === "*" && contentType?.includes("mpegurl")) {
       const bodyText = await proxyRes.text();
       const hasRewrittenSub = bodyText.includes("/api/playerflix/proxy?url=");
-      console.log(`  - Manifiesto maestro reescrito con rutas proxy: ${hasRewrittenSub}`);
       if (hasRewrittenSub) {
         subPlaylistProxyUrl = bodyText.split("\n").find((l) => l.includes("/api/playerflix/proxy?url="))?.trim() || "";
         console.log("✓ VIP Player HLS Proxy responde 200 con CORS abierto y rutas reescritas.");
@@ -130,7 +110,7 @@ async function runTests() {
     console.error("✗ No se encontró vipItem con URL de proxy");
   }
 
-  // Test 5: Verificación de Sub-lista y Segmento de Video Real (con CDN dinámico eloialu*.xyz / plosia*.xyz)
+  // Test 5: Verificación de descarga de segmento real vía Proxy HLS
   total++;
   console.log("\n[TEST 5] Verificación de Sub-lista HLS y Segmento de Video Real...");
   if (subPlaylistProxyUrl) {
@@ -139,32 +119,23 @@ async function runTests() {
       const { NextRequest } = await import("next/server");
       const subReq = new NextRequest("http://localhost:3000" + subPlaylistProxyUrl);
       const subRes = await GET(subReq);
-      console.log(`  - Sub-playlist Status: ${subRes.status}`);
       const subText = await subRes.text();
       const segProxyUrl = subText.split("\n").find((l) => l.includes("/api/playerflix/proxy?url="))?.trim();
 
       if (subRes.status === 200 && segProxyUrl) {
-        console.log(`  - Sub-lista entregada con segmentos enrutados por proxy.`);
-        // Descargar el segmento a través del proxy
         const segReq = new NextRequest("http://localhost:3000" + segProxyUrl);
         const segRes = await GET(segReq);
         const segCors = segRes.headers.get("access-control-allow-origin");
-        const segType = segRes.headers.get("content-type");
         const segBuffer = await segRes.arrayBuffer();
 
-        console.log(`  - Segment Status: ${segRes.status}`);
-        console.log(`  - Segment Content-Type: ${segType}`);
-        console.log(`  - Segment CORS: ${segCors}`);
-        console.log(`  - Segment Bytes: ${segBuffer.byteLength}`);
-
         if (segRes.status === 200 && segCors === "*" && segBuffer.byteLength > 1000) {
-          console.log("✓ Segmento de video real descargado y verificado con éxito vía Proxy HLS.");
+          console.log(`✓ Segmento de video real descargado (${segBuffer.byteLength} bytes) vía Proxy HLS.`);
           passes++;
         } else {
-          console.error("✗ Falló la descarga o validación del segmento de video");
+          console.error("✗ Falló la descarga o validación del segmento");
         }
       } else {
-        console.error("✗ No se pudo obtener la sub-lista o los segmentos proxy");
+        console.error("✗ No se obtuvo segmento proxy");
       }
     } catch (e) {
       console.error("✗ Error en prueba de segmentos:", e);
@@ -173,50 +144,29 @@ async function runTests() {
     console.error("✗ No se obtuvo URL de sub-lista para probar");
   }
 
-  // Test 6: Verificación de Avengers (299536) con rotación de dominios eloialu*.xyz
+  // Test 6: Verificación de stream directo HLS de WatchPlay
   total++;
-  console.log("\n[TEST 6] Verificación de Avengers (299536) con dominios eloialu*.xyz...");
-  try {
-    const avengersRes = await fetchPlayerFlixStreams({ id: "299536", type: "movie" });
-    const avengersVip = avengersRes?.streams?.find((s) => s.id === "embedplayer");
-    if (avengersVip && avengersVip.hlsUrl.startsWith("/api/playerflix/proxy")) {
-      const { GET } = await import("../app/api/playerflix/proxy/route");
-      const { NextRequest } = await import("next/server");
-      const mReq = new NextRequest("http://localhost:3000" + avengersVip.hlsUrl);
-      const mRes = await GET(mReq);
-      const mText = await mRes.text();
-      const sUrl = mText.split("\n").find((l) => l.includes("/api/playerflix/proxy?url="))?.trim();
+  console.log("\n[TEST 6] Verificación de stream directo HLS de WatchPlay en S20...");
+  const wpItem = movieRes?.streams?.find((s) => s.id === "watchplay");
+  if (wpItem && wpItem.hlsUrl.includes(".m3u8")) {
+    try {
+      const wpHeadRes = await fetch(wpItem.hlsUrl, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+      });
+      console.log(`  - WatchPlay HLS status: ${wpHeadRes.status}`);
+      console.log(`  - WatchPlay HLS URL: ${wpItem.hlsUrl.slice(0, 60)}...`);
 
-      if (sUrl) {
-        const sReq = new NextRequest("http://localhost:3000" + sUrl);
-        const sRes = await GET(sReq);
-        const sText = await sRes.text();
-        const segUrl = sText.split("\n").find((l) => l.includes("/api/playerflix/proxy?url="))?.trim();
-
-        if (segUrl) {
-          const segReq = new NextRequest("http://localhost:3000" + segUrl);
-          const segRes = await GET(segReq);
-          const segBuffer = await segRes.arrayBuffer();
-          console.log(`  - Avengers Segment Status: ${segRes.status}`);
-          console.log(`  - Avengers Segment Bytes: ${segBuffer.byteLength}`);
-
-          if (segRes.status === 200 && segBuffer.byteLength > 1000) {
-            console.log("✓ Segmentos con dominio eloialu*.xyz autorizados y transmitidos correctamente.");
-            passes++;
-          } else {
-            console.error("✗ Falló la descarga de segmento eloialu en Avengers");
-          }
-        } else {
-          console.error("✗ No se encontró segmento en la sub-lista de Avengers");
-        }
+      if (wpHeadRes.ok) {
+        console.log("✓ Stream HLS de WatchPlay accesible directamente y validado.");
+        passes++;
       } else {
-        console.error("✗ No se encontró sub-lista en el manifiesto de Avengers");
+        console.error("✗ WatchPlay HLS devolvió status no exitoso:", wpHeadRes.status);
       }
-    } else {
-      console.error("✗ No se obtuvo VIP player para Avengers 299536");
+    } catch (e) {
+      console.error("✗ Error conectando al stream WatchPlay:", e);
     }
-  } catch (err) {
-    console.error("✗ Error en prueba Avengers:", err);
+  } else {
+    console.error("✗ No se encontró stream WatchPlay HLS en Spider-Man");
   }
 
   console.log(`\n=== RESULTADOS: ${passes}/${total} pruebas pasaron ===`);
