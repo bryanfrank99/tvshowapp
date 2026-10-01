@@ -22,6 +22,7 @@ export interface PipelineStep {
     | "direct_url"
     | "nasriplay_resolve_servers"
     | "megaembed_parse_sources"
+    | "playerflix_resolve_options"
     | "extract_playerflix"
     | "extract_megaembed"
     | "extract_watchplay";
@@ -34,6 +35,7 @@ export interface PipelineStep {
   response_type?: "json" | "text";
   timeout_ms?: number;
   required?: boolean;
+  allow_embed_fallback?: boolean;
 
   // Filtrado de arrays (find_in_array)
   input?: string; // ej. "{{api_playback.embeds}}"
@@ -100,6 +102,7 @@ export interface HlsExtractionResult {
     host?: string;
     language?: string;
     url: string;
+    isWafFallback?: boolean;
   }>;
   subtitles?: Array<{
     file: string;
@@ -109,6 +112,8 @@ export interface HlsExtractionResult {
   }>;
   title?: string;
   error?: string;
+  warning?: string;
+  isWafFallback?: boolean;
   durationMs: number;
   status?: number;
   stepTraces?: StepTrace[];
@@ -267,7 +272,14 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
 
       const finalUrl = resolveTemplate(rawUrl, ctx);
       const headers: Record<string, string> = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "pt-BR,pt;q=0.9,es-419;q=0.8,es;q=0.7,en;q=0.6",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "cross-site",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
       };
 
       if (step.headers) {
@@ -288,15 +300,30 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
           cache: "no-store",
         });
 
-        if (!res.ok && step.required !== false) {
-          throw new Error(`HTTP ${res.status} al consultar ${finalUrl}`);
+        if (!res.ok) {
+          if (res.status === 403 || res.status === 429) {
+            ctx.waf_blocked = true;
+            ctx.embed_fallback_url = finalUrl;
+            if (step.allow_embed_fallback || step.required === false) {
+              return "";
+            }
+          }
+          if (step.required !== false) {
+            throw new Error(`HTTP ${res.status} al consultar ${finalUrl}`);
+          }
+          return "";
         }
 
         const isJson = step.response_type === "json" || (step.response_type !== "text" && (res.headers.get("content-type") || "").includes("json"));
         if (isJson) {
           return await res.json();
         }
-        return await res.text();
+        const text = await res.text();
+        if (text.includes("challenge-platform") && (text.includes("Just a moment") || text.includes("Attention Required"))) {
+          ctx.waf_blocked = true;
+          ctx.embed_fallback_url = finalUrl;
+        }
+        return text;
       } finally {
         clearTimeout(timer);
       }
@@ -434,6 +461,60 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
       };
     }
 
+    case "playerflix_resolve_options": {
+      let rawOptions = resolveValue(step.input, ctx);
+      if (typeof rawOptions === "string") {
+        try {
+          rawOptions = JSON.parse(rawOptions);
+        } catch {}
+      }
+      if (!Array.isArray(rawOptions) || rawOptions.length === 0) {
+        if (step.required !== false) {
+          throw new Error("No se encontraron opciones de reproducción en PlayerFlix");
+        }
+        return { embeds: [] };
+      }
+
+      const embeds = rawOptions
+        .filter((opt: any) => Boolean(opt && opt.embed))
+        .map((opt: any, idx: number) => {
+          const rawUrl = String(opt.embed).trim();
+          let server = "playerflix";
+          if (rawUrl.includes("embedplay")) server = "embedplay";
+          else if (rawUrl.includes("embedplayer")) server = "embedplayer";
+          else if (rawUrl.includes("superflix")) server = "superflix";
+          else if (rawUrl.includes("watchplay")) server = "watchplay";
+          else if (opt.label) server = opt.label.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+          const isEn = (opt.lang || "").toLowerCase().includes("en");
+          const langCode = isEn ? "en" : "pt";
+          const langLabel = isEn ? "Inglés" : "Português";
+          const baseLabel = opt.label || `Servidor ${idx + 1}`;
+
+          return {
+            name: `${baseLabel} (${langLabel})`,
+            server: `${server}_${langCode}`,
+            host: baseLabel,
+            language: langLabel,
+            url: rawUrl,
+            embed: rawUrl,
+            label: baseLabel,
+            lang: opt.lang || (isEn ? "en-us" : "pt-br"),
+            budget: opt.budget || "success",
+            icon: opt.icon,
+          };
+        });
+
+      if (embeds.length === 0 && step.required !== false) {
+        throw new Error("Ninguna opción de PlayerFlix contiene una URL de reproducción válida");
+      }
+
+      return {
+        embeds,
+        primaryUrl: embeds[0]?.url || "",
+      };
+    }
+
     case "extract_playerflix": {
       const { fetchPlayerFlixStreams } = await import("./playerflix");
       const res = await fetchPlayerFlixStreams({ id: ctx.id, type: ctx.type, season: ctx.season, episode: ctx.episode });
@@ -485,6 +566,8 @@ function formatStepSummary(action: string, out: any): string {
   }
   if (typeof out === "object") {
     if (out.hlsUrl) return `HLS obtenido (${out.backupHlsUrls?.length || 0} backups)`;
+    if (Array.isArray(out.embeds)) return `${out.embeds.length} opciones de reproducción obtenidas`;
+    if (out.data && out.data.title) return `Título: "${out.data.title}" (${out.data.options?.length || 0} opciones)`;
     return `Objeto JSON (${Object.keys(out).length} propiedades)`;
   }
   return String(out);
@@ -535,6 +618,39 @@ export async function executePipeline(
       });
 
       if (step.required !== false) {
+        const isWaf =
+          (err?.message || "").includes("403") ||
+          (err?.message || "").includes("429") ||
+          (err?.message || "").includes("Cloudflare") ||
+          !!ctx.waf_blocked;
+        const embedUrl =
+          ctx.embed_fallback_url ||
+          (ctx.type === "tv" ? ctx.tvTpl : ctx.movieTpl)
+            ?.replace("{id}", ctx.id)
+            .replace("{s}", String(ctx.s))
+            .replace("{e}", String(ctx.e));
+
+        if (isWaf && embedUrl) {
+          const fallbackEmbeds = [
+            {
+              name: `${(params.providerId || "Servidor").toUpperCase()} (Embed Web)`,
+              server: params.providerId,
+              host: "MegaEmbed",
+              language: "Português",
+              url: embedUrl,
+              isWafFallback: true,
+            },
+          ];
+          return {
+            success: true,
+            isWafFallback: true,
+            embeds: fallbackEmbeds,
+            warning: `Servidor bloqueado por Cloudflare WAF (HTTP 403). Se activó automáticamente la fuente Embed Web (${embedUrl}) compatible con el navegador del cliente.`,
+            durationMs: Date.now() - startTime,
+            stepTraces,
+          };
+        }
+
         return {
           success: false,
           error: `Error en paso [${step.id}]: ${err?.message || err}`,
@@ -576,6 +692,42 @@ export async function executePipeline(
       subtitles: Array.isArray(subtitles) ? subtitles : undefined,
       embeds: Array.isArray(embeds) ? embeds : undefined,
       title: title ? String(title) : undefined,
+      durationMs,
+      stepTraces,
+    };
+  }
+
+  const fallbackEmbedUrl =
+    ctx.embed_fallback_url ||
+    (ctx.type === "tv" ? ctx.tvTpl : ctx.movieTpl)
+      ?.replace("{id}", ctx.id)
+      .replace("{s}", String(ctx.s))
+      .replace("{e}", String(ctx.e));
+
+  if (Array.isArray(embeds) && embeds.length > 0) {
+    return {
+      success: true,
+      title: title ? String(title) : undefined,
+      embeds,
+      warning: ctx.waf_blocked ? "Extracción HLS bloqueada por Cloudflare en servidor. Modo Embed activado." : undefined,
+      durationMs,
+      stepTraces,
+    };
+  } else if (ctx.waf_blocked && fallbackEmbedUrl) {
+    return {
+      success: true,
+      isWafFallback: true,
+      embeds: [
+        {
+          name: `${(params.providerId || "Servidor").toUpperCase()} (Embed Web)`,
+          server: params.providerId,
+          host: "MegaEmbed",
+          language: "Português",
+          url: fallbackEmbedUrl,
+          isWafFallback: true,
+        },
+      ],
+      warning: `Extracción HLS bloqueada por Cloudflare en servidor (403). Modo Embed Web activado para el cliente (${fallbackEmbedUrl}).`,
       durationMs,
       stepTraces,
     };
@@ -716,21 +868,39 @@ export const EXTRACTOR_PRESETS: Record<string, { label: string; description: str
     }
   },
   playerflix: {
-    label: "PlayerFlix (API fMP4 / HLS Pipeline)",
-    description: "Pipeline con extractor HLS fMP4 multi-mirror y fallback a proxy directo de PlayerFlix.",
+    label: "PlayerFlix (Servidor Original / Multi-Mirror)",
+    description: "Pipeline declarativo directo: consulta Ajax.php en playerflix.ink y entrega opciones de embed originales (Embed Play, VIP Player, Premium, WatchPlay) sin proxies locales.",
     template: {
       version: 2,
       mode: "pipeline",
       preset: "playerflix",
       steps: [
         {
-          id: "playerflix_stream",
-          action: "extract_playerflix"
+          id: "playerflix_ajax",
+          action: "http_request",
+          movie_url: "https://playerflix.ink/inc/Ajax.php?type=movie&id={id}&season=null&episode=null",
+          tv_url: "https://playerflix.ink/inc/Ajax.php?type=tv&id={id}&season={s}&episode={e}",
+          method: "GET",
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Referer": "https://playerflix.ink/",
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json, text/javascript, */*; q=0.01"
+          },
+          response_type: "json",
+          timeout_ms: 10000
+        },
+        {
+          id: "playerflix_streams",
+          action: "playerflix_resolve_options",
+          input: "{{playerflix_ajax.data.options}}"
         }
       ],
       output: {
-        hlsUrl: "{{playerflix_stream.hlsUrl}}",
-        backupHlsUrls: "{{playerflix_stream.backupHlsUrls}}"
+        hlsUrl: "",
+        backupHlsUrls: [],
+        embeds: "{{playerflix_streams.embeds}}",
+        title: "{{playerflix_ajax.data.title}}"
       }
     }
   },
@@ -750,23 +920,32 @@ export const EXTRACTOR_PRESETS: Record<string, { label: string; description: str
           method: "GET",
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Referer": "https://mgeb.top/"
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "pt-BR,pt;q=0.9,es-419;q=0.8,es;q=0.7,en;q=0.6",
+            "Referer": "https://mgeb.top/",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1"
           },
           response_type: "text",
-          timeout_ms: 25000
+          timeout_ms: 25000,
+          allow_embed_fallback: true
         },
         {
           id: "sources_json",
           action: "regex_extract",
           input: "{{embed_page}}",
           pattern: "var\\s+sources\\s*=\\s*(\\[[\\s\\S]*?\\]);",
-          group: 1
+          group: 1,
+          required: false
         },
         {
           id: "mega_streams",
           action: "megaembed_parse_sources",
-          input: "{{sources_json}}"
+          input: "{{sources_json}}",
+          required: false
         }
       ],
       output: {

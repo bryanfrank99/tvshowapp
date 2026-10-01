@@ -374,6 +374,18 @@ export async function GET(req: NextRequest) {
               host: emb.host || emb.server || prov.name,
               language: emb.language || emb.lang || (prov.lang === "pt" ? "Português" : "Latino"),
               url: emb.url,
+              embed: emb.embed || emb.url,
+              label: emb.label || emb.host || emb.name,
+              lang: emb.lang || emb.language,
+              budget: emb.budget,
+              icon: emb.icon,
+            })),
+            options: fetchedEmbeds.map((emb: any) => ({
+              embed: emb.embed || emb.url,
+              lang: emb.lang || (prov.lang === "pt" ? "pt-br" : "es-419"),
+              label: emb.label || emb.host || emb.name,
+              budget: emb.budget || "success",
+              icon: emb.icon,
             })),
             lang: (prov.lang as any) || "multi",
             languages: prov.languages || [(prov.lang as any) || "multi"],
@@ -383,8 +395,8 @@ export async function GET(req: NextRequest) {
             needsTmdb: prov.needs_tmdb,
             tvOk: prov.tv_ok,
           });
-        } else if (allowEmbedFallback && !directHlsUrl) {
-          // Fallback a iframe básico solo si está permitido el modo embed y no se obtuvo HLS
+        } else if (!directHlsUrl) {
+          // Fallback a iframe básico si no se obtuvo HLS (garantiza reproducción si el servidor fue bloqueado por WAF)
           const adapted = providersToSources([prov], {
             type,
             id: targetId,
@@ -404,10 +416,13 @@ export async function GET(req: NextRequest) {
 
     const rawSources: Source[] = sourceBatches.flat();
 
-    // Spec 096: Si allow_embed_fallback es false (Modo HLS Estricto), filtrar fuentes que no sean streams HLS directos
-    const finalSourcesToRank = allowEmbedFallback
-      ? rawSources
-      : rawSources.filter((src) => src.type === "hls");
+    // Spec 096 & 100: Si allow_embed_fallback es false (Modo HLS Estricto), priorizar HLS pero si ningún proveedor
+    // pudo extraer HLS (por ejemplo bloqueo WAF 403), conservar los embeds para que el usuario no quede sin reproducción.
+    const hlsOnlySources = rawSources.filter((src) => src.type === "hls");
+    const finalSourcesToRank =
+      allowEmbedFallback || hlsOnlySources.length === 0
+        ? rawSources
+        : hlsOnlySources;
 
     // Ordenar TODAS las fuentes según afinidad lingüística real y prioridad de servidor por idioma.
     // Spec 085: Cada servidor HLS nativo se entrega como fuente independiente (HLS - S14, HLS - S18, etc.)

@@ -22,6 +22,11 @@ export interface SourceEmbedOption {
   host?: string;
   language?: string;
   url: string;
+  embed?: string;
+  label?: string;
+  lang?: string;
+  budget?: string;
+  icon?: string;
 }
 
 export interface Source {
@@ -45,6 +50,7 @@ export interface Source {
   backupUrls?: string[];      // URLs de fallback para streams directos HLS/MP4
   urlServerMap?: Record<string, string>; // Mapeo de URL -> nombre de servidor (ej: "S14", "S19", "S17")
   embedOptions?: SourceEmbedOption[]; // Sub-proveedores/mirrors unificados para un mismo servidor
+  options?: any[];            // Arreglo original de opciones devueltas por el proveedor (Spec 101)
 }
 
 export interface ResolveRequest {

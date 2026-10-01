@@ -1286,15 +1286,72 @@ export default function AdminPage() {
         }),
       });
       const data = await res.json();
-      if (data.result) {
-        setTestExtractorResult(data.result);
-      } else {
-        setTestExtractorResult({
-          success: false,
-          error: data.error || "Error al ejecutar el extractor",
-          durationMs: 0,
-        });
+      let finalResult = data.result || {
+        success: false,
+        error: data.error || "Error al ejecutar el extractor",
+        durationMs: 0,
+      };
+
+      // Si el servidor fue bloqueado con HTTP 403 por Cloudflare, intentar resolución asistida directa desde el navegador (IP residencial con CORS abierto)
+      const isWafIssue =
+        (!finalResult.success || finalResult.isWafFallback) &&
+        (String(finalResult.error || "").includes("403") ||
+          String(finalResult.warning || "").includes("403") ||
+          String(finalResult.error || "").toLowerCase().includes("cloudflare") ||
+          finalResult.isWafFallback);
+
+      if (isWafIssue && typeof window !== "undefined") {
+        const targetUrl =
+          testExtractorType === "tv"
+            ? (edit?.tv_tpl || "")
+                .replace("{id}", testExtractorTmdb)
+                .replace("{s}", String(testExtractorSeason))
+                .replace("{e}", String(testExtractorEpisode))
+            : (edit?.movie_tpl || "").replace("{id}", testExtractorTmdb);
+
+        if (targetUrl && (targetUrl.includes("mgeb.top") || targetUrl.includes("megaembed"))) {
+          try {
+            const clientT0 = Date.now();
+            const clientRes = await fetch(targetUrl);
+            if (clientRes.ok) {
+              const clientHtml = await clientRes.text();
+              const match = clientHtml.match(/var\s+sources\s*=\s*(\[[\s\S]*?\]);/);
+              let sources = [];
+              if (match && match[1]) {
+                try {
+                  sources = JSON.parse(match[1]);
+                } catch {}
+              }
+              const hlsList = sources
+                .filter((s: any) => s.type === "hls" || String(s.file || "").includes(".m3u8"))
+                .map((s: any) => s.file);
+
+              if (hlsList.length > 0) {
+                finalResult = {
+                  success: true,
+                  hlsUrl: hlsList[0],
+                  backupHlsUrls: hlsList.slice(1),
+                  durationMs: Date.now() - clientT0,
+                  warning:
+                    "⚡ Resolución Asistida por Navegador Exitosa: El servidor Next.js sufrió bloqueo WAF (403), pero el navegador extrajo los streams HLS nativos directamente gracias a CORS abierto.",
+                  stepTraces: [
+                    ...(finalResult.stepTraces || []),
+                    {
+                      stepId: "client_browser_bypass",
+                      action: "browser_direct_fetch",
+                      success: true,
+                      durationMs: Date.now() - clientT0,
+                      summary: `Navegador extrajo ${hlsList.length} streams HLS .m3u8 (CORS *)`,
+                    },
+                  ],
+                };
+              }
+            }
+          } catch {}
+        }
       }
+
+      setTestExtractorResult(finalResult);
     } catch (err: any) {
       setTestExtractorResult({
         success: false,
@@ -2983,6 +3040,11 @@ export default function AdminPage() {
                             STREAM DIRECTO HLS .M3U8
                           </span>
                         )}
+                        {testExtractorResult.isWafFallback && (
+                          <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                            MODO EMBED WEB (CLOUDFLARE BYPASS)
+                          </span>
+                        )}
                       </div>
 
                       {testExtractorResult.hlsUrl && (
@@ -3025,6 +3087,13 @@ export default function AdminPage() {
                               </span>
                             ))}
                           </div>
+                        </div>
+                      )}
+
+                      {testExtractorResult.warning && (
+                        <div className="text-[11px] bg-amber-950/40 border border-amber-500/30 text-amber-200 p-2.5 rounded-lg flex items-start gap-2">
+                          <span className="text-amber-400 text-sm leading-none shrink-0">⚠️</span>
+                          <span>{testExtractorResult.warning}</span>
                         </div>
                       )}
 
