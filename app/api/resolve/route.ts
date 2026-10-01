@@ -273,10 +273,12 @@ export async function GET(req: NextRequest) {
 
           if (!directHlsUrl || !fetchedEmbeds || fetchedEmbeds.length === 0) {
             try {
-              const { fetchCinecalidadStream, fetchCinecalidadEmbeds } = await import("@/lib/cinecalidad");
-              const extractPromise = fetchCinecalidadStream({
+              const { runHlsExtractor } = await import("@/lib/hls-engine");
+              const extractPromise = runHlsExtractor({
+                providerId: prov.id,
+                config: (prov as any).extractor_config,
                 type,
-                tmdbId: targetId,
+                id: targetId,
                 season: s,
                 episode: e,
               });
@@ -633,10 +635,12 @@ export async function GET(req: NextRequest) {
 
           if (!directHlsUrl || !fetchedEmbeds || fetchedEmbeds.length === 0) {
             try {
-              const { fetchNasriPlayStream } = await import("@/lib/nasriplay");
-              const extractPromise = fetchNasriPlayStream({
-                id: targetId,
+              const { runHlsExtractor } = await import("@/lib/hls-engine");
+              const extractPromise = runHlsExtractor({
+                providerId: prov.id,
+                config: (prov as any).extractor_config,
                 type,
+                id: targetId,
                 season: s,
                 episode: e,
               });

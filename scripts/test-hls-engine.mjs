@@ -24,6 +24,12 @@ async function main() {
   console.log("   * Backups:", cineRes.backupHlsUrls?.length || 0);
   console.log("   * Embeds:", cineRes.embeds?.length || 0);
   console.log(`   * Duración: ${cineRes.durationMs}ms`);
+  if (cineRes.stepTraces) {
+    console.log("   * Traza de Pasos del Pipeline:");
+    for (const st of cineRes.stepTraces) {
+      console.log(`     - [${st.stepId}] (${st.action}): ${st.success ? '✓' : '✕'} ${st.summary || st.error} (${st.durationMs}ms)`);
+    }
+  }
 
   // 3. Test NasriPlay (nasriplay_token)
   console.log("\n3. Test Extracción NasriPlay (nasriplay_token) - Película 550:");

@@ -3028,6 +3028,29 @@ export default function AdminPage() {
                         </div>
                       )}
 
+                      {testExtractorResult.stepTraces && testExtractorResult.stepTraces.length > 0 && (
+                        <div className="space-y-1.5 bg-black/40 p-2.5 rounded-lg border border-purple-500/25">
+                          <div className="text-[10px] font-bold text-purple-300 flex items-center justify-between">
+                            <span>📋 Traza de Pasos del Pipeline ({testExtractorResult.stepTraces.length} pasos ejecutados):</span>
+                          </div>
+                          <div className="space-y-1">
+                            {testExtractorResult.stepTraces.map((st: any, sIdx: number) => (
+                              <div key={sIdx} className="flex items-center justify-between gap-2 p-1.5 rounded bg-black/30 border border-white/5 font-mono text-[10px]">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className={st.success ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                                    {st.success ? "✓" : "✕"}
+                                  </span>
+                                  <b className="text-zinc-200">[{st.stepId}]</b>
+                                  <span className="text-purple-300">({st.action}):</span>
+                                  <span className="text-zinc-300 truncate">{st.summary || st.error || "Completado"}</span>
+                                </div>
+                                <span className="text-zinc-500 shrink-0 text-[9px]">{st.durationMs}ms</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {testExtractorResult.error && (
                         <div className="text-red-300 text-xs">
                           {testExtractorResult.error}
