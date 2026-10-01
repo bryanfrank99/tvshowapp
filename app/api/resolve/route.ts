@@ -538,8 +538,10 @@ export async function GET(req: NextRequest) {
             } catch {}
           }
 
+          const srvTag = prov.ord ? `S${prov.ord}` : "S20";
+
+          // 1. Si existe stream HLS en caché o extraído fresco
           if (cachedHls?.hlsUrl) {
-            const srvTag = prov.ord ? `S${prov.ord}` : "S20";
             provSources.push({
               id: `${prov.id}-hls`,
               providerId: prov.id,
@@ -557,31 +559,33 @@ export async function GET(req: NextRequest) {
               needsTmdb: true,
               tvOk: true,
             });
+          }
 
-            // Si se extrajeron streams adicionales (por ejemplo VIP Player HLS o alternativas)
-            if (freshStreams.length > 1) {
-              const secondaries = freshStreams.filter((st) => st.hlsUrl !== cachedHls?.hlsUrl);
-              secondaries.forEach((sec, sIdx) => {
-                provSources.push({
-                  id: `${prov.id}-alt-${sIdx + 1}`,
-                  providerId: prov.id,
-                  providerName: sec.type === "hls" ? `HLS - ${srvTag} (${sec.label})` : `${srvTag} (${sec.label})`,
-                  realName: `${prov.real_name || prov.name} - ${sec.label}`,
-                  ord: prov.ord,
-                  type: sec.type,
-                  url: sec.hlsUrl,
-                  backupUrls: sec.backupUrls || [],
-                  lang: (sec.lang as any) || "pt",
-                  languages: [sec.lang as any],
-                  subtitles: prov.subtitles || [],
-                  priority: sec.type === "hls" ? 115 : 90,
-                  isBeta: false,
-                  needsTmdb: true,
-                  tvOk: true,
-                });
+          // 2. Si se obtuvieron streams adicionales (HLS secundarios o iframes como Embed Play / VIP Player Web)
+          if (freshStreams.length > 0) {
+            const secondaries = freshStreams.filter((st) => st.hlsUrl !== cachedHls?.hlsUrl);
+            secondaries.forEach((sec, sIdx) => {
+              provSources.push({
+                id: `${prov.id}-alt-${sIdx + 1}`,
+                providerId: prov.id,
+                providerName: sec.type === "hls" ? `HLS - ${srvTag} (${sec.label})` : `${srvTag} (${sec.label})`,
+                realName: `${prov.real_name || prov.name} - ${sec.label}`,
+                ord: prov.ord,
+                type: sec.type,
+                url: sec.hlsUrl,
+                backupUrls: sec.backupUrls || [],
+                lang: (sec.lang as any) || "pt",
+                languages: [sec.lang as any],
+                subtitles: prov.subtitles || [],
+                priority: sec.type === "hls" ? 115 : 90,
+                isBeta: false,
+                needsTmdb: true,
+                tvOk: true,
               });
-            }
+            });
+          }
 
+          if (provSources.length > 0) {
             return provSources;
           }
         }

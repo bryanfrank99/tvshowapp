@@ -1,33 +1,38 @@
 import { fetchPlayerFlixStreams } from "../lib/playerflix";
 
 async function runTests() {
-  console.log("=== INICIO DE PRUEBAS DE EXTRACTOR PLAYERFLIX ===");
+  console.log("=== INICIO DE PRUEBAS DE EXTRACTOR PLAYERFLIX (SIN WATCHPLAY) ===");
 
   let passes = 0;
   let total = 0;
 
   // Test 1: Película Spider-Man (TMDB 969681)
   total++;
-  console.log("\n[TEST 1] Extracción de película Spider-Man (TMDB 969681)...");
+  console.log("\n[TEST 1] Extracción de Spider-Man (969681) sin WatchPlay...");
   const movieRes = await fetchPlayerFlixStreams({
     id: "969681",
     type: "movie",
   });
 
   if (movieRes && movieRes.success && movieRes.streams.length > 0) {
-    console.log("✓ Película resuelta con éxito:");
-    console.log(`  - Título: ${movieRes.title}`);
+    const hasWatchPlay = movieRes.streams.some(
+      (s) => s.id === "watchplay" || (s.originUrl && s.originUrl.includes("watchplay.shop"))
+    );
+    const vipHls = movieRes.streams.find((s) => s.id === "embedplayer" && s.type === "hls");
+    const vipWeb = movieRes.streams.find((s) => s.id === "embedplayer-web" && s.type === "iframe");
+    const embedPlay = movieRes.streams.find((s) => s.label.includes("Embed Play"));
+
     console.log(`  - Total streams extraídos: ${movieRes.streams.length}`);
-    const hlsList = movieRes.streams.filter((s) => s.type === "hls");
-    console.log(`  - Streams HLS nativos: ${hlsList.length}`);
-    for (const h of hlsList) {
-      console.log(`    * [${h.label}] ${h.hlsUrl.slice(0, 90)}...`);
-    }
-    if (movieRes.primaryHlsUrl) {
-      console.log(`  - Stream HLS primario: ${movieRes.primaryHlsUrl.slice(0, 90)}...`);
+    console.log(`  - ¿WatchPlay excluido?: ${!hasWatchPlay}`);
+    console.log(`  - VIP Player HLS: ${vipHls ? vipHls.hlsUrl.slice(0, 60) + "..." : "No"}`);
+    console.log(`  - VIP Player Web: ${vipWeb ? "Sí" : "No"}`);
+    console.log(`  - Embed Play (iframe): ${embedPlay ? "Sí" : "No"}`);
+
+    if (!hasWatchPlay && vipHls && vipWeb) {
+      console.log("✓ Test 1 superado: WatchPlay descartado y proveedores alternativos listos.");
       passes++;
     } else {
-      console.error("✗ No se obtuvo primaryHlsUrl en película");
+      console.error("✗ Test 1 falló: WatchPlay sigue presente o faltan alternativas.");
     }
   } else {
     console.error("✗ Falló la extracción de película:", movieRes?.error);
@@ -35,23 +40,35 @@ async function runTests() {
 
   // Test 2: Película Interstellar (TMDB 157336)
   total++;
-  console.log("\n[TEST 2] Extracción de película Interstellar (TMDB 157336)...");
+  console.log("\n[TEST 2] Extracción de Interstellar (157336) sin WatchPlay...");
   const movie2Res = await fetchPlayerFlixStreams({
     id: "157336",
     type: "movie",
   });
 
-  if (movie2Res && movie2Res.success && movie2Res.primaryHlsUrl) {
-    console.log("✓ Interstellar resuelta con stream HLS primario:");
-    console.log(`  - Stream HLS: ${movie2Res.primaryHlsUrl.slice(0, 90)}...`);
-    passes++;
+  if (movie2Res && movie2Res.success && movie2Res.streams.length > 0) {
+    const hasWatchPlay = movie2Res.streams.some(
+      (s) => s.id === "watchplay" || (s.originUrl && s.originUrl.includes("watchplay.shop"))
+    );
+    console.log(`  - Total streams extraídos: ${movie2Res.streams.length}`);
+    console.log(`  - ¿WatchPlay excluido?: ${!hasWatchPlay}`);
+    for (const st of movie2Res.streams) {
+      console.log(`    * [${st.type.toUpperCase()}] ${st.label}: ${st.hlsUrl.slice(0, 60)}...`);
+    }
+
+    if (!hasWatchPlay && movie2Res.streams.length > 0) {
+      console.log("✓ Test 2 superado: Proveedores iframe activos sin WatchPlay.");
+      passes++;
+    } else {
+      console.error("✗ Test 2 falló");
+    }
   } else {
     console.error("✗ Falló la extracción de Interstellar:", movie2Res?.error);
   }
 
   // Test 3: Serie Game of Thrones (TMDB 1399 S1E1)
   total++;
-  console.log("\n[TEST 3] Extracción de serie Game of Thrones (TMDB 1399 S1E1)...");
+  console.log("\n[TEST 3] Extracción de Game of Thrones (1399 S1E1) sin WatchPlay...");
   const tvRes = await fetchPlayerFlixStreams({
     id: "1399",
     type: "tv",
@@ -60,19 +77,20 @@ async function runTests() {
   });
 
   if (tvRes && tvRes.success && tvRes.streams.length > 0) {
-    console.log("✓ Serie resuelta con éxito:");
-    console.log(`  - Título: ${tvRes.title}`);
+    const hasWatchPlay = tvRes.streams.some(
+      (s) => s.id === "watchplay" || (s.originUrl && s.originUrl.includes("watchplay.shop"))
+    );
     console.log(`  - Total streams extraídos: ${tvRes.streams.length}`);
-    const hlsTvList = tvRes.streams.filter((s) => s.type === "hls");
-    console.log(`  - Streams HLS nativos: ${hlsTvList.length}`);
-    for (const h of hlsTvList) {
-      console.log(`    * [${h.label}] ${h.hlsUrl.slice(0, 90)}...`);
+    console.log(`  - ¿WatchPlay excluido?: ${!hasWatchPlay}`);
+    for (const st of tvRes.streams) {
+      console.log(`    * [${st.type.toUpperCase()}] ${st.label}: ${st.hlsUrl.slice(0, 60)}...`);
     }
-    if (tvRes.primaryHlsUrl) {
-      console.log(`  - Stream HLS primario: ${tvRes.primaryHlsUrl.slice(0, 90)}...`);
+
+    if (!hasWatchPlay && tvRes.streams.length > 0) {
+      console.log("✓ Test 3 superado: Serie servida mediante proveedores alternativos sin WatchPlay.");
       passes++;
     } else {
-      console.error("✗ No se obtuvo primaryHlsUrl en serie");
+      console.error("✗ Test 3 falló");
     }
   } else {
     console.error("✗ Falló la extracción de serie:", tvRes?.error);
@@ -98,7 +116,7 @@ async function runTests() {
       const hasRewrittenSub = bodyText.includes("/api/playerflix/proxy?url=");
       console.log(`  - Manifiesto maestro reescrito con rutas proxy: ${hasRewrittenSub}`);
       if (hasRewrittenSub) {
-        console.log("✓ VIP Player HLS Proxy responde 200 con CORS abierto y rutas reescritas");
+        console.log("✓ VIP Player HLS Proxy responde 200 con CORS abierto y rutas reescritas.");
         passes++;
       } else {
         console.error("✗ No se reescribieron las rutas en el proxy");

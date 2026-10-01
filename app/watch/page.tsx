@@ -320,34 +320,18 @@ function WatchInner() {
             extractionTasks.push(
               (async () => {
                 try {
-                  const { fetchPlayerFlixStreams } = await import("@/lib/playerflix");
-                  const streamResult = await fetchPlayerFlixStreams({
-                    id: targetId,
-                    type,
-                    season: s,
-                    episode: e,
-                  });
-                  if (streamResult?.primaryHlsUrl) {
-                    fetch("/api/resolve/cache-stream", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        providerId: playerFlixItem.providerId || "playerflix",
-                        type,
-                        targetId,
-                        season: s,
-                        episode: e,
-                        hlsUrl: streamResult.primaryHlsUrl,
-                        backupHlsUrls: streamResult.backupHlsUrls,
-                      }),
-                    }).catch(() => {});
-
+                  const res = await fetch(
+                    `/api/playerflix?id=${encodeURIComponent(targetId)}&type=${type}&s=${s}&e=${e}`
+                  );
+                  if (!res.ok) return;
+                  const streamResult = await res.json();
+                  if (streamResult?.hlsUrl) {
                     const extracted: ExtractedStreamInfo = {
                       providerId: "playerflix",
                       ord: playerFlixItem.ord || 20,
                       tag: playerFlixItem.ord ? `S${playerFlixItem.ord}` : "S20",
                       lang: (streamResult.lang as any) || "pt",
-                      hlsUrl: streamResult.primaryHlsUrl,
+                      hlsUrl: streamResult.hlsUrl,
                       backupUrls: (streamResult.backupHlsUrls || []).filter(Boolean),
                       isBeta: Boolean(playerFlixItem.isBeta),
                       simulatedName: playerFlixItem.providerName,

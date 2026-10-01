@@ -237,25 +237,35 @@ export async function fetchPlayerFlixStreams(params: PlayerFlixParams): Promise<
     const rawOptions: PlayerFlixOption[] = Array.isArray(data.data.options) ? data.data.options : [];
     const title: string = data.data.title || "";
 
-    // Procesar concurrentemente las opciones para extraer HLS
-    const streamPromises = rawOptions.map(async (opt, idx): Promise<PlayerFlixStreamItem | null> => {
+    // Procesar concurrentemente las opciones (excluyendo WatchPlay para S20)
+    const streamPromises = rawOptions.map(async (opt, idx): Promise<PlayerFlixStreamItem[] | PlayerFlixStreamItem | null> => {
       const optLang = normalizeLang(opt.lang);
       const embedUrl = opt.embed || "";
       if (!embedUrl) return null;
 
-      // 1. Caso WatchPlay (v1.watchplay.shop / v2.watchplay.shop)
+      // 1. Desactivar WatchPlay en S20 a petición del usuario (evita duplicar S18)
       if (embedUrl.includes("watchplay.shop")) {
-        const wpStream = await extractFromWatchPlay(embedUrl, optLang);
-        if (wpStream) return wpStream;
+        return null;
       }
 
       // 2. Caso EmbedPlayer / VIP Player (embedplayer*.xyz)
       if (embedUrl.includes("embedplayer") || opt.embed_id) {
         const epStream = await extractFromEmbedPlayer(embedUrl, opt.embed_id, optLang);
-        if (epStream) return epStream;
+        if (epStream) {
+          // Proveer tanto el stream HLS (vía proxy CORS) como la opción directa en Iframe
+          const iframeVersion: PlayerFlixStreamItem = {
+            id: "embedplayer-web",
+            label: "VIP Player (Web)",
+            hlsUrl: embedUrl,
+            lang: optLang,
+            type: "iframe",
+            originUrl: embedUrl,
+          };
+          return [epStream, iframeVersion];
+        }
       }
 
-      // 3. Fallback: Si no se pudo extraer como HLS directo, conservamos la fuente como iframe limpio
+      // 3. Opciones iframe restantes (Embed Play, Premium, etc.)
       const label = opt.label || `Servidor ${idx + 1}`;
       return {
         id: `playerflix-opt-${idx + 1}`,
@@ -268,7 +278,7 @@ export async function fetchPlayerFlixStreams(params: PlayerFlixParams): Promise<
     });
 
     const settled = await Promise.all(streamPromises);
-    const resolvedStreams = settled.filter(Boolean) as PlayerFlixStreamItem[];
+    const resolvedStreams = settled.flat().filter(Boolean) as PlayerFlixStreamItem[];
 
     // Separar y priorizar streams tipo HLS
     const hlsStreams = resolvedStreams.filter((s) => s.type === "hls");
