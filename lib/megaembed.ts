@@ -57,7 +57,17 @@ export async function verifyStreamUrl(url: string): Promise<boolean> {
     if (!res.ok) return false;
 
     const contentType = (res.headers.get("content-type") || "").toLowerCase();
-    const text = await res.text();
+    if (
+      contentType.includes("video/mp4") ||
+      contentType.includes("video/") ||
+      contentType.includes("octet-stream") ||
+      contentType.includes("mpegurl") ||
+      contentType.includes("application/vnd.apple.mpegurl")
+    ) {
+      return true;
+    }
+
+    const text = await res.text().catch(() => "");
 
     // Detección de rechazo explícito de firmas o errores JSON de CDN
     if (
@@ -70,12 +80,7 @@ export async function verifyStreamUrl(url: string): Promise<boolean> {
     }
 
     // Comprobar cabecera HLS estándar o streams válidos
-    if (text.includes("#EXTM3U") || contentType.includes("mpegurl")) {
-      return true;
-    }
-
-    // Streams MP4 o binarios válidos
-    if (contentType.includes("video/mp4") || contentType.includes("video/") || contentType.includes("application/octet-stream")) {
+    if (text.includes("#EXTM3U")) {
       return true;
     }
 
@@ -91,7 +96,7 @@ export async function fetchMegaEmbedStream(
   const { id, type, season = 1, episode = 1 } = params;
   if (!id) return null;
 
-  const hosts = ["https://mgeb.top", "https://megaembed.com"];
+  const hosts = ["https://mgeb.top"];
   const path =
     type === "tv"
       ? `embed/${id}/${season}/${episode}`
@@ -108,7 +113,7 @@ export async function fetchMegaEmbedStream(
   const fetchFromHost = async (host: string) => {
     const res = await fetch(`${host}/${path}`, {
       headers,
-      signal: AbortSignal.timeout(4500),
+      signal: AbortSignal.timeout(10000),
       cache: "no-store",
     });
 
@@ -192,6 +197,14 @@ export async function fetchMegaEmbedStream(
     if (mp4Candidate) {
       const ok = await verifyStreamUrl(mp4Candidate);
       if (ok) validMp4 = mp4Candidate;
+    }
+
+    // Fallback de resiliencia: si la verificación rápida falló o dio timeout, usar candidatos directos
+    if (!verifiedHls.length && hlsCandidates.length > 0) {
+      verifiedHls.push(...hlsCandidates);
+    }
+    if (!validMp4 && mp4Candidate) {
+      validMp4 = mp4Candidate;
     }
 
     if (!verifiedHls.length && !validMp4) {

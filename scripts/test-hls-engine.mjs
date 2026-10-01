@@ -40,6 +40,14 @@ async function main() {
   console.log("   * Embeds (mirrors):", nasriRes.embeds?.length || 0);
   console.log(`   * Duración: ${nasriRes.durationMs}ms`);
 
+  // 3b. Test MegaEmbed (megaembed)
+  console.log("\n3b. Test Extracción MegaEmbed (megaembed) - Película 550:");
+  const megaRes = await runHlsExtractor({ providerId: 'megaembed', type: 'movie', id: '550' });
+  console.log("   * Success:", megaRes.success);
+  console.log("   * Primary HLS:", megaRes.hlsUrl ? megaRes.hlsUrl.slice(0, 65) + "..." : "Ninguno");
+  console.log("   * Backups:", megaRes.backupHlsUrls?.length || 0);
+  console.log(`   * Duración: ${megaRes.durationMs}ms`);
+
   // 4. Test PlayerFlix (playerflix)
   console.log("\n4. Test Extracción PlayerFlix (playerflix) - Serie 1399 1/1:");
   const pfRes = await runHlsExtractor({ providerId: 'playerflix', type: 'tv', id: '1399', season: 1, episode: 1 });

@@ -125,6 +125,15 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
 
+    try {
+      const { EXTRACTOR_PRESETS } = await import("@/lib/hls-engine");
+      for (const [key, preset] of Object.entries(EXTRACTOR_PRESETS)) {
+        if (!fallbackExtractorConfigs[key]) {
+          fallbackExtractorConfigs[key] = preset.template;
+        }
+      }
+    } catch {}
+
     let hlsConfigMap: Record<string, { enabled: boolean; extractor: string }> = {
       megaembed: { enabled: true, extractor: "megaembed" },
       watchplay: { enabled: true, extractor: "watchplay" },
@@ -253,477 +262,31 @@ export async function GET(req: NextRequest) {
         const provSources: Source[] = [];
         const targetId = prov.needs_tmdb ? (effectiveTmdbId as string) : (effectiveImdbId || rawId);
 
-        // Si es Cinecalidad (S19), consultamos la caché de BD de streams M3U8 o extraemos el stream HLS directo con audio Latino
-        if (prov.id === "cinecalidad" || String(prov.movie_tpl || "").includes("cinecalidad")) {
-          let cachedHls: { hlsUrl: string; backupHlsUrls?: string[] } | null = null;
-          try {
-            const { getCachedStream } = await import("@/lib/stream-cache");
-            cachedHls = await getCachedStream({
-              providerId: prov.id,
-              type,
-              targetId,
-              season: s,
-              episode: e,
-            });
-          } catch {}
+        const extConfig = (prov as any).extractor_config || fallbackExtractorConfigs[prov.id];
 
-          let directHlsUrl = cachedHls?.hlsUrl;
-          let subtitles: any[] = [];
-          let fetchedEmbeds: any[] | undefined = cachedHls?.embeds;
-
-          if (!directHlsUrl || !fetchedEmbeds || fetchedEmbeds.length === 0) {
-            try {
-              const { runHlsExtractor } = await import("@/lib/hls-engine");
-              const extractPromise = runHlsExtractor({
-                providerId: prov.id,
-                config: (prov as any).extractor_config,
-                type,
-                id: targetId,
-                season: s,
-                episode: e,
-              });
-              const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 5500));
-              const fresh = await Promise.race([extractPromise, timeoutPromise]);
-              if (fresh) {
-                if (fresh.embeds && fresh.embeds.length > 0) {
-                  fetchedEmbeds = fresh.embeds;
-                }
-                if (fresh.success && fresh.hlsUrl) {
-                  directHlsUrl = fresh.hlsUrl;
-                  subtitles = (fresh.subtitles || []).map((st: any, idx: number) => ({
-                    id: `sub-cc-${idx}`,
-                    lang: "es",
-                    label: st.label || "Español",
-                    url: st.file,
-                    isDefault: st.default,
-                  }));
-
-                  const { setCachedStream } = await import("@/lib/stream-cache");
-                  setCachedStream({
-                    providerId: prov.id,
-                    type,
-                    targetId,
-                    season: s,
-                    episode: e,
-                    hlsUrl: fresh.hlsUrl,
-                    backupHlsUrls: fresh.backupHlsUrls,
-                    embeds: fresh.embeds,
-                    ttlHours: 12,
-                  }).catch(() => {});
-                }
-              }
-
-              if (!fetchedEmbeds || fetchedEmbeds.length === 0) {
-                fetchedEmbeds = await fetchCinecalidadEmbeds({
-                  type,
-                  tmdbId: targetId,
-                  season: s,
-                  episode: e,
-                });
-              }
-            } catch {}
-          }
-
-          if (directHlsUrl) {
-            const srvTag = prov.ord ? `S${prov.ord}` : "S19";
-            provSources.push({
-              id: `${prov.id}-hls`,
-              providerId: prov.id,
-              providerName: `HLS - ${srvTag}`,
-              realName: `${prov.real_name || prov.name} (HLS)`,
-              ord: prov.ord,
-              type: "hls",
-              url: directHlsUrl,
-              backupUrls: cachedHls?.backupHlsUrls || [],
-              lang: "es",
-              languages: ["es", "lat"],
-              subtitles: subtitles.length > 0 ? subtitles : (prov.subtitles || []),
-              priority: 120, // Máxima prioridad para reproducción directa HLS
-              isBeta: false,
-              needsTmdb: prov.needs_tmdb,
-              tvOk: prov.tv_ok,
-            });
-          }
-
-          // Unificación de S19: tarjeta iframe unificada con embedOptions para alternar hosts
-          if (fetchedEmbeds && fetchedEmbeds.length > 0) {
-            const srvTag = prov.ord ? `S${prov.ord}` : "S19";
-            const primaryEmbedUrl = fetchedEmbeds[0].url;
-            provSources.push({
-              id: `${prov.id}-iframe`,
-              providerId: prov.id,
-              providerName: prov.simulated_name || srvTag,
-              realName: prov.real_name || prov.name,
-              ord: prov.ord,
-              type: "iframe",
-              url: primaryEmbedUrl,
-              embedOptions: fetchedEmbeds.map((emb: any) => ({
-                name: emb.host || emb.server || "Cinecalidad",
-                server: emb.server || "online",
-                host: emb.host || "Cinecalidad",
-                language: emb.lang || "Latino",
-                url: emb.url,
-              })),
-              lang: "es",
-              languages: ["es", "lat"],
-              subtitles: subtitles.length > 0 ? subtitles : (prov.subtitles || []),
-              priority: 95,
-              isBeta: false,
-              needsTmdb: true,
-              tvOk: true,
-            });
-          }
-
-          return provSources;
-        }
-
-        // Si es MegaEmbed (S14), consultamos la caché de BD o extraemos en vivo el stream HLS
-        if (prov.id === "megaembed" || String(prov.movie_tpl || "").includes("megaembed")) {
-          let directHlsUrl: string | undefined;
-          let backupUrls: string[] = [];
-
-          try {
-            const { getCachedStream } = await import("@/lib/stream-cache");
-            const cachedHls = await getCachedStream({
-              providerId: prov.id,
-              type,
-              targetId,
-              season: s,
-              episode: e,
-            });
-            if (cachedHls?.hlsUrl) {
-              directHlsUrl = cachedHls.hlsUrl;
-              backupUrls = cachedHls.backupHlsUrls || [];
-            }
-          } catch {}
-
-          if (!directHlsUrl) {
-            try {
-              const { fetchMegaEmbedStream } = await import("@/lib/megaembed");
-              const extractPromise = fetchMegaEmbedStream({
-                id: targetId,
-                type,
-                season: s,
-                episode: e,
-              });
-              const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 6000));
-              const fresh = await Promise.race([extractPromise, timeoutPromise]);
-              if (fresh?.success && fresh.hlsUrl) {
-                directHlsUrl = fresh.hlsUrl;
-                backupUrls = fresh.backupHlsUrls || [];
-
-                const { setCachedStream } = await import("@/lib/stream-cache");
-                setCachedStream({
-                  providerId: prov.id,
-                  type,
-                  targetId,
-                  season: s,
-                  episode: e,
-                  hlsUrl: fresh.hlsUrl,
-                  backupHlsUrls: fresh.backupHlsUrls,
-                  ttlHours: 12,
-                }).catch(() => {});
-              }
-            } catch {}
-          }
-
-          if (directHlsUrl) {
-            const srvTag = prov.ord ? `S${prov.ord}` : "S14";
-            provSources.push({
-              id: `${prov.id}-hls`,
-              providerId: prov.id,
-              providerName: `HLS - ${srvTag}`,
-              realName: `${prov.real_name || prov.name} (HLS)`,
-              ord: prov.ord,
-              type: "hls",
-              url: directHlsUrl,
-              backupUrls,
-              lang: (prov.lang as any) || "pt",
-              languages: prov.languages || ["pt"],
-              subtitles: prov.subtitles || [],
-              priority: 120, // Mayor prioridad para selección automática en TV
-              isBeta: false,
-              needsTmdb: prov.needs_tmdb,
-              tvOk: prov.tv_ok,
-            });
-            return provSources; // Ya agregamos el servidor S14 con su stream directo HLS verificado
-          }
-
-          // Si no se obtuvo directHlsUrl verificado, MegaEmbed no tiene el contenido disponible.
-          // Excluir completamente S14 para no emitir una fuente iframe 404/rota.
-          return provSources;
-        }
-
-        // Si es WatchPlay (S18), consultamos la caché de BD de streams M3U8 o extraemos rápidamente
-        if (prov.id === "watchplay" || String(prov.movie_tpl || "").includes("watchplay.shop")) {
-          let cachedHls: { hlsUrl: string; backupHlsUrls?: string[] } | null = null;
-          try {
-            const { getCachedStream } = await import("@/lib/stream-cache");
-            cachedHls = await getCachedStream({
-              providerId: prov.id,
-              type,
-              targetId,
-              season: s,
-              episode: e,
-            });
-          } catch {}
-
-          if (!cachedHls?.hlsUrl) {
-            try {
-              const { fetchWatchPlayStream } = await import("@/lib/watchplay");
-              const extractPromise = fetchWatchPlayStream({
-                id: targetId,
-                type,
-                season: s,
-                episode: e,
-              });
-              const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 5500));
-              const fresh = await Promise.race([extractPromise, timeoutPromise]);
-              if (fresh?.success && fresh.hlsUrl) {
-                cachedHls = { hlsUrl: fresh.hlsUrl, backupHlsUrls: fresh.backupHlsUrls };
-                const { setCachedStream } = await import("@/lib/stream-cache");
-                setCachedStream({
-                  providerId: prov.id,
-                  type,
-                  targetId,
-                  season: s,
-                  episode: e,
-                  hlsUrl: fresh.hlsUrl,
-                  backupHlsUrls: fresh.backupHlsUrls,
-                }).catch(() => {});
-              }
-            } catch {}
-          }
-
-          if (cachedHls?.hlsUrl) {
-            const srvTag = prov.ord ? `S${prov.ord}` : "S18";
-            provSources.push({
-              id: `${prov.id}-hls`,
-              providerId: prov.id,
-              providerName: `HLS - ${srvTag}`,
-              realName: `${prov.real_name || prov.name} (HLS)`,
-              ord: prov.ord,
-              type: "hls",
-              url: cachedHls.hlsUrl,
-              backupUrls: cachedHls.backupHlsUrls,
-              lang: (prov.lang as any) || "pt",
-              languages: prov.languages || ["pt"],
-              subtitles: prov.subtitles || [],
-              priority: 120, // Mayor prioridad para selección automática en TV
-              isBeta: false,
-              needsTmdb: prov.needs_tmdb,
-              tvOk: prov.tv_ok,
-            });
-            return provSources;
-          }
-        }
-
-        // Si es PlayerFlix, consultamos la caché de BD de streams M3U8 o extraemos concurrentemente
-        if (prov.id === "playerflix" || String(prov.movie_tpl || "").includes("playerflix.ink")) {
-          let cachedHls: { hlsUrl: string; backupHlsUrls?: string[] } | null = null;
-          try {
-            const { getCachedStream } = await import("@/lib/stream-cache");
-            cachedHls = await getCachedStream({
-              providerId: prov.id,
-              type,
-              targetId,
-              season: s,
-              episode: e,
-            });
-          } catch {}
-
-          let freshStreams: any[] = [];
-          if (!cachedHls?.hlsUrl) {
-            try {
-              const { fetchPlayerFlixStreams } = await import("@/lib/playerflix");
-              const extractPromise = fetchPlayerFlixStreams({
-                id: targetId,
-                type,
-                season: s,
-                episode: e,
-              });
-              const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 5500));
-              const fresh = await Promise.race([extractPromise, timeoutPromise]);
-              if (fresh?.success && fresh.streams?.length > 0) {
-                freshStreams = fresh.streams;
-                if (fresh.primaryHlsUrl) {
-                  cachedHls = { hlsUrl: fresh.primaryHlsUrl, backupHlsUrls: fresh.backupHlsUrls };
-                  const { setCachedStream } = await import("@/lib/stream-cache");
-                  setCachedStream({
-                    providerId: prov.id,
-                    type,
-                    targetId,
-                    season: s,
-                    episode: e,
-                    hlsUrl: fresh.primaryHlsUrl,
-                    backupHlsUrls: fresh.backupHlsUrls,
-                    ttlHours: 24,
-                  }).catch(() => {});
-                }
-              }
-            } catch {}
-          }
-
-          const srvTag = prov.ord ? `S${prov.ord}` : "S20";
-
-          // 1. Si existe stream HLS en caché o extraído fresco
-          if (cachedHls?.hlsUrl) {
-            provSources.push({
-              id: `${prov.id}-hls`,
-              providerId: prov.id,
-              providerName: `HLS - ${srvTag}`,
-              realName: `${prov.real_name || prov.name} (HLS)`,
-              ord: prov.ord,
-              type: "hls",
-              url: cachedHls.hlsUrl,
-              backupUrls: cachedHls.backupHlsUrls || [],
-              lang: (prov.lang as any) || "pt",
-              languages: prov.languages || ["pt"],
-              subtitles: prov.subtitles || [],
-              priority: 120, // Mayor prioridad para selección automática en TV
-              isBeta: false,
-              needsTmdb: true,
-              tvOk: true,
-            });
-          }
-
-          // 2. Si se obtuvieron streams adicionales HLS secundarios (ej. WatchPlay HLS o VIP Player HLS)
-          if (freshStreams.length > 0) {
-            const secondaries = freshStreams.filter((st) => st.type === "hls" && st.hlsUrl !== cachedHls?.hlsUrl);
-            secondaries.forEach((sec, sIdx) => {
-              provSources.push({
-                id: `${prov.id}-hls-${sec.id || sIdx + 1}`,
-                providerId: prov.id,
-                providerName: `HLS - ${srvTag} (${sec.label})`,
-                realName: `${prov.real_name || prov.name} - ${sec.label}`,
-                ord: prov.ord,
-                type: "hls",
-                url: sec.hlsUrl,
-                backupUrls: sec.backupUrls || [],
-                lang: (sec.lang as any) || "pt",
-                languages: [sec.lang as any],
-                subtitles: prov.subtitles || [],
-                priority: 115,
-                isBeta: false,
-                needsTmdb: true,
-                tvOk: true,
-              });
-            });
-          }
-
-          // Retornar provSources directamente: si no hay HLS disponibles, retorna [] impidiendo fallback a iframe embed
-          return provSources;
-        }
-
-        // Si es NasriPlay (S17), consultamos la caché de BD de streams M3U8 o extraemos el stream HLS directo con audio Latino
-        if (prov.id === "nasriplay" || String(prov.movie_tpl || "").includes("nsrplay.space")) {
-          let cachedHls: { hlsUrl: string; backupHlsUrls?: string[] } | null = null;
-          try {
-            const { getCachedStream } = await import("@/lib/stream-cache");
-            cachedHls = await getCachedStream({
-              providerId: prov.id,
-              type,
-              targetId,
-              season: s,
-              episode: e,
-            });
-          } catch {}
-
-          let directHlsUrl = cachedHls?.hlsUrl;
-          let backupUrls = cachedHls?.backupHlsUrls || [];
-          let fetchedEmbeds: any[] | undefined = cachedHls?.embeds;
-
-          if (!directHlsUrl || !fetchedEmbeds || fetchedEmbeds.length === 0) {
-            try {
-              const { runHlsExtractor } = await import("@/lib/hls-engine");
-              const extractPromise = runHlsExtractor({
-                providerId: prov.id,
-                config: (prov as any).extractor_config,
-                type,
-                id: targetId,
-                season: s,
-                episode: e,
-              });
-              const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 5500));
-              const fresh = await Promise.race([extractPromise, timeoutPromise]);
-              if (fresh) {
-                if (fresh.embeds && fresh.embeds.length > 0) {
-                  fetchedEmbeds = fresh.embeds;
-                }
-                if (fresh.success && fresh.hlsUrl) {
-                  directHlsUrl = fresh.hlsUrl;
-                  backupUrls = fresh.backupHlsUrls || [];
-
-                  const { setCachedStream } = await import("@/lib/stream-cache");
-                  setCachedStream({
-                    providerId: prov.id,
-                    type,
-                    targetId,
-                    season: s,
-                    episode: e,
-                    hlsUrl: fresh.hlsUrl,
-                    backupHlsUrls: fresh.backupHlsUrls,
-                    embeds: fresh.embeds,
-                    ttlHours: 12,
-                  }).catch(() => {});
-                }
-              }
-            } catch {}
-          }
-
-          const srvTag = prov.ord ? `S${prov.ord}` : "S17";
-
-          if (directHlsUrl) {
-            provSources.push({
-              id: `${prov.id}-hls`,
-              providerId: prov.id,
-              providerName: `HLS - ${srvTag}`,
-              realName: `${prov.real_name || prov.name} (HLS)`,
-              ord: prov.ord,
-              type: "hls",
-              url: directHlsUrl,
-              backupUrls,
-              lang: "es",
-              languages: ["es", "lat"],
-              subtitles: prov.subtitles || [],
-              priority: 120, // Máxima prioridad para reproducción directa HLS
-              isBeta: false,
-              needsTmdb: prov.needs_tmdb,
-              tvOk: prov.tv_ok,
-            });
-          }
-
-          // UNIFICACIÓN DE S17: Todos los sub-proveedores resueltos de NasriPlay unidos en una sola tarjeta Source con embedOptions
-          const primaryEmbedUrl =
-            (fetchedEmbeds && fetchedEmbeds.length > 0 && fetchedEmbeds[0].url) ||
-            `https://nsrplay.space/embed/${type}/${targetId}${type === "tv" ? `/${s}/${e}` : ""}`;
-
-          provSources.push({
-            id: `${prov.id}-iframe`,
+        // 1. Consulta en caché de streams M3U8 para entrega instantánea
+        let cachedHls: { hlsUrl: string; backupHlsUrls?: string[]; embeds?: any[] } | null = null;
+        try {
+          const { getCachedStream } = await import("@/lib/stream-cache");
+          cachedHls = await getCachedStream({
             providerId: prov.id,
-            providerName: prov.simulated_name || srvTag,
-            realName: prov.real_name || prov.name,
-            ord: prov.ord,
-            type: "iframe",
-            url: primaryEmbedUrl,
-            embedOptions: fetchedEmbeds && fetchedEmbeds.length > 0 ? fetchedEmbeds : undefined,
-            lang: "es",
-            languages: ["es", "lat"],
-            subtitles: prov.subtitles || [],
-            priority: 95,
-            isBeta: false,
-            needsTmdb: true,
-            tvOk: true,
+            type,
+            targetId,
+            season: s,
+            episode: e,
           });
-          return provSources; // Ya agregamos el servidor S17 unificado (con direct HLS si existía + único iframe con embedOptions)
-        }
+        } catch {}
 
-        // Spec 096: Soporte para Extractor Dinámico JSON (hls-engine) en cualquier proveedor
-        const extConfig = (prov as any).extractor_config;
-        if (extConfig) {
+        let directHlsUrl = cachedHls?.hlsUrl;
+        let backupUrls = cachedHls?.backupHlsUrls || [];
+        let fetchedEmbeds: any[] | undefined = cachedHls?.embeds;
+        let subtitles: any[] = prov.subtitles || [];
+
+        // 2. Si no está en caché o falta metadata, ejecutar extracción declarativa uniforme
+        if (!directHlsUrl || !fetchedEmbeds || fetchedEmbeds.length === 0) {
           try {
             const { runHlsExtractor } = await import("@/lib/hls-engine");
-            const result = await runHlsExtractor({
+            const extractPromise = runHlsExtractor({
               providerId: prov.id,
               config: extConfig,
               movieTpl: prov.movie_tpl,
@@ -733,43 +296,108 @@ export async function GET(req: NextRequest) {
               season: s,
               episode: e,
             });
-            if (result && result.success && result.hlsUrl) {
-              const srvTag = prov.ord ? `S${prov.ord}` : (prov.simulated_name || prov.id);
-              provSources.push({
-                id: `${prov.id}-hls`,
-                providerId: prov.id,
-                providerName: `HLS - ${srvTag}`,
-                realName: `${prov.real_name || prov.name} (HLS)`,
-                ord: prov.ord,
-                type: "hls",
-                url: result.hlsUrl,
-                backupUrls: result.backupHlsUrls || [],
-                lang: (prov.lang as any) || "multi",
-                languages: prov.languages || ["multi"],
-                subtitles: (result as any).subtitles || prov.subtitles || [],
-                priority: 120,
-                isBeta: !!prov.is_beta,
-                needsTmdb: prov.needs_tmdb,
-                tvOk: prov.tv_ok,
-              });
-              if (!allowEmbedFallback) {
-                return provSources;
+            const timeoutPromise = new Promise<any>((resolve) => setTimeout(() => resolve(null), 14000));
+            const fresh = await Promise.race([extractPromise, timeoutPromise]);
+
+            if (fresh) {
+              if (fresh.embeds && fresh.embeds.length > 0) {
+                fetchedEmbeds = fresh.embeds;
+              }
+              if (fresh.success && fresh.hlsUrl) {
+                directHlsUrl = fresh.hlsUrl;
+                backupUrls = fresh.backupHlsUrls || [];
+
+                if (fresh.subtitles && fresh.subtitles.length > 0) {
+                  subtitles = fresh.subtitles.map((st: any, idx: number) => ({
+                    id: `sub-${prov.id}-${idx}`,
+                    lang: (prov.lang as any) || "es",
+                    label: st.label || "Español",
+                    url: st.file || st.url,
+                    isDefault: !!st.default,
+                  }));
+                }
+
+                const { setCachedStream } = await import("@/lib/stream-cache");
+                setCachedStream({
+                  providerId: prov.id,
+                  type,
+                  targetId,
+                  season: s,
+                  episode: e,
+                  hlsUrl: fresh.hlsUrl,
+                  backupHlsUrls: fresh.backupHlsUrls,
+                  embeds: fresh.embeds,
+                  ttlHours: 12,
+                }).catch(() => {});
               }
             }
           } catch {}
         }
 
-        const adapted = providersToSources([prov], {
-          type,
-          id: targetId,
-          season: s,
-          episode: e,
-          userLang,
-          envKey: prov.entry_key,
-        });
-        if (adapted.length > 0) {
-          provSources.push(...adapted);
+        const srvTag = prov.ord ? `S${prov.ord}` : (prov.simulated_name || prov.id.toUpperCase());
+
+        // 3. Emisión de fuente HLS nativa de máxima prioridad si existe stream extraído o en caché
+        if (directHlsUrl) {
+          provSources.push({
+            id: `${prov.id}-hls`,
+            providerId: prov.id,
+            providerName: `HLS - ${srvTag}`,
+            realName: `${prov.real_name || prov.name} (HLS)`,
+            ord: prov.ord,
+            type: "hls",
+            url: directHlsUrl,
+            backupUrls,
+            lang: (prov.lang as any) || "multi",
+            languages: prov.languages || [(prov.lang as any) || "multi"],
+            subtitles: subtitles.length > 0 ? subtitles : (prov.subtitles || []),
+            priority: 120, // Máxima prioridad para reproducción directa en TV
+            isBeta: !!prov.is_beta,
+            needsTmdb: prov.needs_tmdb,
+            tvOk: prov.tv_ok,
+          });
         }
+
+        // 4. Emisión de tarjeta iframe unificada con embedOptions si hay mirrors de embed disponibles
+        if (fetchedEmbeds && fetchedEmbeds.length > 0) {
+          const primaryEmbedUrl = fetchedEmbeds[0].url;
+          provSources.push({
+            id: `${prov.id}-iframe`,
+            providerId: prov.id,
+            providerName: prov.simulated_name || srvTag,
+            realName: prov.real_name || prov.name,
+            ord: prov.ord,
+            type: "iframe",
+            url: primaryEmbedUrl,
+            embedOptions: fetchedEmbeds.map((emb: any) => ({
+              name: emb.name || emb.host || emb.server || prov.name,
+              server: emb.server || "online",
+              host: emb.host || emb.server || prov.name,
+              language: emb.language || emb.lang || (prov.lang === "pt" ? "Português" : "Latino"),
+              url: emb.url,
+            })),
+            lang: (prov.lang as any) || "multi",
+            languages: prov.languages || [(prov.lang as any) || "multi"],
+            subtitles: subtitles.length > 0 ? subtitles : (prov.subtitles || []),
+            priority: 95,
+            isBeta: !!prov.is_beta,
+            needsTmdb: prov.needs_tmdb,
+            tvOk: prov.tv_ok,
+          });
+        } else if (allowEmbedFallback && !directHlsUrl) {
+          // Fallback a iframe básico solo si está permitido el modo embed y no se obtuvo HLS
+          const adapted = providersToSources([prov], {
+            type,
+            id: targetId,
+            season: s,
+            episode: e,
+            userLang,
+            envKey: prov.entry_key,
+          });
+          if (adapted.length > 0) {
+            provSources.push(...adapted);
+          }
+        }
+
         return provSources;
       })
     );

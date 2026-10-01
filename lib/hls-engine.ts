@@ -21,6 +21,8 @@ export interface PipelineStep {
     | "extract_subtitles_vimeos"
     | "direct_url"
     | "nasriplay_resolve_servers"
+    | "megaembed_parse_sources"
+    | "extract_playerflix"
     | "extract_megaembed"
     | "extract_watchplay";
   url?: string;
@@ -390,6 +392,67 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
       };
     }
 
+    case "megaembed_parse_sources": {
+      let raw = resolveValue(step.input, ctx);
+      if (typeof raw === "string") {
+        try {
+          raw = JSON.parse(raw);
+        } catch {
+          const matches = raw.match(/https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/g);
+          if (matches) {
+            raw = matches.map((u: string) => ({ file: u, type: "hls" }));
+          }
+        }
+      }
+      if (!Array.isArray(raw) || raw.length === 0) {
+        throw new Error("No se encontraron fuentes válidas en MegaEmbed");
+      }
+
+      const baseHost = "https://mgeb.top";
+      const normalized = raw.map((s: any) => {
+        let u = (s.file || "").trim();
+        if (u.startsWith("//")) u = "https:" + u;
+        if (u.startsWith("/")) u = `${baseHost}${u}`;
+        u = u.replace(/\/+\.\.\/+/g, "/");
+        return { ...s, file: u };
+      });
+
+      const hlsSources = normalized.filter((s: any) => s.type === "hls" || s.file.includes(".m3u8"));
+      const mp4Source = normalized.find((s: any) => s.type === "mp4" || s.file.includes(".mp4"));
+
+      const primaryHls = hlsSources[0]?.file || mp4Source?.file;
+      const backupHls = hlsSources.slice(1).map((s: any) => s.file);
+
+      if (!primaryHls) {
+        throw new Error("No hay streams reproducibles en MegaEmbed");
+      }
+
+      return {
+        hlsUrl: primaryHls,
+        backupHlsUrls: backupHls,
+        sources: normalized,
+      };
+    }
+
+    case "extract_playerflix": {
+      const { fetchPlayerFlixStreams } = await import("./playerflix");
+      const res = await fetchPlayerFlixStreams({ id: ctx.id, type: ctx.type, season: ctx.season, episode: ctx.episode });
+      if (res?.success && res.primaryHlsUrl) {
+        return {
+          hlsUrl: res.primaryHlsUrl,
+          backupHlsUrls: res.backupHlsUrls || [],
+          title: res.title,
+        };
+      }
+      const directUrl = ctx.type === "tv"
+        ? `/api/playerflix?type=tv&id=${ctx.id}&s=${ctx.season}&e=${ctx.episode}&redirect=1`
+        : `/api/playerflix?type=movie&id=${ctx.id}&redirect=1`;
+      return {
+        hlsUrl: directUrl,
+        backupHlsUrls: [],
+      };
+    }
+
     case "extract_megaembed": {
       const res = await fetchMegaEmbedStream({ id: ctx.id, type: ctx.type, season: ctx.season, episode: ctx.episode });
       if (!res?.success || !res.hlsUrl) throw new Error(res?.error || "MegaEmbed no devolvió stream directo");
@@ -413,7 +476,7 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
 function formatStepSummary(action: string, out: any): string {
   if (out === null || out === undefined) return "Sin resultado";
   if (typeof out === "string") {
-    if (out.includes(".m3u8")) return `Stream HLS detectado: ${out.substring(0, 60)}...`;
+    if (out.startsWith("http") && out.includes(".m3u8")) return `Stream HLS detectado: ${out.substring(0, 60)}...`;
     if (out.length > 80) return `Texto (${out.length} caracteres)`;
     return out;
   }
@@ -654,42 +717,59 @@ export const EXTRACTOR_PRESETS: Record<string, { label: string; description: str
   },
   playerflix: {
     label: "PlayerFlix (API fMP4 / HLS Pipeline)",
-    description: "Pipeline proxy directo hacia el endpoint optimizado de PlayerFlix con redirect y streaming HLS nativo.",
+    description: "Pipeline con extractor HLS fMP4 multi-mirror y fallback a proxy directo de PlayerFlix.",
     template: {
       version: 2,
       mode: "pipeline",
       preset: "playerflix",
       steps: [
         {
-          id: "playerflix_direct",
-          action: "direct_url",
-          movie_url: "/api/playerflix?type=movie&id={id}&redirect=1",
-          tv_url: "/api/playerflix?type=tv&id={id}&s={s}&e={e}&redirect=1"
+          id: "playerflix_stream",
+          action: "extract_playerflix"
         }
       ],
       output: {
-        hlsUrl: "{{playerflix_direct}}"
+        hlsUrl: "{{playerflix_stream.hlsUrl}}",
+        backupHlsUrls: "{{playerflix_stream.backupHlsUrls}}"
       }
     }
   },
   megaembed: {
-    label: "MegaEmbed (fMP4 con bypass)",
-    description: "Pipeline con extractor fMP4 y headers de bypass para MegaEmbed.",
+    label: "MegaEmbed (fMP4 / HLS Pipeline)",
+    description: "Pipeline declarativo completo: consulta embed de MegaEmbed, extrae arreglo de fuentes por regex y resuelve streams directos HLS y espejos con failover.",
     template: {
       version: 2,
       mode: "pipeline",
       preset: "megaembed",
       steps: [
         {
-          id: "megaembed_stream",
-          action: "extract_megaembed",
+          id: "embed_page",
+          action: "http_request",
           movie_url: "https://mgeb.top/embed/{id}",
-          tv_url: "https://mgeb.top/embed/{id}/{s}/{e}"
+          tv_url: "https://mgeb.top/embed/{id}/{s}/{e}",
+          method: "GET",
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          },
+          response_type: "text",
+          timeout_ms: 15000
+        },
+        {
+          id: "sources_json",
+          action: "regex_extract",
+          input: "{{embed_page}}",
+          pattern: "var\\s+sources\\s*=\\s*(\\[[\\s\\S]*?\\]);",
+          group: 1
+        },
+        {
+          id: "mega_streams",
+          action: "megaembed_parse_sources",
+          input: "{{sources_json}}"
         }
       ],
       output: {
-        hlsUrl: "{{megaembed_stream.hlsUrl}}",
-        backupHlsUrls: "{{megaembed_stream.backupHlsUrls}}"
+        hlsUrl: "{{mega_streams.hlsUrl}}",
+        backupHlsUrls: "{{mega_streams.backupHlsUrls}}"
       }
     }
   },
