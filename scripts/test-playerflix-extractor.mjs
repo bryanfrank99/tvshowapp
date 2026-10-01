@@ -78,6 +78,38 @@ async function runTests() {
     console.error("✗ Falló la extracción de serie:", tvRes?.error);
   }
 
+  // Test 4: Verificación de Endpoint Proxy HLS para VIP Player
+  total++;
+  console.log("\n[TEST 4] Verificación de Endpoint Proxy HLS para VIP Player...");
+  const vipItem = movieRes?.streams?.find((s) => s.id === "embedplayer");
+  if (vipItem && vipItem.hlsUrl.startsWith("/api/playerflix/proxy")) {
+    const { GET } = await import("../app/api/playerflix/proxy/route");
+    const { NextRequest } = await import("next/server");
+    const dummyReq = new NextRequest("http://localhost:3000" + vipItem.hlsUrl);
+    const proxyRes = await GET(dummyReq);
+    const corsHeader = proxyRes.headers.get("access-control-allow-origin");
+    const contentType = proxyRes.headers.get("content-type");
+    console.log(`  - Status: ${proxyRes.status}`);
+    console.log(`  - Content-Type: ${contentType}`);
+    console.log(`  - Access-Control-Allow-Origin: ${corsHeader}`);
+
+    if (proxyRes.status === 200 && corsHeader === "*" && contentType?.includes("mpegurl")) {
+      const bodyText = await proxyRes.text();
+      const hasRewrittenSub = bodyText.includes("/api/playerflix/proxy?url=");
+      console.log(`  - Manifiesto maestro reescrito con rutas proxy: ${hasRewrittenSub}`);
+      if (hasRewrittenSub) {
+        console.log("✓ VIP Player HLS Proxy responde 200 con CORS abierto y rutas reescritas");
+        passes++;
+      } else {
+        console.error("✗ No se reescribieron las rutas en el proxy");
+      }
+    } else {
+      console.error("✗ Respuesta inesperada del proxy");
+    }
+  } else {
+    console.error("✗ No se encontró vipItem con URL de proxy");
+  }
+
   console.log(`\n=== RESULTADOS: ${passes}/${total} pruebas pasaron ===`);
   if (passes === total) {
     console.log("✓ TODAS LAS PRUEBAS DE PLAYERFLIX PASARON CORRECTAMENTE");

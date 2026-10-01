@@ -83,7 +83,7 @@ async function extractFromWatchPlay(url: string, lang = "pt"): Promise<PlayerFli
       const hlsUrl = match[1].replace(/\\/g, "");
       return {
         id: "watchplay",
-        label: "WatchPlay (HLS)",
+        label: "WatchPlay",
         hlsUrl,
         backupUrls: [],
         lang,
@@ -159,13 +159,18 @@ async function extractFromEmbedPlayer(
     const json = await res.json().catch(() => null);
     if (!json) return null;
 
-    const hlsUrl = (json.securedLink || json.videoSource || "").replace(/\\/g, "");
-    if (hlsUrl && hlsUrl.includes(".m3u8")) {
+    const rawHlsUrl = (json.securedLink || json.videoSource || "").replace(/\\/g, "");
+    if (rawHlsUrl && rawHlsUrl.includes(".m3u8")) {
+      // Enrutar a través del proxy CORS local para permitir reproducción nativa en Hls.js
+      const proxiedHlsUrl = `/api/playerflix/proxy?url=${encodeURIComponent(rawHlsUrl)}`;
+      const backupRaw = json.videoSource && json.videoSource !== rawHlsUrl ? json.videoSource.replace(/\\/g, "") : "";
+      const backupUrls = backupRaw ? [`/api/playerflix/proxy?url=${encodeURIComponent(backupRaw)}`] : [];
+
       return {
         id: "embedplayer",
-        label: "VIP Player (HLS)",
-        hlsUrl,
-        backupUrls: json.videoSource && json.videoSource !== hlsUrl ? [json.videoSource.replace(/\\/g, "")] : [],
+        label: "VIP Player",
+        hlsUrl: proxiedHlsUrl,
+        backupUrls,
         lang,
         type: "hls",
         originUrl: url,
