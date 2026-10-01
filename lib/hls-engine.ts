@@ -696,57 +696,19 @@ async function executeStep(step: PipelineStep, ctx: Record<string, any>): Promis
         throw new Error("Ninguna opción de Cinecalidad contiene una URL de reproducción válida");
       }
 
-      // Extracción rápida concurrente de streams directos HLS (.m3u8) y subtítulos
-      let extractedSubtitles: any[] = [];
-      const hlsPromises = rawEmbeds.map(async (emb: any): Promise<string[]> => {
+      // Streams nativos directos M3U8 (solo si la opción ya apunta a un archivo .m3u8 directo)
+      const directM3u8List: string[] = [];
+      rawEmbeds.forEach((emb: any) => {
         const u = String(emb.url || "").trim();
-        const found: string[] = [];
-
-        // 1. Caso Vimeos (Desempaquetar script Packer y extraer master.m3u8)
-        if (u.includes("vimeos") || u.includes("vimeus")) {
-          try {
-            const ctrl = new AbortController();
-            const tm = setTimeout(() => ctrl.abort(), 6000);
-            const r = await fetch(u, {
-              headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-                "Referer": "https://cinecalidad.am/",
-              },
-              signal: ctrl.signal,
-              cache: "no-store",
-            });
-            clearTimeout(tm);
-            if (r.ok) {
-              const html = await r.text();
-              const unpacked = unpackPackerScript(html);
-              if (unpacked) {
-                const m3u8Match = unpacked.match(/https?:\/\/[^\s"']+\.m3u8[^\s"']*/);
-                if (m3u8Match && m3u8Match[0]) {
-                  found.push(m3u8Match[0]);
-                }
-                const subs = extractVimeosTracks(unpacked);
-                if (subs.length > 0 && extractedSubtitles.length === 0) {
-                  extractedSubtitles = subs;
-                }
-              }
-            }
-          } catch {}
-        } else if (u.includes(".m3u8")) {
-          found.push(u);
+        if (u.includes(".m3u8") && !u.includes("vimeos.zip")) {
+          directM3u8List.push(u);
         }
-
-        return found;
       });
 
-      const settledHls = await Promise.all(hlsPromises);
-      const allHls = settledHls.flat().filter(Boolean);
-      const primaryHls = allHls[0] || "";
-      const backupHls = allHls.slice(1);
-
       return {
-        hlsUrl: primaryHls,
-        backupHlsUrls: backupHls,
-        subtitles: extractedSubtitles,
+        hlsUrl: directM3u8List[0] || "",
+        backupHlsUrls: directM3u8List.slice(1),
+        subtitles: [],
         embeds,
         primaryUrl: embeds[0]?.url || "",
       };
@@ -995,8 +957,8 @@ export const EXTRACTOR_PRESETS: Record<string, { label: string; description: str
         {
           id: "cinecalidad_playback",
           action: "http_request",
-          movie_url: "https://tmdb.allcalidad.re/v1/playback/movie/{id}",
-          tv_url: "https://tmdb.allcalidad.re/v1/playback/tvshow/{id}?season={s}&episode={e}",
+          movie_url: "https://tmdb.cinecalidad.am/v1/playback/movie/{id}",
+          tv_url: "https://tmdb.cinecalidad.am/v1/playback/tvshow/{id}?season={s}&episode={e}",
           method: "GET",
           headers: {
             "Referer": "https://cinecalidad.am/",
@@ -1031,8 +993,8 @@ export const EXTRACTOR_PRESETS: Record<string, { label: string; description: str
         {
           id: "cinecalidad_playback",
           action: "http_request",
-          movie_url: "https://tmdb.allcalidad.re/v1/playback/movie/{id}",
-          tv_url: "https://tmdb.allcalidad.re/v1/playback/tvshow/{id}?season={s}&episode={e}",
+          movie_url: "https://tmdb.cinecalidad.am/v1/playback/movie/{id}",
+          tv_url: "https://tmdb.cinecalidad.am/v1/playback/tvshow/{id}?season={s}&episode={e}",
           method: "GET",
           headers: {
             "Referer": "https://cinecalidad.am/",

@@ -1,121 +1,129 @@
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-import { createClient } from '@supabase/supabase-js';
+import fs from "fs";
+import dotenv from "dotenv";
+if (fs.existsSync(".env.local")) {
+  const env = dotenv.parse(fs.readFileSync(".env.local"));
+  for (const k in env) process.env[k] = env[k];
+}
 
-async function sync() {
-  const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+import { createClient } from "@supabase/supabase-js";
+import { EXTRACTOR_PRESETS } from "../lib/hls-engine.ts";
 
-  console.log('1. Updating provider cinecalidad in Supabase providers table...');
-  const { data: prov, error: provErr } = await sb
-    .from('providers')
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("Faltan SUPABASE_URL o SUPABASE_SERVICE_KEY");
+  process.exit(1);
+}
+
+const sb = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false },
+});
+
+async function run() {
+  console.log("=== SINCRONIZANDO S19 (CINECALIDAD) EN SUPABASE ===");
+
+  // 1. Actualizar tabla providers
+  console.log("1. Actualizando tabla providers...");
+  const { error: provErr } = await sb
+    .from("providers")
     .update({
-      movie_tpl: 'https://tmdb.allcalidad.re/v1/playback/movie/{id}',
-      tv_tpl: 'https://tmdb.allcalidad.re/v1/playback/tvshow/{id}?season={s}&episode={e}',
-      updated_at: new Date().toISOString(),
+      active: true,
+      ord: 19,
+      movie_tpl: "https://tmdb.cinecalidad.am/v1/playback/movie/{id}",
+      tv_tpl: "https://tmdb.cinecalidad.am/v1/playback/tvshow/{id}?season={s}&episode={e}",
+      lang: "es,lat",
+      needs_tmdb: true,
+      tv_ok: true,
     })
-    .eq('id', 'cinecalidad')
-    .select();
+    .eq("id", "cinecalidad");
 
   if (provErr) {
-    console.error('Error updating provider:', provErr);
+    console.error("Error al actualizar tabla providers:", provErr);
   } else {
-    console.log('Provider updated successfully:', prov);
+    console.log("Tabla providers actualizada con éxito para S19 (cinecalidad).");
   }
 
-  console.log('2. Updating provider_extractor_configs in config table...');
-  const { data: extCfgRow } = await sb
-    .from('config')
-    .select('*')
-    .eq('key', 'provider_extractor_configs')
+  // 2. Actualizar config provider_extractor_configs
+  console.log("\n2. Actualizando provider_extractor_configs en config...");
+  const { data: extCfgRow, error: extFetchErr } = await sb
+    .from("config")
+    .select("value")
+    .eq("key", "provider_extractor_configs")
     .single();
 
   let extConfigs = {};
-  if (extCfgRow?.value) {
-    try {
-      extConfigs = JSON.parse(extCfgRow.value);
-    } catch {}
+  if (extCfgRow && extCfgRow.value) {
+    extConfigs = typeof extCfgRow.value === "string" ? JSON.parse(extCfgRow.value) : extCfgRow.value;
   }
 
-  extConfigs.cinecalidad = {
-    version: 2,
-    mode: 'pipeline',
-    preset: 'cinecalidad',
-    steps: [
-      {
-        id: 'cinecalidad_playback',
-        action: 'http_request',
-        movie_url: 'https://tmdb.allcalidad.re/v1/playback/movie/{id}',
-        tv_url: 'https://tmdb.allcalidad.re/v1/playback/tvshow/{id}?season={s}&episode={e}',
-        method: 'GET',
-        headers: {
-          Referer: 'https://cinecalidad.am/',
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-          Accept: 'application/json',
-        },
-        response_type: 'json',
-        timeout_ms: 10000,
-      },
-      {
-        id: 'cinecalidad_streams',
-        action: 'cinecalidad_resolve_embeds',
-        input: '{{cinecalidad_playback.embeds}}',
-      },
-    ],
-    output: {
-      hlsUrl: '{{cinecalidad_streams.hlsUrl}}',
-      backupHlsUrls: '{{cinecalidad_streams.backupHlsUrls}}',
-      subtitles: '{{cinecalidad_streams.subtitles}}',
-      embeds: '{{cinecalidad_streams.embeds}}',
-    },
-  };
+  extConfigs.cinecalidad = EXTRACTOR_PRESETS.cinecalidad.template;
+  extConfigs.vimeos_json = EXTRACTOR_PRESETS.vimeos_json.template;
 
-  const { error: cfgErr } = await sb
-    .from('config')
+  const { error: extUpdateErr } = await sb
+    .from("config")
     .upsert({
-      key: 'provider_extractor_configs',
+      key: "provider_extractor_configs",
       value: JSON.stringify(extConfigs),
-      updated_at: new Date().toISOString(),
     });
-  if (cfgErr) console.error('Error updating extractor configs:', cfgErr);
-  else console.log('provider_extractor_configs updated successfully!');
 
-  console.log('3. Updating provider_stream_modes in config table...');
+  if (extUpdateErr) {
+    console.error("Error al actualizar provider_extractor_configs:", extUpdateErr);
+  } else {
+    console.log("provider_extractor_configs actualizado para cinecalidad con éxito.");
+  }
+
+  // 3. Asegurar provider_stream_modes.cinecalidad = 'both'
+  console.log("\n3. Verificando provider_stream_modes...");
   const { data: modesRow } = await sb
-    .from('config')
-    .select('*')
-    .eq('key', 'provider_stream_modes')
+    .from("config")
+    .select("value")
+    .eq("key", "provider_stream_modes")
     .single();
 
   let modes = {};
-  if (modesRow?.value) {
-    try {
-      modes = JSON.parse(modesRow.value);
-    } catch {}
+  if (modesRow && modesRow.value) {
+    modes = typeof modesRow.value === "string" ? JSON.parse(modesRow.value) : modesRow.value;
   }
-
-  modes.cinecalidad = 'both';
-  modes.playerflix = modes.playerflix || 'both';
+  modes.cinecalidad = "both";
 
   const { error: modesErr } = await sb
-    .from('config')
+    .from("config")
     .upsert({
-      key: 'provider_stream_modes',
+      key: "provider_stream_modes",
       value: JSON.stringify(modes),
-      updated_at: new Date().toISOString(),
     });
-  if (modesErr) console.error('Error updating provider_stream_modes:', modesErr);
-  else console.log('provider_stream_modes updated successfully:', modes);
 
-  console.log('4. Clearing cached streams for cinecalidad...');
-  try {
-    await sb.from('stream_cache').delete().eq('provider_id', 'cinecalidad');
-    console.log('Cache cleared for cinecalidad');
-  } catch (e) {
-    console.warn('Cache clearing warning:', e?.message);
+  if (modesErr) {
+    console.error("Error al actualizar provider_stream_modes:", modesErr);
+  } else {
+    console.log("provider_stream_modes.cinecalidad configurado a 'both'.");
   }
 
-  console.log('Done syncing S19 to Supabase!');
+  // 4. Limpiar caché de streams viejos para cinecalidad
+  console.log("\n4. Purgando caché de streams para cinecalidad...");
+  try {
+    const { error: purgeErr } = await sb
+      .from("stream_cache")
+      .delete()
+      .eq("provider_id", "cinecalidad");
+    if (!purgeErr) {
+      console.log("Caché de streams purgado para cinecalidad.");
+    }
+  } catch {}
+
+  // 5. Incrementar providers_version
+  console.log("\n5. Actualizando providers_version...");
+  await sb.from("config").upsert({
+    key: "providers_version",
+    value: "11",
+  });
+  console.log("providers_version actualizado a 11.");
+
+  console.log("\n=== SINCRONIZACIÓN S19 COMPLETADA CON ÉXITO ===");
 }
 
-sync();
+run().catch((err) => {
+  console.error("Error en sincronización:", err);
+  process.exit(1);
+});

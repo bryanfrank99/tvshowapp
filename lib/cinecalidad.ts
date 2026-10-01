@@ -58,8 +58,8 @@ export async function fetchCinecalidadEmbeds(
   const kind = opts.type === "tv" ? "tvshow" : "movie";
   const targetApiUrl =
     opts.type === "tv"
-      ? `https://tmdb.allcalidad.re/v1/playback/tvshow/${tmdbId}?season=${s}&episode=${e}`
-      : `https://tmdb.allcalidad.re/v1/playback/movie/${tmdbId}`;
+      ? `https://tmdb.cinecalidad.am/v1/playback/tvshow/${tmdbId}?season=${s}&episode=${e}`
+      : `https://tmdb.cinecalidad.am/v1/playback/movie/${tmdbId}`;
 
   const timeoutMs = opts.timeoutMs || 6000;
   const controller = new AbortController();

@@ -2893,7 +2893,7 @@ export default function AdminPage() {
                   <input
                     value={edit.tv_tpl || ""}
                     onChange={(e) => setEdit({ ...edit, tv_tpl: e.target.value })}
-                    placeholder="https://tmdb.allcalidad.re/v1/playback/tvshow/{id}?season={s}&episode={e}"
+                    placeholder="https://tmdb.cinecalidad.am/v1/playback/tvshow/{id}?season={s}&episode={e}"
                     className={`${inp} font-mono text-xs`}
                   />
                 </div>
